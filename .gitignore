@@ -6,7 +6,10 @@
 /bin/
 *.db-*
 .DS_Store
-polaris
-polaris-gateway
+/polaris
+/polaris-gateway
+/docs/
+*.md
+!README.md
 
 
