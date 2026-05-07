@@ -39,6 +39,25 @@ iwr -useb https://raw.githubusercontent.com/mrlaoliai/polaris-gateway/main/scrip
 
 ---
 
+## 🗑️ 一键卸载
+
+如果您想卸载 Polaris Gateway 及后台服务，可以执行以下命令：
+
+### macOS / Linux
+```bash
+curl -sSL https://raw.githubusercontent.com/mrlaoliai/polaris-gateway/main/scripts/uninstall.sh | bash
+```
+
+### Windows
+以**管理员身份**打开 PowerShell 并执行：
+```powershell
+iwr -useb https://raw.githubusercontent.com/mrlaoliai/polaris-gateway/main/scripts/uninstall.ps1 | iex
+```
+
+> **注意**: 卸载脚本只会移除系统服务和二进制主程序。为了防止误删数据，您的所有账号配置和账单记录（数据库）将安全保留在用户目录 `~/.polaris-gateway` 下。如果需要彻底清理，请手动删除该目录。
+
+---
+
 ## 🛠️ 开始使用
 
 网关启动后，默认监听 `127.0.0.1:28888` 端口。

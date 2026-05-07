@@ -3,23 +3,52 @@ package db
 import (
 	"database/sql"
 	"embed"
+	_ "embed"
+	"fmt"
 	"log/slog"
 	"os"
-	"sort"
+	"path/filepath"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
 
-const DBFile = "./polaris_gateway.db"
-
 var db *sql.DB
-
-//go:embed migrations/*.sql
-var migrationsFS embed.FS
 
 func DB() *sql.DB {
 	return db
 }
+
+func getDBPath() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		slog.Error("❌ 无法获取用户主目录，回退到当前目录", "error", err)
+		return "./polaris_gateway.db"
+	}
+	
+	dir := filepath.Join(home, ".polaris-gateway")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		slog.Error("❌ 无法创建配置目录，回退到当前目录", "error", err)
+		return "./polaris_gateway.db"
+	}
+	
+	return filepath.Join(dir, "polaris_gateway.db")
+}
+
+//go:embed schema.sql
+var schemaFS embed.FS
+
+// InitDB 初始化数据库
+func InitDB() {
+	var err error
+	dbPath := getDBPath()
+	db, err = sql.Open("sqlite", dbPath)
+	if err != nil {
+		slog.Error("❌ Failed to open database", "error", err)
+		os.Exit(1)
+	}
+
+	slog.Info("📂 使用数据库文件", "path", dbPath)
 
 type UsageLog struct {
 	Platform    string // 新增：所属平台标识 (如 "vertex", "openai")
