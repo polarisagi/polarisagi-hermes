@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 
 	"polaris-gateway/internal/db"
@@ -44,7 +45,7 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 	writeSSE(w, flusher, "content_block_start", cbStartEvent)
 
 	reader := bufio.NewReader(vertexResp.Body)
-	var promptTokens, completionTokens int
+	var promptTokens, completionTokens, cachedTokens int
 
 	for {
 		line, err := reader.ReadBytes('\n')
@@ -77,6 +78,9 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 			}
 			if c, ok := usage["candidatesTokenCount"].(float64); ok {
 				completionTokens = int(c)
+			}
+			if cache, ok := usage["cachedContentTokenCount"].(float64); ok {
+				cachedTokens = int(cache)
 			}
 		}
 
@@ -140,7 +144,21 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 
 	// Settle Usage
 	if promptTokens > 0 || completionTokens > 0 {
-		db.SaveUsage("vertex", state.Name, clientType, "anthropic_adapter", int64(promptTokens), int64(completionTokens), 0, http.StatusOK)
+		cost := calculateCost(modelName, int64(promptTokens), int64(completionTokens), int64(cachedTokens))
+		db.SaveUsage("vertex", state.Name, clientType, "anthropic_adapter", int64(promptTokens), int64(completionTokens), cost, http.StatusOK)
+
+		poolMutex.Lock()
+		state.TotalConsumed += cost
+		if state.Budget > 0 && state.CutoffPercent > 0 {
+			usagePercent := (state.TotalConsumed / state.Budget) * 100
+			if usagePercent >= state.CutoffPercent {
+				if state.Status != StatusExhausted {
+					state.Status = StatusExhausted
+					slog.Warn("🚫 [Anthropic 运行期熔断] 账号触达上限，物理隔离", "account", state.Name)
+				}
+			}
+		}
+		poolMutex.Unlock()
 	}
 }
 
@@ -158,13 +176,16 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 		return
 	}
 
-	var promptTokens, completionTokens int
+	var promptTokens, completionTokens, cachedTokens int
 	if usage, ok := vResp["usageMetadata"].(map[string]interface{}); ok {
 		if p, ok := usage["promptTokenCount"].(float64); ok {
 			promptTokens = int(p)
 		}
 		if c, ok := usage["candidatesTokenCount"].(float64); ok {
 			completionTokens = int(c)
+		}
+		if cache, ok := usage["cachedContentTokenCount"].(float64); ok {
+			cachedTokens = int(cache)
 		}
 	}
 
@@ -184,7 +205,21 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 	}
 
 	if promptTokens > 0 || completionTokens > 0 {
-		db.SaveUsage("vertex", state.Name, clientType, "anthropic_adapter", int64(promptTokens), int64(completionTokens), 0, vertexResp.StatusCode)
+		cost := calculateCost(modelName, int64(promptTokens), int64(completionTokens), int64(cachedTokens))
+		db.SaveUsage("vertex", state.Name, clientType, "anthropic_adapter", int64(promptTokens), int64(completionTokens), cost, vertexResp.StatusCode)
+
+		poolMutex.Lock()
+		state.TotalConsumed += cost
+		if state.Budget > 0 && state.CutoffPercent > 0 {
+			usagePercent := (state.TotalConsumed / state.Budget) * 100
+			if usagePercent >= state.CutoffPercent {
+				if state.Status != StatusExhausted {
+					state.Status = StatusExhausted
+					slog.Warn("🚫 [Anthropic 运行期熔断] 账号触达上限，物理隔离", "account", state.Name)
+				}
+			}
+		}
+		poolMutex.Unlock()
 	}
 
 	anthropicResp := MessageResponse{
