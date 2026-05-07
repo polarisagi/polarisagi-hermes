@@ -3,21 +3,13 @@ package db
 import (
 	"database/sql"
 	"embed"
-	_ "embed"
-	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"time"
+	"sort"
 
 	_ "modernc.org/sqlite"
 )
-
-var db *sql.DB
-
-func DB() *sql.DB {
-	return db
-}
 
 func getDBPath() string {
 	home, err := os.UserHomeDir()
@@ -35,20 +27,14 @@ func getDBPath() string {
 	return filepath.Join(dir, "polaris_gateway.db")
 }
 
-//go:embed schema.sql
-var schemaFS embed.FS
+var db *sql.DB
 
-// InitDB 初始化数据库
-func InitDB() {
-	var err error
-	dbPath := getDBPath()
-	db, err = sql.Open("sqlite", dbPath)
-	if err != nil {
-		slog.Error("❌ Failed to open database", "error", err)
-		os.Exit(1)
-	}
+//go:embed migrations/*.sql
+var migrationsFS embed.FS
 
-	slog.Info("📂 使用数据库文件", "path", dbPath)
+func DB() *sql.DB {
+	return db
+}
 
 type UsageLog struct {
 	Platform    string // 新增：所属平台标识 (如 "vertex", "openai")
@@ -65,11 +51,13 @@ var logChan = make(chan UsageLog, 1024)
 
 func InitDB() {
 	var err error
-	db, err = sql.Open("sqlite", DBFile)
+	dbPath := getDBPath()
+	db, err = sql.Open("sqlite", dbPath)
 	if err != nil {
 		slog.Error("无法打开数据库", "error", err)
 		os.Exit(1)
 	}
+	slog.Info("📂 使用数据库文件", "path", dbPath)
 
 	db.SetMaxOpenConns(20)
 	db.SetMaxIdleConns(5)
