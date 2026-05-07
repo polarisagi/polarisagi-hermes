@@ -3,6 +3,7 @@ package protocol_vertex
 import (
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"regexp"
 	"strings"
@@ -80,9 +81,10 @@ func calculateCost(modelName string, promptTokens, candidateTokens, cachedTokens
 	// Gemini Cached Context discount is ~25% of standard rate
 	cachedRate := promptRate * 0.25
 
-	return (float64(uncachedTokens)/1000000.0*promptRate) +
+	cost := (float64(uncachedTokens)/1000000.0*promptRate) +
 		(float64(cachedTokens)/1000000.0*cachedRate) +
 		(float64(candidateTokens)/1000000.0*candidateRate)
+	return math.Ceil(cost*10000) / 10000
 }
 
 var (

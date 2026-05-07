@@ -161,9 +161,9 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 		poolMutex.Unlock()
 
 		if cachedTokens > 0 {
-			slog.Info("💰 结算完成", "trace_id", traceID, "account", state.Name, "model", modelName, "p", promptTokens, "cached", cachedTokens, "c", completionTokens, "cost", fmt.Sprintf("%.6f", cost))
+			slog.Info("💰 结算完成", "trace_id", traceID, "account", state.Name, "model", modelName, "p", promptTokens, "cached", cachedTokens, "c", completionTokens, "cost", fmt.Sprintf("%.4f", cost))
 		} else {
-			slog.Info("💰 结算完成", "trace_id", traceID, "account", state.Name, "model", modelName, "p", promptTokens, "c", completionTokens, "cost", fmt.Sprintf("%.6f", cost))
+			slog.Info("💰 结算完成", "trace_id", traceID, "account", state.Name, "model", modelName, "p", promptTokens, "c", completionTokens, "cost", fmt.Sprintf("%.4f", cost))
 		}
 	}
 }
@@ -228,9 +228,9 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 		poolMutex.Unlock()
 
 		if cachedTokens > 0 {
-			slog.Info("💰 结算完成", "trace_id", traceID, "account", state.Name, "model", modelName, "p", promptTokens, "cached", cachedTokens, "c", completionTokens, "cost", fmt.Sprintf("%.6f", cost))
+			slog.Info("💰 结算完成", "trace_id", traceID, "account", state.Name, "model", modelName, "p", promptTokens, "cached", cachedTokens, "c", completionTokens, "cost", fmt.Sprintf("%.4f", cost))
 		} else {
-			slog.Info("💰 结算完成", "trace_id", traceID, "account", state.Name, "model", modelName, "p", promptTokens, "c", completionTokens, "cost", fmt.Sprintf("%.6f", cost))
+			slog.Info("💰 结算完成", "trace_id", traceID, "account", state.Name, "model", modelName, "p", promptTokens, "c", completionTokens, "cost", fmt.Sprintf("%.4f", cost))
 		}
 	}
 

@@ -421,7 +421,7 @@ func streamAndSettleUsage(w http.ResponseWriter, finalResp *http.Response, state
 			}
 			poolMutex.Unlock()
 
-			slog.Info("💰 结算成功", "trace_id", traceID, "account", state.Name, "model", modelName, "cost", fmt.Sprintf("%.6f", cost))
+			slog.Info("💰 结算成功", "trace_id", traceID, "account", state.Name, "model", modelName, "cost", fmt.Sprintf("%.4f", cost))
 		}
 	}
 }
