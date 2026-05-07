@@ -8,7 +8,7 @@
 .DS_Store
 /polaris
 /polaris-gateway
-/docs/
+docs/superpowers/
 *.md
 !README.md
 
