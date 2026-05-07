@@ -1,4 +1,4 @@
-package anthropic
+package protocol_anthropic
 
 import (
 	"strings"

@@ -9,9 +9,9 @@ import (
 	"polaris-gateway/internal/config"
 	"polaris-gateway/internal/db"
 	"polaris-gateway/internal/logger"
-	"polaris-gateway/internal/proxy/anthropic"
-	"polaris-gateway/internal/proxy/openai"
-	"polaris-gateway/internal/proxy/vertex"
+	"polaris-gateway/internal/proxy/protocol_anthropic"
+	"polaris-gateway/internal/proxy/protocol_openai"
+	"polaris-gateway/internal/proxy/protocol_vertex"
 	"polaris-gateway/internal/webapi"
 )
 
@@ -37,9 +37,9 @@ func main() {
 	webapi.InitMiddleware(totalActive)
 
 	// 🛠️ 关键修复：传入账号列表参数以符合 Handler 定义
-	vertexHandler := vertex.NewHandler(vertexAccs)
-	openaiHandler := openai.NewHandler(openaiAccs)
-	anthropicHandler := anthropic.NewHandler(vertexAccs)
+	vertexHandler := protocol_vertex.NewHandler(vertexAccs)
+	openaiHandler := protocol_openai.NewHandler(openaiAccs)
+	anthropicHandler := protocol_anthropic.NewHandler(vertexAccs)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/dashboard", func(w http.ResponseWriter, r *http.Request) {

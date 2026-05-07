@@ -1,4 +1,4 @@
-package vertex
+package protocol_vertex
 
 import (
 	"bytes"

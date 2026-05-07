@@ -1,6 +1,6 @@
 # Polaris Gateway 🌌
 
-Polaris Gateway 是一款轻量级、智能化的 **大语言模型 API 代理分发与并发控制网关**，主要用于高效、安全地访问 **Gemini Enterprise Agent Platform** (原 Google Cloud Vertex AI) 及 OpenAI 等大模型接口。专为高并发业务和多账号池轮询设计，完美解决因单一 API Key 限流、封禁或余额不足造成的业务中断问题。
+Polaris Gateway 是一款轻量级、智能化的 **大语言模型 API 代理分发与并发控制网关**，主要用于高效、安全地访问 **Gemini Enterprise Agent Platform** (原 Google Cloud Vertex AI)。专为高并发业务和多账号池轮询设计，完美解决因单一 API Key 限流、封禁或余额不足造成的业务中断问题。
 
 > **注意**：Google Cloud 的 Vertex AI 现已正式更名为 **Agent Platform**。
 
@@ -106,7 +106,10 @@ polaris-gateway/
 │   ├── config/            # 动态配置与内存状态引擎
 │   ├── db/                # SQLite 操作与内置 Schema 迁移
 │   ├── logger/            # 基于 slog 的结构化日志实现
-│   ├── proxy/             # OpenAI, Vertex 等协议的路由转发与状态机
+│   ├── proxy/
+│   │   ├── protocol_anthropic/ # 以 Anthropic 协议格式访问 Agent Platform
+│   │   ├── protocol_openai/    # 以 OpenAI 协议格式访问 Agent Platform
+│   │   └── protocol_vertex/    # 以 Vertex 官方协议格式访问 Agent Platform
 │   └── webapi/            # 控制台 Dashboard 与 Admin API
 ├── scripts/               # 安装脚本 (install.sh, install.ps1)
 └── Makefile               # 便捷编译指令

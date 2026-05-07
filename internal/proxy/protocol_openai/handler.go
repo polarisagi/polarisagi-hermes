@@ -1,4 +1,4 @@
-package openai
+package protocol_openai
 
 import (
 	"bytes"

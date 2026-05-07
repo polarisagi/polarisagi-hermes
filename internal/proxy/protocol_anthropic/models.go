@@ -1,4 +1,4 @@
-package anthropic
+package protocol_anthropic
 
 type MessageRequest struct {
 	Model       string    `json:"model"`
