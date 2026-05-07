@@ -434,9 +434,9 @@ func streamAndSettleUsage(w http.ResponseWriter, finalResp *http.Response, state
 			poolMutex.Unlock()
 
 			if cached > 0 {
-				slog.Info("💰 结算完成", "trace_id", traceID, "account", state.Name, "model", modelName, "p", p, "cached", cached, "c", c, "cost", cost)
+				slog.Info("💰 结算完成", "trace_id", traceID, "account", state.Name, "model", modelName, "p", p, "cached", cached, "c", c, "cost", fmt.Sprintf("%.6f", cost))
 			} else {
-				slog.Info("💰 结算完成", "trace_id", traceID, "account", state.Name, "model", modelName, "p", p, "c", c, "cost", cost)
+				slog.Info("💰 结算完成", "trace_id", traceID, "account", state.Name, "model", modelName, "p", p, "c", c, "cost", fmt.Sprintf("%.6f", cost))
 			}
 		}
 	}
