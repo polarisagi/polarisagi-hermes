@@ -64,6 +64,10 @@ type Config struct {
 
 var AppConfig Config
 
+// OnConfigReloaded 配置热重载完成回调，由 router 包在初始化时注册
+// 确保 admin CRUD 操作后路由引擎能同步更新 routesBySource 和 nodesMap
+var OnConfigReloaded func()
+
 // LoadConfig 加载配置（当前实现直接从 SQLite 数据库读取）
 func LoadConfig(yamlFile string, envFile string) error {
 	return ReloadFromDB()
@@ -78,6 +82,13 @@ func ReloadFromDB() error {
 		Providers: make(map[string][]AccountDetail),
 		Routes:    make([]RouteDetail, 0),
 	}
+
+	// 确保即使中途出错，路由引擎也能感知到最新的 AppConfig 状态
+	defer func() {
+		if OnConfigReloaded != nil {
+			OnConfigReloaded()
+		}
+	}()
 
 	// Load Settings
 	err := db.DB().QueryRow("SELECT listen_addr, breaker_initial_cooldown_seconds, breaker_max_cooldown_seconds, breaker_failure_threshold, breaker_failure_window_seconds FROM sys_settings WHERE id = 1").Scan(
@@ -180,6 +191,11 @@ func ReloadFromDB() error {
 
 	if len(AppConfig.Providers["vertex"]) == 0 && len(AppConfig.Providers["openai"]) == 0 {
 		slog.Warn("无可用物理节点，网关将返回 503 直到添加新节点")
+	}
+
+	// 通知路由引擎热重载（避免 admin CRUD 后 routesBySource/nodesMap 停滞）
+	if OnConfigReloaded != nil {
+		OnConfigReloaded()
 	}
 
 	return nil

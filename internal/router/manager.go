@@ -31,11 +31,13 @@ var (
 	initOnce        sync.Once                   // 确保初始化只执行一次
 )
 
-// InitRouter 初始化路由引擎：启动冷却管理器后台协程 + 加载配置
+// InitRouter 初始化路由引擎：启动冷却管理器后台协程 + 注册热重载回调 + 加载配置
 func InitRouter() {
 	initOnce.Do(func() {
 		go cooldownManager()
 	})
+	// 注册回调：当管理员通过后台修改配置后，config.ReloadFromDB() 会自动触发路由引擎重建
+	config.OnConfigReloaded = ReloadFromConfig
 	ReloadFromConfig()
 }
 
