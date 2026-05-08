@@ -7,9 +7,10 @@ import (
 )
 
 var (
-	modelRegexOpenAI    = regexp.MustCompile(`"model"\s*:\s*"([^"]+)"`)
-	modelRegexAnthropic = regexp.MustCompile(`"model"\s*:\s*"([^"]+)"`)
-	modelRegexVertexURL = regexp.MustCompile(`/models/([^:]+):`)
+	modelRegexOpenAI              = regexp.MustCompile(`"model"\s*:\s*"([^"]+)"`)
+	modelRegexAnthropic           = regexp.MustCompile(`"model"\s*:\s*"([^"]+)"`)
+	modelRegexVertexURL           = regexp.MustCompile(`/models/([^:]+):`)
+	modelRegexVertexGatewayURL    = regexp.MustCompile(`^/v1/([^:]+):`)
 )
 
 // getIncomingProtocol detects the protocol from the first path segment after /v1/
@@ -85,6 +86,10 @@ func extractModelName(body []byte, protocol string) string {
 
 func extractModelFromVertexPath(path string) string {
 	match := modelRegexVertexURL.FindStringSubmatch(path)
+	if len(match) > 1 {
+		return match[1]
+	}
+	match = modelRegexVertexGatewayURL.FindStringSubmatch(path)
 	if len(match) > 1 {
 		return match[1]
 	}
