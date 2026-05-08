@@ -1,0 +1,161 @@
+// Package models 提供各协议的模型目录，用于管理后台模型选择下拉框
+// 模型列表按协议分组，包含模型名称、描述信息
+package models
+
+// ModelInfo 单个模型的元信息
+type ModelInfo struct {
+	Name        string `json:"name"`        // 模型标识名（用于路由匹配）
+	DisplayName string `json:"display_name"` // 展示名称
+	Protocol    string `json:"protocol"`    // 所属协议: openai, anthropic, vertex, gemini
+	Category    string `json:"category"`    // 分类: flagship, reasoning, cost-efficient, vision, legacy
+}
+
+// GetModelsByProtocol 根据协议返回可用的模型列表
+// 支持: openai, anthropic, vertex, gemini
+func GetModelsByProtocol(protocol string) []ModelInfo {
+	models, ok := modelCatalog[protocol]
+	if !ok {
+		return nil
+	}
+	return models
+}
+
+// GetAllProtocols 返回所有已支持的协议列表
+func GetAllProtocols() []string {
+	protocols := make([]string, 0, len(modelCatalog))
+	for k := range modelCatalog {
+		protocols = append(protocols, k)
+	}
+	return protocols
+}
+
+// modelCatalog 各协议模型目录，key 为协议名
+// 占位符 "*" 表示匹配所有模型
+var modelCatalog = map[string][]ModelInfo{
+	"openai": {
+		// 通配符 / catch-all
+		{Name: "*", DisplayName: "全部 OpenAI 模型 (通配符)", Protocol: "openai", Category: "wildcard"},
+
+		// GPT-5 系列
+		{Name: "gpt-5.5", DisplayName: "GPT-5.5 — 最强旗舰", Protocol: "openai", Category: "flagship"},
+		{Name: "gpt-5.4", DisplayName: "GPT-5.4 — 平衡性能", Protocol: "openai", Category: "flagship"},
+		{Name: "gpt-5.4-mini", DisplayName: "GPT-5.4 Mini — 快速轻量", Protocol: "openai", Category: "cost-efficient"},
+
+		// GPT-4.1 系列
+		{Name: "gpt-4.1", DisplayName: "GPT-4.1 — 通用旗舰", Protocol: "openai", Category: "flagship"},
+		{Name: "gpt-4.1-mini", DisplayName: "GPT-4.1 Mini — 轻量版", Protocol: "openai", Category: "cost-efficient"},
+		{Name: "gpt-4.1-nano", DisplayName: "GPT-4.1 Nano — 最轻量", Protocol: "openai", Category: "cost-efficient"},
+
+		// O 系列推理模型
+		{Name: "o3", DisplayName: "o3 — 深度推理", Protocol: "openai", Category: "reasoning"},
+		{Name: "o4-mini", DisplayName: "o4-mini — 轻量推理", Protocol: "openai", Category: "reasoning"},
+		{Name: "o1", DisplayName: "o1 — 高级推理", Protocol: "openai", Category: "reasoning"},
+		{Name: "o1-mini", DisplayName: "o1-mini — 快速推理", Protocol: "openai", Category: "reasoning"},
+		{Name: "o1-pro", DisplayName: "o1-pro — 专业推理", Protocol: "openai", Category: "reasoning"},
+		{Name: "o3-mini", DisplayName: "o3-mini — 迷你推理", Protocol: "openai", Category: "reasoning"},
+
+		// GPT-4o 系列
+		{Name: "gpt-4o", DisplayName: "GPT-4o — 多模态旗舰", Protocol: "openai", Category: "flagship"},
+		{Name: "gpt-4o-mini", DisplayName: "GPT-4o Mini — 经济多模态", Protocol: "openai", Category: "cost-efficient"},
+
+		// GPT-4 系列
+		{Name: "gpt-4-turbo", DisplayName: "GPT-4 Turbo — 快速版", Protocol: "openai", Category: "legacy"},
+		{Name: "gpt-4", DisplayName: "GPT-4 — 经典标准", Protocol: "openai", Category: "legacy"},
+		{Name: "gpt-4-32k", DisplayName: "GPT-4 32K — 长上下文", Protocol: "openai", Category: "legacy"},
+
+		// GPT-3.5 系列
+		{Name: "gpt-3.5-turbo", DisplayName: "GPT-3.5 Turbo — 经典性价比", Protocol: "openai", Category: "legacy"},
+		{Name: "gpt-3.5-turbo-16k", DisplayName: "GPT-3.5 Turbo 16K — 长上下文", Protocol: "openai", Category: "legacy"},
+	},
+
+	"anthropic": {
+		// 通配符
+		{Name: "*", DisplayName: "全部 Anthropic 模型 (通配符)", Protocol: "anthropic", Category: "wildcard"},
+
+		// Claude 4 系列
+		{Name: "claude-opus-4-7", DisplayName: "Claude Opus 4.7 — 最强推理", Protocol: "anthropic", Category: "flagship"},
+		{Name: "claude-opus-4-6", DisplayName: "Claude Opus 4.6", Protocol: "anthropic", Category: "flagship"},
+		{Name: "claude-sonnet-4-6", DisplayName: "Claude Sonnet 4.6", Protocol: "anthropic", Category: "flagship"},
+		{Name: "claude-sonnet-4-5", DisplayName: "Claude Sonnet 4.5 — 平衡版", Protocol: "anthropic", Category: "flagship"},
+		{Name: "claude-haiku-4-5", DisplayName: "Claude Haiku 4.5 — 极速轻量", Protocol: "anthropic", Category: "cost-efficient"},
+
+		// Claude 3.5 系列
+		{Name: "claude-3-5-sonnet-20241022", DisplayName: "Claude 3.5 Sonnet (新)", Protocol: "anthropic", Category: "flagship"},
+		{Name: "claude-3-5-haiku-20241022", DisplayName: "Claude 3.5 Haiku — 快速轻量", Protocol: "anthropic", Category: "cost-efficient"},
+
+		// Claude 3 系列
+		{Name: "claude-3-opus-20240229", DisplayName: "Claude 3 Opus — 前代旗舰", Protocol: "anthropic", Category: "legacy"},
+		{Name: "claude-3-sonnet-20240229", DisplayName: "Claude 3 Sonnet", Protocol: "anthropic", Category: "legacy"},
+		{Name: "claude-3-haiku-20240307", DisplayName: "Claude 3 Haiku", Protocol: "anthropic", Category: "legacy"},
+	},
+
+	"vertex": {
+		// 通配符
+		{Name: "*", DisplayName: "全部 Vertex/Gemini 模型 (通配符)", Protocol: "vertex", Category: "wildcard"},
+
+		// Gemini 3.1 系列
+		{Name: "gemini-3.1-pro-preview-customtools", DisplayName: "Gemini 3.1 Pro CustomTools", Protocol: "vertex", Category: "flagship"},
+		{Name: "gemini-3.1-pro-preview", DisplayName: "Gemini 3.1 Pro Preview", Protocol: "vertex", Category: "flagship"},
+		{Name: "gemini-3.1-pro", DisplayName: "Gemini 3.1 Pro — 旗舰", Protocol: "vertex", Category: "flagship"},
+		{Name: "gemini-3.1-flash", DisplayName: "Gemini 3.1 Flash — 快速版", Protocol: "vertex", Category: "cost-efficient"},
+		{Name: "gemini-3.1-ultra", DisplayName: "Gemini 3.1 Ultra — 最强版", Protocol: "vertex", Category: "flagship"},
+
+		// Gemini 3.0 系列
+		{Name: "gemini-3.0-pro", DisplayName: "Gemini 3.0 Pro", Protocol: "vertex", Category: "flagship"},
+		{Name: "gemini-3.0-flash", DisplayName: "Gemini 3.0 Flash", Protocol: "vertex", Category: "cost-efficient"},
+		{Name: "gemini-3-flash-preview", DisplayName: "Gemini 3 Flash Preview", Protocol: "vertex", Category: "cost-efficient"},
+
+		// Gemini 2.5 系列
+		{Name: "gemini-2.5-pro", DisplayName: "Gemini 2.5 Pro", Protocol: "vertex", Category: "flagship"},
+		{Name: "gemini-2.5-flash", DisplayName: "Gemini 2.5 Flash", Protocol: "vertex", Category: "cost-efficient"},
+
+		// Gemini 2.0 系列
+		{Name: "gemini-2.0-pro-exp", DisplayName: "Gemini 2.0 Pro Exp", Protocol: "vertex", Category: "flagship"},
+		{Name: "gemini-2.0-flash", DisplayName: "Gemini 2.0 Flash", Protocol: "vertex", Category: "cost-efficient"},
+		{Name: "gemini-2.0-flash-lite", DisplayName: "Gemini 2.0 Flash Lite", Protocol: "vertex", Category: "cost-efficient"},
+
+		// Gemini 1.5 系列
+		{Name: "gemini-1.5-pro", DisplayName: "Gemini 1.5 Pro", Protocol: "vertex", Category: "legacy"},
+		{Name: "gemini-1.5-flash", DisplayName: "Gemini 1.5 Flash", Protocol: "vertex", Category: "legacy"},
+
+		// 带 google/ 前缀的 Gemini 模型（用于 OpenAI 兼容端点）
+		{Name: "google/gemini-3.1-pro-preview-customtools", DisplayName: "Gemini 3.1 Pro CT (OpenAI兼容)", Protocol: "vertex", Category: "flagship"},
+		{Name: "google/gemini-3.1-pro-preview", DisplayName: "Gemini 3.1 Pro Preview (OpenAI兼容)", Protocol: "vertex", Category: "flagship"},
+		{Name: "google/gemini-3.1-pro", DisplayName: "Gemini 3.1 Pro (OpenAI兼容)", Protocol: "vertex", Category: "flagship"},
+		{Name: "google/gemini-3.1-flash", DisplayName: "Gemini 3.1 Flash (OpenAI兼容)", Protocol: "vertex", Category: "cost-efficient"},
+		{Name: "google/gemini-3.0-pro", DisplayName: "Gemini 3.0 Pro (OpenAI兼容)", Protocol: "vertex", Category: "flagship"},
+		{Name: "google/gemini-3.0-flash", DisplayName: "Gemini 3.0 Flash (OpenAI兼容)", Protocol: "vertex", Category: "cost-efficient"},
+		{Name: "google/gemini-2.5-flash", DisplayName: "Gemini 2.5 Flash (OpenAI兼容)", Protocol: "vertex", Category: "cost-efficient"},
+		{Name: "google/gemini-2.0-pro-exp", DisplayName: "Gemini 2.0 Pro Exp (OpenAI兼容)", Protocol: "vertex", Category: "flagship"},
+		{Name: "google/gemini-2.0-flash", DisplayName: "Gemini 2.0 Flash (OpenAI兼容)", Protocol: "vertex", Category: "cost-efficient"},
+		{Name: "google/gemini-1.5-pro", DisplayName: "Gemini 1.5 Pro (OpenAI兼容)", Protocol: "vertex", Category: "legacy"},
+		{Name: "google/gemini-1.5-flash", DisplayName: "Gemini 1.5 Flash (OpenAI兼容)", Protocol: "vertex", Category: "legacy"},
+	},
+
+	"gemini": {
+		// 通配符
+		{Name: "*", DisplayName: "全部 Gemini 模型 (通配符)", Protocol: "gemini", Category: "wildcard"},
+
+		// Gemini 3.1 系列
+		{Name: "gemini-3.1-pro-preview-customtools", DisplayName: "Gemini 3.1 Pro CustomTools", Protocol: "gemini", Category: "flagship"},
+		{Name: "gemini-3.1-pro-preview", DisplayName: "Gemini 3.1 Pro Preview", Protocol: "gemini", Category: "flagship"},
+		{Name: "gemini-3.1-pro", DisplayName: "Gemini 3.1 Pro — 旗舰", Protocol: "gemini", Category: "flagship"},
+		{Name: "gemini-3.1-flash", DisplayName: "Gemini 3.1 Flash — 快速版", Protocol: "gemini", Category: "cost-efficient"},
+
+		// Gemini 3.0 系列
+		{Name: "gemini-3.0-pro", DisplayName: "Gemini 3.0 Pro", Protocol: "gemini", Category: "flagship"},
+		{Name: "gemini-3.0-flash", DisplayName: "Gemini 3.0 Flash", Protocol: "gemini", Category: "cost-efficient"},
+
+		// Gemini 2.5 系列
+		{Name: "gemini-2.5-pro", DisplayName: "Gemini 2.5 Pro", Protocol: "gemini", Category: "flagship"},
+		{Name: "gemini-2.5-flash", DisplayName: "Gemini 2.5 Flash", Protocol: "gemini", Category: "cost-efficient"},
+
+		// Gemini 2.0 系列
+		{Name: "gemini-2.0-flash", DisplayName: "Gemini 2.0 Flash", Protocol: "gemini", Category: "cost-efficient"},
+		{Name: "gemini-2.0-flash-lite", DisplayName: "Gemini 2.0 Flash Lite", Protocol: "gemini", Category: "cost-efficient"},
+
+		// Gemini 1.5 系列
+		{Name: "gemini-1.5-pro", DisplayName: "Gemini 1.5 Pro", Protocol: "gemini", Category: "legacy"},
+		{Name: "gemini-1.5-flash", DisplayName: "Gemini 1.5 Flash", Protocol: "gemini", Category: "legacy"},
+	},
+}
