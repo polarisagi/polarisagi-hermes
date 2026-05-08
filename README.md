@@ -76,15 +76,15 @@ iwr -useb https://raw.githubusercontent.com/mrlaoliai/polaris-gateway/main/scrip
 将你的业务代码（如 NextChat, Aider, LiteLLM 等）的 API URL 指向 Polaris Gateway。
 
 **OpenAI 协议接入：**
-- Base URL: `http://127.0.0.1:28888/v1/openai`
+- Base URL: `http://127.0.0.1:28888/v1/`
 - API Key: 任意值（网关将透明替换为你配置在后端的物理 Key）
 
 **Vertex 协议接入：**
-- Base URL: `http://127.0.0.1:28888/v1/vertex`
+- Base URL: `http://127.0.0.1:28888/v1/`
 - API Key: 任意值
 
 **Anthropic (Claude) 协议接入：**
-- Base URL: `http://127.0.0.1:28888/v1/anthropic`
+- Base URL: `http://127.0.0.1:28888/v1/`
 - API Key: 任意值
 
 ### 3. 常见 AI 客户端接入配置
@@ -97,7 +97,7 @@ iwr -useb https://raw.githubusercontent.com/mrlaoliai/polaris-gateway/main/scrip
   "provider": {
     "google-vertex": {
       "options": {
-        "baseURL": "http://127.0.0.1:28888/v1/vertex"
+        "baseURL": "http://127.0.0.1:28888/v1/"
       }
     }
   }
@@ -108,7 +108,7 @@ iwr -useb https://raw.githubusercontent.com/mrlaoliai/polaris-gateway/main/scrip
 配置环境变量并启动程序：
 ```bash
 export VERTEX_API_KEY="test-key" 
-export VERTEX_API_BASE="http://127.0.0.1:28888/v1/vertex"
+export VERTEX_API_BASE="http://127.0.0.1:28888/v1/"
 export VERTEXAI_PROJECT="project-id"
 export VERTEXAI_LOCATION="global"
 aider --model vertex_ai/gemini-3.1-pro-preview-customtools
@@ -128,10 +128,8 @@ polaris-gateway/
 │   ├── config/            # 动态配置与内存状态引擎
 │   ├── db/                # SQLite 操作与内置 Schema 迁移
 │   ├── logger/            # 基于 slog 的结构化日志实现
-│   ├── proxy/
-│   │   ├── protocol_anthropic/ # 以 Anthropic 协议格式访问 Agent Platform
-│   │   ├── protocol_openai/    # 以 OpenAI 协议格式访问 Agent Platform
-│   │   └── protocol_vertex/    # 以 Vertex 官方协议格式访问 Agent Platform
+│   ├── router/            # 全局通用路由器与智能调度分发引擎
+│   ├── translators/       # 协议转换与适配器 (Anthropic/OpenAI/Vertex 等)
 │   └── webapi/            # 控制台 Dashboard 与 Admin API
 ├── scripts/               # 安装脚本 (install.sh, install.ps1)
 └── Makefile               # 便捷编译指令
