@@ -387,6 +387,10 @@
                             <option value="error">ERROR</option>
                             <option value="debug">DEBUG</option>
                         </select>
+                        <button @click="toggleDebug" :class="debugEnabled ? 'bg-purple-600 text-white border-purple-500' : 'bg-slate-800 text-slate-400 border-slate-700'" class="px-4 py-2 rounded-lg text-sm border transition flex items-center gap-2">
+                            <span>🐛</span>
+                            <span>{{ debugEnabled ? 'DEBUG ON' : 'DEBUG OFF' }}</span>
+                        </button>
                         <button @click="isAutoScroll = !isAutoScroll" :class="isAutoScroll ? 'bg-emerald-600/20 text-emerald-400 border-emerald-500/50' : 'bg-slate-800 text-slate-400 border-slate-700'" class="px-4 py-2 rounded-lg text-sm border transition flex items-center gap-2">
                             <span v-if="isAutoScroll" class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span>
                             <span>自动滚动 {{ isAutoScroll ? 'ON' : 'OFF' }}</span>

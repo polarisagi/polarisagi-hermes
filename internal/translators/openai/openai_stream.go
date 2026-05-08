@@ -49,26 +49,12 @@ func streamAndSettleUsage(w http.ResponseWriter, finalResp *http.Response, dest 
 		}
 	}
 
-	if bytes.Contains(tailBuf, []byte("usage")) || bytes.Contains(tailBuf, []byte("prompt_tokens")) {
-		pMatch := utils.OpenAIPromptRegex.FindSubmatch(tailBuf)
-		cMatch := utils.OpenAICompletionRegex.FindSubmatch(tailBuf)
-		cacheMatch := utils.OpenAICachedRegex.FindSubmatch(tailBuf)
+	if bytes.Contains(tailBuf, []byte("usage")) || bytes.Contains(tailBuf, []byte("promptTokenCount")) {
+		prompt, completion, cached, found := utils.ParseUsageFromStreamTail(tailBuf)
+		if found {
+			cost := utils.CalculateCost(modelName, prompt, completion, cached)
 
-		var p, c, cached int64
-		if len(pMatch) > 1 {
-			p = utils.ParseToInt(pMatch[1])
-		}
-		if len(cMatch) > 1 {
-			c = utils.ParseToInt(cMatch[1])
-		}
-		if len(cacheMatch) > 1 {
-			cached = utils.ParseToInt(cacheMatch[1])
-		}
-
-		if p > 0 || c > 0 {
-			cost := utils.CalculateCost(modelName, p, c, cached)
-
-			db.SaveUsage("openai", dest.Node.Name, clientType, methodName, p, c, cost, finalResp.StatusCode)
+			db.SaveUsage("openai", dest.Node.Name, clientType, methodName, prompt, completion, cost, finalResp.StatusCode)
 			dest.Node.RecordCost(cost, traceID)
 
 			slog.Info("💰 结算成功", "trace_id", traceID, "node", dest.Node.Name, "model", modelName, "cost", fmt.Sprintf("%.4f", cost))

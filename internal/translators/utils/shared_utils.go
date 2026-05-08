@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bytes"
 	"fmt"
 	"math"
 	"net/http"
@@ -160,4 +161,47 @@ func ParseToInt(b []byte) int64 {
 		return 0
 	}
 	return n
+}
+
+// ParseUsageFromStreamTail parses OpenAI, Vertex, and Gemini stream response tails for token usage info.
+func ParseUsageFromStreamTail(tailBuf []byte) (prompt, completion, cached int64, found bool) {
+	// Try OpenAI format: "prompt_tokens", "completion_tokens"
+	if bytes.Contains(tailBuf, []byte("prompt_tokens")) || bytes.Contains(tailBuf, []byte("completion_tokens")) {
+		pMatch := OpenAIPromptRegex.FindSubmatch(tailBuf)
+		cMatch := OpenAICompletionRegex.FindSubmatch(tailBuf)
+		cacheMatch := OpenAICachedRegex.FindSubmatch(tailBuf)
+		if len(pMatch) > 1 {
+			prompt = ParseToInt(pMatch[1])
+		}
+		if len(cMatch) > 1 {
+			completion = ParseToInt(cMatch[1])
+		}
+		if len(cacheMatch) > 1 {
+			cached = ParseToInt(cacheMatch[1])
+		}
+		if prompt > 0 || completion > 0 {
+			return prompt, completion, cached, true
+		}
+	}
+
+	// Try Vertex format: "promptTokenCount", "candidatesTokenCount"
+	if bytes.Contains(tailBuf, []byte("promptTokenCount")) || bytes.Contains(tailBuf, []byte("usageMetadata")) {
+		pMatch := PromptRegex.FindSubmatch(tailBuf)
+		cMatch := CandidateRegex.FindSubmatch(tailBuf)
+		cacheMatch := CachedContentRegex.FindSubmatch(tailBuf)
+		if len(pMatch) > 1 {
+			prompt = ParseToInt(pMatch[1])
+		}
+		if len(cMatch) > 1 {
+			completion = ParseToInt(cMatch[1])
+		}
+		if len(cacheMatch) > 1 {
+			cached = ParseToInt(cacheMatch[1])
+		}
+		if prompt > 0 || completion > 0 {
+			return prompt, completion, cached, true
+		}
+	}
+
+	return 0, 0, 0, false
 }

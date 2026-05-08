@@ -119,28 +119,18 @@ func streamVertexResponse(w http.ResponseWriter, finalResp *http.Response, dest 
 		}
 	}
 
-	if bytes.Contains(tailBuf, []byte("usageMetadata")) {
-		pMatch := utils.PromptRegex.FindSubmatch(tailBuf)
-		cMatch := utils.CandidateRegex.FindSubmatch(tailBuf)
-		cacheMatch := utils.CachedContentRegex.FindSubmatch(tailBuf)
+	if bytes.Contains(tailBuf, []byte("usageMetadata")) || bytes.Contains(tailBuf, []byte("usage")) {
+		prompt, completion, cached, found := utils.ParseUsageFromStreamTail(tailBuf)
+		if found {
+			cost := utils.CalculateCost(modelName, prompt, completion, cached)
 
-		if len(pMatch) > 1 && len(cMatch) > 1 {
-			p := utils.ParseToInt(pMatch[1])
-			c := utils.ParseToInt(cMatch[1])
-			var cached int64
-			if len(cacheMatch) > 1 {
-				cached = utils.ParseToInt(cacheMatch[1])
-			}
-
-			cost := utils.CalculateCost(modelName, p, c, cached)
-
-			db.SaveUsage("vertex", dest.Node.Name, clientType, methodName, p, c, cost, finalResp.StatusCode)
+			db.SaveUsage("vertex", dest.Node.Name, clientType, methodName, prompt, completion, cost, finalResp.StatusCode)
 			dest.Node.RecordCost(cost, traceID)
 
 			if cached > 0 {
-				slog.Info("💰 结算完成", "trace_id", traceID, "account", dest.Node.Name, "model", modelName, "prompt", p, "cached", cached, "completion", c, "cost", fmt.Sprintf("%.4f", cost))
+				slog.Info("💰 结算完成", "trace_id", traceID, "account", dest.Node.Name, "model", modelName, "prompt", prompt, "cached", cached, "completion", completion, "cost", fmt.Sprintf("%.4f", cost))
 			} else {
-				slog.Info("💰 结算完成", "trace_id", traceID, "account", dest.Node.Name, "model", modelName, "prompt", p, "completion", c, "cost", fmt.Sprintf("%.4f", cost))
+				slog.Info("💰 结算完成", "trace_id", traceID, "account", dest.Node.Name, "model", modelName, "prompt", prompt, "completion", completion, "cost", fmt.Sprintf("%.4f", cost))
 			}
 		}
 	}

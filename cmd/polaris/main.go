@@ -49,6 +49,7 @@ func main() {
 	mux.HandleFunc("/api/admin/nodes", webapi.AdminNodesHandler)
 	mux.HandleFunc("/api/admin/routes", webapi.AdminRoutesHandler)
 	mux.HandleFunc("/api/admin/logs", webapi.AdminLogsHandler)
+	mux.HandleFunc("/api/admin/debug", webapi.AdminDebugHandler)
 
 	// Unified Router Catch-All
 	mux.HandleFunc("/v1/", router.ServeHTTP)

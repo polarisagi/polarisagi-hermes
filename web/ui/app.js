@@ -37,6 +37,7 @@ createApp({
         });
         
         const logLevelFilter = ref('all');
+        const debugEnabled = ref(false);
         const toast = ref({ show: false, message: '', type: 'success' });
         const showToast = (msg, type = 'success') => {
             toast.value = { show: true, message: msg, type };
@@ -376,6 +377,30 @@ createApp({
             }
         };
 
+        const fetchDebug = async () => {
+            try {
+                const res = await fetch('/api/admin/debug');
+                const json = await res.json();
+                debugEnabled.value = json.debug;
+            } catch (e) { console.error(e) }
+        };
+
+        const toggleDebug = async () => {
+            try {
+                const newVal = !debugEnabled.value;
+                const res = await fetch('/api/admin/debug', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: newVal })
+                });
+                const json = await res.json();
+                debugEnabled.value = json.debug;
+                showToast(debugEnabled.value ? 'Debug 模式已开启' : 'Debug 模式已关闭');
+            } catch(e) {
+                showToast('切换 Debug 失败', 'error');
+            }
+        };
+
         const fetchLogs = async () => {
             if (currentTab.value !== 'logs') return;
             try {
@@ -441,7 +466,10 @@ createApp({
                 fetchRoutes();
             }
             if (newTab === 'dashboard') fetchData();
-            if (newTab === 'logs') fetchLogs();
+            if (newTab === 'logs') {
+                fetchLogs();
+                fetchDebug();
+            }
         });
 
         onMounted(() => {
@@ -471,7 +499,7 @@ createApp({
             nodeModal, nodeForm, openNodeModal, saveNode, deleteNode,
             routeModal, routeForm, openRouteModal, saveRoute, deleteRoute, toast,
             addMapping, removeMapping, protocolLabel, protocolClass, protocolBadge,
-            logsText, isAutoScroll, logLevelFilter, fetchLogs
+            logsText, isAutoScroll, logLevelFilter, debugEnabled, toggleDebug, fetchLogs
         };
     }
 }).mount('#app');

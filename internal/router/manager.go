@@ -83,7 +83,7 @@ func cooldownManager() {
 			state.mu.Lock()
 			if state.Status == StatusCooldown && now.After(state.CooldownUntil) {
 				state.Status = StatusProbation
-				slog.Info("⏳ [冷却守护] 节点冷却结束", "node", state.Name, "status", "Probation")
+				slog.Info("⏳ [冷却守护] 节点冷却结束", "node", state.Name, "provider", state.Provider, "status", "Probation")
 			}
 			state.mu.Unlock()
 		}
@@ -224,6 +224,8 @@ func tryAcquire(sourceProtocol, reqModel string) (*MatchedDestination, bool) {
 	})
 
 	chosen := validCandidates[0]
+
+	slog.Debug("🎯 [负载均衡] 自动选择目标节点", "source_protocol", sourceProtocol, "req_model", reqModel, "chosen_node", chosen.State.Name, "priority", chosen.State.Priority, "target_model", chosen.TargetModel, "is_probation", chosen.State.Status == StatusProbation)
 
 	chosen.State.mu.Lock()
 	isProbationRun := (chosen.State.Status == StatusProbation)

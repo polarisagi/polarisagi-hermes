@@ -2,6 +2,7 @@ package webapi
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -12,6 +13,35 @@ import (
 	"polaris-gateway/internal/db"
 	"polaris-gateway/internal/logger"
 )
+
+// AdminDebugHandler toggles debug mode
+var DebugEnabled bool
+
+func AdminDebugHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(fmt.Sprintf(`{"debug": %v}`, DebugEnabled)))
+		return
+	}
+	if r.Method == http.MethodPost {
+		var req struct {
+			Enabled bool `json:"enabled"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		DebugEnabled = req.Enabled
+		logger.SetDebug(DebugEnabled)
+		slog.Info("🔧 Debug模式已切换", "enabled", DebugEnabled)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(fmt.Sprintf(`{"debug": %v}`, DebugEnabled)))
+		return
+	}
+	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+}
+
+func init() {}
 
 // AdminSettingsHandler handles GET and POST for /api/settings
 func AdminSettingsHandler(w http.ResponseWriter, r *http.Request) {

@@ -66,6 +66,8 @@ func ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	slog.Debug("📥 [入口] 收到请求", "trace_id", traceID, "source_protocol", sourceProtocol, "model", modelName, "path", r.URL.Path)
+
 	ctx, cancel := context.WithTimeout(r.Context(), 180*time.Second)
 	defer cancel()
 
@@ -94,6 +96,8 @@ func ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	slog.Info("🔗 [路由转发]", "trace_id", traceID, "source_protocol", sourceProtocol, "target_protocol", dest.TargetProtocol, "target_node", dest.Node.Name, "original_model", modelName, "target_model", dest.TargetModel)
+
+	slog.Debug("🔄 [协议转换] 开始执行翻译器", "trace_id", traceID, "translator_key", translatorKey, "target_node", dest.Node.Name, "is_probation", dest.IsProbationRun)
 
 	// Inject usage for OpenAI streams
 	if sourceProtocol == "openai" {

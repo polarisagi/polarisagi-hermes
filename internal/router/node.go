@@ -68,7 +68,7 @@ func (s *NodeState) UpdateOnFailure(isProbationRun bool, traceID string) {
 	if isProbationRun || s.recordFailureAndCheck() {
 		s.Status = StatusCooldown
 		s.CooldownUntil = time.Now().Add(s.CurrentCooldown)
-		slog.Warn("🧊 [节点熔断]", "trace_id", traceID, "node", s.Name, "duration", s.CurrentCooldown, "until", s.CooldownUntil.Format("15:04:05"))
+		slog.Warn("🧊 [节点熔断] 账号进入冷却隔离", "trace_id", traceID, "node", s.Name, "provider", s.Provider, "duration", s.CurrentCooldown.String(), "until", s.CooldownUntil.Format("2006-01-02 15:04:05"), "failure_count", len(s.FailureTimestamps), "budget", fmt.Sprintf("$%.2f/%.2f", s.TotalConsumed, s.Balance))
 
 		s.CurrentCooldown *= 2
 		maxDuration := time.Duration(config.AppConfig.Breaker.MaxCooldownSeconds) * time.Second

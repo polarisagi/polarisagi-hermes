@@ -5,10 +5,13 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
-// LogFile holds the reference to the log file so it can be read by the API
 var LogFile *os.File
+var logWriter io.Writer
+var mu sync.Mutex
+var debugEnabled bool
 
 func getLogPath() string {
 	home, err := os.UserHomeDir()
@@ -24,26 +27,47 @@ func getLogPath() string {
 	return filepath.Join(dir, "polaris-gateway.log")
 }
 
+func SetDebug(enabled bool) {
+	mu.Lock()
+	defer mu.Unlock()
+	debugEnabled = enabled
+
+	level := slog.LevelInfo
+	if enabled {
+		level = slog.LevelDebug
+	}
+
+	opts := &slog.HandlerOptions{
+		Level: level,
+	}
+
+	var w io.Writer
+	if logWriter != nil {
+		w = logWriter
+	} else {
+		w = os.Stdout
+	}
+
+	handler := slog.NewTextHandler(w, opts)
+	slog.SetDefault(slog.New(handler))
+}
+
 // InitLogger initializes the global slog instance.
 func InitLogger() {
 	opts := &slog.HandlerOptions{
 		Level: slog.LevelInfo,
-		// Optional: uncomment to log source file path and line number
-		// AddSource: true,
 	}
 
 	logPath := getLogPath()
-	// 尝试打开或创建 polaris-gateway.log
 	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0666)
 	if err == nil {
 		LogFile = f
-		// 双写：既输出到控制台，又写入日志文件
 		multiWriter := io.MultiWriter(os.Stdout, f)
+		logWriter = multiWriter
 		handler := slog.NewTextHandler(multiWriter, opts)
 		logger := slog.New(handler)
 		slog.SetDefault(logger)
 	} else {
-		// 如果文件打开失败，降级为仅控制台输出
 		handler := slog.NewTextHandler(os.Stdout, opts)
 		logger := slog.New(handler)
 		slog.SetDefault(logger)
