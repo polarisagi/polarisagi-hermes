@@ -27,13 +27,5 @@ CREATE TABLE IF NOT EXISTS sys_nodes (
 	status INTEGER DEFAULT 1,
 	created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
-
-CREATE TABLE IF NOT EXISTS sys_routes (
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	match_model TEXT NOT NULL,
-	node_id INTEGER NOT NULL,
-	target_model TEXT NOT NULL,
-	status INTEGER DEFAULT 1,
-	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-	FOREIGN KEY (node_id) REFERENCES sys_nodes(id) ON DELETE CASCADE
-);
+-- sys_routes 表由 003_revise_routes.sql 统一创建（新版协议到协议的路由 schema）
+-- 此处不再创建旧版表结构，避免迁移时表已存在导致新版 schema 无法生效

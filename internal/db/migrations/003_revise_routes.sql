@@ -1,8 +1,7 @@
--- Migration 003: Revised sys_routes for protocol-to-protocol routing with model mappings
--- New design: routes define source_protocol -> target_protocol translation with multiple model name mappings
--- The system automatically load-balances across all available nodes of the target protocol
-
-DROP TABLE IF EXISTS sys_routes;
+-- 新版 sys_routes: 协议到协议路由 + JSON 模型映射
+-- source_protocol: 客户端使用的协议 (openai/anthropic/vertex)
+-- target_protocol: 转发到上游的协议 (openai/vertex/gemini)
+-- model_mappings: JSON 数组，每个元素 {match, target}，支持精确/通配符/前缀匹配
 
 CREATE TABLE IF NOT EXISTS sys_routes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
