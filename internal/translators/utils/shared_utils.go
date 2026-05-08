@@ -20,10 +20,25 @@ type ModelPrice struct {
 }
 
 var modelPriceDict = map[string]ModelPrice{
-	// DeepSeek 系列
-	"deepseek-chat":  {Prompt1M: 0.14, Candidate1M: 0.28},
-	"deepseek-coder": {Prompt1M: 0.14, Candidate1M: 0.28},
-	// Google Gemini 系列 (Vertex / Agent Platform)
+	// ── DeepSeek 系列 ──────────────────────────────────────────
+	"deepseek-chat":     {Prompt1M: 0.14, Candidate1M: 0.28},  // deepseek-v4-flash (non-thinking, alias)
+	"deepseek-reasoner": {Prompt1M: 0.14, Candidate1M: 0.28},  // deepseek-v4-flash (thinking, alias)
+	"deepseek-v4-flash": {Prompt1M: 0.14, Candidate1M: 0.28},
+	"deepseek-v4-pro":   {Prompt1M: 1.74, Candidate1M: 3.48},  // standard; 75% off til 2026/05/31 → $0.435/0.87
+
+	// ── Anthropic Claude 系列 (最新) ────────────────────────────
+	"claude-opus-4-7":     {Prompt1M: 5.0, Candidate1M: 25.0},
+	"claude-opus-4-6":     {Prompt1M: 5.0, Candidate1M: 25.0},
+	"claude-sonnet-4-6":   {Prompt1M: 3.0, Candidate1M: 15.0},
+	"claude-sonnet-4-5":   {Prompt1M: 3.0, Candidate1M: 15.0},
+	"claude-haiku-4-5":    {Prompt1M: 1.0, Candidate1M: 5.0},
+
+	// ── OpenAI GPT 系列 (最新) ──────────────────────────────────
+	"gpt-5.5":      {Prompt1M: 5.0, Candidate1M: 30.0},
+	"gpt-5.4":      {Prompt1M: 2.5, Candidate1M: 15.0},
+	"gpt-5.4-mini": {Prompt1M: 0.75, Candidate1M: 4.5},
+
+	// ── Google Gemini — OpenAI 兼容协议 (google/ prefix) ────────
 	"google/gemini-3.1-pro-preview-customtools": {Prompt1M: 1.25, Candidate1M: 3.75},
 	"google/gemini-3.1-pro-preview":             {Prompt1M: 1.25, Candidate1M: 3.75},
 	"google/gemini-3.1-pro":                     {Prompt1M: 1.25, Candidate1M: 3.75},
@@ -35,17 +50,21 @@ var modelPriceDict = map[string]ModelPrice{
 	"google/gemini-2.5-flash":                   {Prompt1M: 0.075, Candidate1M: 0.30},
 	"google/gemini-2.0-pro-exp":                 {Prompt1M: 1.25, Candidate1M: 3.75},
 	"google/gemini-2.0-flash":                   {Prompt1M: 0.10, Candidate1M: 0.40},
-	// Anthropic Claude 系列 (passthrough / direct API)
-	"claude-3-5-sonnet-20240620":         {Prompt1M: 3.0, Candidate1M: 15.0},
-	"claude-3-5-sonnet-20241022":         {Prompt1M: 3.0, Candidate1M: 15.0},
-	"claude-3-5-haiku-20241022":          {Prompt1M: 0.80, Candidate1M: 4.0},
-	"claude-3-opus-20240229":             {Prompt1M: 15.0, Candidate1M: 75.0},
-	"claude-3-haiku-20240307":            {Prompt1M: 0.25, Candidate1M: 1.25},
-	// GPT-4 系列 (passthrough / direct API)
-	"gpt-4o":        {Prompt1M: 2.5, Candidate1M: 10.0},
-	"gpt-4o-mini":   {Prompt1M: 0.15, Candidate1M: 0.60},
-	"gpt-4-turbo":   {Prompt1M: 10.0, Candidate1M: 30.0},
-	// 兜底基准
+
+	// ── Google Gemini — Vertex 原生协议 (无 prefix) ─────────────
+	"gemini-3.1-pro-preview-customtools": {Prompt1M: 1.25, Candidate1M: 3.75},
+	"gemini-3.1-pro-preview":             {Prompt1M: 1.25, Candidate1M: 3.75},
+	"gemini-3.1-pro":                     {Prompt1M: 1.25, Candidate1M: 3.75},
+	"gemini-3.1-flash":                   {Prompt1M: 0.10, Candidate1M: 0.40},
+	"gemini-3.1-ultra":                   {Prompt1M: 3.50, Candidate1M: 10.50},
+	"gemini-3.0-pro":                     {Prompt1M: 1.25, Candidate1M: 3.75},
+	"gemini-3.0-flash":                   {Prompt1M: 0.10, Candidate1M: 0.40},
+	"gemini-3-flash-preview":             {Prompt1M: 0.10, Candidate1M: 0.40},
+	"gemini-2.5-flash":                   {Prompt1M: 0.075, Candidate1M: 0.30},
+	"gemini-2.0-pro-exp":                 {Prompt1M: 1.25, Candidate1M: 3.75},
+	"gemini-2.0-flash":                   {Prompt1M: 0.10, Candidate1M: 0.40},
+
+	// ── 兜底基准 ────────────────────────────────────────────────
 	"default": {Prompt1M: 1.0, Candidate1M: 2.0},
 }
 
