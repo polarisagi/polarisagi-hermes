@@ -85,16 +85,16 @@ func StatsHandler(w http.ResponseWriter, r *http.Request) {
 		if ok {
 			for _, acc := range accounts {
 				if acc.Name == name {
-					return acc.Budget, acc.CutoffPercent, acc.BillingStartDate
+					return acc.Balance, acc.LimitPercent, acc.ValidFrom
 				}
 			}
 		}
-		return 0, 95.0, "2000-01-01"
+		return 0, 90.0, "2000-01-01"
 	}
 
 	var details []map[string]interface{}
 	for _, r := range memRows {
-		budget, cutoffPercent, startDate := getAccountMeta(r.platform, r.name)
+		budget, limitPercent, startDate := getAccountMeta(r.platform, r.name)
 		absoluteTotal := db.GetTotalCost(r.name)
 		cycleCost := db.GetConsumedSince(r.name, startDate)
 
@@ -111,9 +111,9 @@ func StatsHandler(w http.ResponseWriter, r *http.Request) {
 			"start_date":        startDate,
 			"error_count":       r.errs,
 			"success_count":     r.succ,
-			"budget":            budget,
-			"cutoff_percent":    cutoffPercent,
-			"billing_start_date": startDate,
+			"balance":           budget,
+			"limit_percent":     limitPercent,
+			"valid_from":        startDate,
 		})
 	}
 

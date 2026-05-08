@@ -1,0 +1,83 @@
+package translators
+
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"strings"
+	"time"
+
+	"polaris-gateway/internal/db"
+	"polaris-gateway/internal/router"
+)
+
+var httpClient = &http.Client{Timeout: 180 * time.Second}
+
+func OpenAIToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) {
+	clientType := identifyClient(r)
+	methodName := extractMethodName(r.URL.Path)
+
+	targetURL := dest.Node.BaseURL
+	if targetURL == "" {
+		targetURL = "https://api.openai.com/v1"
+	}
+	targetURL = strings.TrimSuffix(targetURL, "/") + r.URL.Path
+
+	if dest.TargetModel != "" && dest.TargetModel != extractModelName(bodyBytes) {
+		bodyBytes = bytes.ReplaceAll(bodyBytes, []byte(fmt.Sprintf(`"model":"%s"`, extractModelName(bodyBytes))), []byte(fmt.Sprintf(`"model":"%s"`, dest.TargetModel)))
+		bodyBytes = bytes.ReplaceAll(bodyBytes, []byte(fmt.Sprintf(`"model": "%s"`, extractModelName(bodyBytes))), []byte(fmt.Sprintf(`"model": "%s"`, dest.TargetModel)))
+	}
+
+	proxyReq, _ := http.NewRequestWithContext(ctx, r.Method, targetURL, bytes.NewReader(bodyBytes))
+	
+	// Query transfer
+	proxyReq.URL.RawQuery = r.URL.RawQuery
+
+	for k, vv := range r.Header {
+		if !strings.EqualFold(k, "Host") && !strings.EqualFold(k, "Content-Length") &&
+			!strings.EqualFold(k, "Accept-Encoding") && !strings.EqualFold(k, "Authorization") {
+			for _, v := range vv {
+				proxyReq.Header.Add(k, v)
+			}
+		}
+	}
+	proxyReq.Header.Set("Authorization", "Bearer "+dest.Node.Credentials)
+
+	startTime := time.Now()
+	finalResp, err := httpClient.Do(proxyReq)
+
+	if err != nil {
+		errMsg := err.Error()
+		db.SaveUsage("openai", dest.Node.Name, clientType, methodName, 0, 0, 0, http.StatusBadGateway)
+		dest.Node.UpdateOnFailure(dest.IsProbationRun, traceID)
+		slog.Error("OAI 物理网络断联", "trace_id", traceID, "error", errMsg)
+		http.Error(w, fmt.Sprintf("Polaris Gateway Network Error: %s", errMsg), http.StatusBadGateway)
+		return
+	}
+
+	statusCode := finalResp.StatusCode
+	isNodeFailure := statusCode >= 500 || statusCode == http.StatusTooManyRequests || statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden
+
+	if isNodeFailure {
+		db.SaveUsage("openai", dest.Node.Name, clientType, methodName, 0, 0, 0, statusCode)
+		slog.Warn("OAI 节点异常/限流，记入熔断惩罚队列", "trace_id", traceID, "status", statusCode)
+	} else if statusCode >= 400 {
+		db.SaveUsage("openai", dest.Node.Name, clientType, methodName, 0, 0, 0, statusCode)
+		slog.Warn("OAI 客户端业务请求参数错误", "trace_id", traceID, "status", statusCode)
+	}
+
+	streamAndSettleUsage(w, finalResp, dest, dest.TargetModel, clientType, methodName, traceID, startTime)
+
+	if isNodeFailure {
+		dest.Node.UpdateOnFailure(dest.IsProbationRun, traceID)
+	} else {
+		dest.Node.UpdateOnSuccess()
+	}
+}
+
+func init() {
+	router.RegisterTranslator("openai", "openai", OpenAIToOpenAI)
+	router.RegisterTranslator("openai", "gemini", OpenAIToOpenAI)
+}

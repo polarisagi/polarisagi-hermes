@@ -1,6 +1,7 @@
 package webapi
 
 import (
+	"database/sql"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -56,7 +57,7 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if r.Method == http.MethodGet {
-		rows, err := db.DB().Query("SELECT id, platform, name, key_value, project_id, location, base_url, priority, cutoff_percent, budget, billing_start_date, is_enabled FROM sys_nodes ORDER BY platform, priority")
+		rows, err := db.DB().Query("SELECT id, name, provider, base_url, credentials, project_id, location, priority, balance, used_amount, limit_percent, valid_from, valid_to, status FROM sys_nodes ORDER BY provider, priority DESC")
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -65,34 +66,37 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 
 		var nodes []map[string]interface{}
 		for rows.Next() {
-			var id, priority, isEnabled int
-			var platform, name, key, projectID, location, baseURL, billingStartDate string
-			var cutoffPercent, budget float64
+			var id, priority, status int
+			var name, provider, baseURL, credentials, projectID, location, validFrom, validTo string
+			var balance, usedAmount, limitPercent float64
 			
-			if err := rows.Scan(&id, &platform, &name, &key, &projectID, &location, &baseURL, &priority, &cutoffPercent, &budget, &billingStartDate, &isEnabled); err != nil {
+			if err := rows.Scan(&id, &name, &provider, &baseURL, &credentials, &projectID, &location, &priority, &balance, &usedAmount, &limitPercent, &validFrom, &validTo, &status); err != nil {
 				continue
 			}
-			// Mask key for security
-			maskedKey := key
-			if len(key) > 8 {
-				maskedKey = key[:4] + "..." + key[len(key)-4:]
+			
+			// Mask credentials for security if it's an API Key. For JSON, just masking part of it is tricky, but let's do a simple mask
+			maskedCred := credentials
+			if len(credentials) > 15 {
+				maskedCred = credentials[:5] + "......" + credentials[len(credentials)-5:]
 			} else {
-				maskedKey = "***"
+				maskedCred = "***"
 			}
 
 			nodes = append(nodes, map[string]interface{}{
-				"id":                 id,
-				"platform":           platform,
-				"name":               name,
-				"key":                maskedKey, // Don't expose real key to frontend
-				"project_id":         projectID,
-				"location":           location,
-				"base_url":           baseURL,
-				"priority":           priority,
-				"cutoff_percent":      cutoffPercent,
-				"budget":              budget,
-				"billing_start_date":  billingStartDate,
-				"is_enabled":         isEnabled == 1,
+				"id":            id,
+				"name":          name,
+				"provider":      provider,
+				"base_url":      baseURL,
+				"credentials":   maskedCred,
+				"project_id":    projectID,
+				"location":      location,
+				"priority":      priority,
+				"balance":       balance,
+				"used_amount":   usedAmount,
+				"limit_percent": limitPercent,
+				"valid_from":    validFrom,
+				"valid_to":      validTo,
+				"status":        status,
 			})
 		}
 		json.NewEncoder(w).Encode(nodes)
@@ -101,32 +105,38 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodPost {
 		var req struct {
-			Platform         string  `json:"platform"`
-			Name             string  `json:"name"`
-			Key              string  `json:"key"`
-			ProjectID        string  `json:"project_id"`
-			Location         string  `json:"location"`
-			BaseURL          string  `json:"base_url"`
-			Priority         int     `json:"priority"`
-			CutoffPercent    float64 `json:"cutoff_percent"`
-			Budget           float64 `json:"budget"`
-			BillingStartDate string  `json:"billing_start_date"`
-			IsEnabled        bool    `json:"is_enabled"`
+			Name         string  `json:"name"`
+			Provider     string  `json:"provider"`
+			BaseURL      string  `json:"base_url"`
+			Credentials  string  `json:"credentials"`
+			ProjectID    string  `json:"project_id"`
+			Location     string  `json:"location"`
+			Priority     int     `json:"priority"`
+			Balance      float64 `json:"balance"`
+			LimitPercent float64 `json:"limit_percent"`
+			ValidFrom    string  `json:"valid_from"`
+			ValidTo      string  `json:"valid_to"`
+			Status       int     `json:"status"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		enabledInt := 0
-		if req.IsEnabled {
-			enabledInt = 1
+		if req.LimitPercent == 0 {
+			req.LimitPercent = 90.0
+		}
+		if req.ValidFrom == "" {
+			req.ValidFrom = "2000-01-01 00:00:00"
+		}
+		if req.ValidTo == "" {
+			req.ValidTo = "2099-12-31 23:59:59"
 		}
 
 		_, err := db.DB().Exec(`
-			INSERT INTO sys_nodes (platform, name, key_value, project_id, location, base_url, priority, cutoff_percent, budget, billing_start_date, is_enabled)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			req.Platform, req.Name, req.Key, req.ProjectID, req.Location, req.BaseURL, req.Priority, req.CutoffPercent, req.Budget, req.BillingStartDate, enabledInt)
+			INSERT INTO sys_nodes (name, provider, base_url, credentials, project_id, location, priority, balance, used_amount, limit_percent, valid_from, valid_to, status)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0.0, ?, ?, ?, ?)`,
+			req.Name, req.Provider, req.BaseURL, req.Credentials, req.ProjectID, req.Location, req.Priority, req.Balance, req.LimitPercent, req.ValidFrom, req.ValidTo, req.Status)
 		
 		if err != nil {
 			slog.Error("Failed to insert node", "error", err)
@@ -142,44 +152,40 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodPut {
 		var req struct {
-			ID               int     `json:"id"`
-			Platform         string  `json:"platform"`
-			Name             string  `json:"name"`
-			Key              string  `json:"key"`
-			ProjectID        string  `json:"project_id"`
-			Location         string  `json:"location"`
-			BaseURL          string  `json:"base_url"`
-			Priority         int     `json:"priority"`
-			CutoffPercent    float64 `json:"cutoff_percent"`
-			Budget           float64 `json:"budget"`
-			BillingStartDate string  `json:"billing_start_date"`
-			IsEnabled        bool    `json:"is_enabled"`
+			ID           int     `json:"id"`
+			Name         string  `json:"name"`
+			Provider     string  `json:"provider"`
+			BaseURL      string  `json:"base_url"`
+			Credentials  string  `json:"credentials"`
+			ProjectID    string  `json:"project_id"`
+			Location     string  `json:"location"`
+			Priority     int     `json:"priority"`
+			Balance      float64 `json:"balance"`
+			LimitPercent float64 `json:"limit_percent"`
+			ValidFrom    string  `json:"valid_from"`
+			ValidTo      string  `json:"valid_to"`
+			Status       int     `json:"status"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		enabledInt := 0
-		if req.IsEnabled {
-			enabledInt = 1
-		}
-
-		// Only update key if it wasn't masked
-		if !strings.Contains(req.Key, "...") && req.Key != "***" && req.Key != "" {
+		// Only update credentials if it wasn't masked
+		if !strings.Contains(req.Credentials, "......") && req.Credentials != "***" && req.Credentials != "" {
 			_, err := db.DB().Exec(`
-				UPDATE sys_nodes SET platform=?, name=?, key_value=?, project_id=?, location=?, base_url=?, priority=?, cutoff_percent=?, budget=?, billing_start_date=?, is_enabled=?
+				UPDATE sys_nodes SET name=?, provider=?, base_url=?, credentials=?, project_id=?, location=?, priority=?, balance=?, limit_percent=?, valid_from=?, valid_to=?, status=?
 				WHERE id=?`,
-				req.Platform, req.Name, req.Key, req.ProjectID, req.Location, req.BaseURL, req.Priority, req.CutoffPercent, req.Budget, req.BillingStartDate, enabledInt, req.ID)
+				req.Name, req.Provider, req.BaseURL, req.Credentials, req.ProjectID, req.Location, req.Priority, req.Balance, req.LimitPercent, req.ValidFrom, req.ValidTo, req.Status, req.ID)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 		} else {
 			_, err := db.DB().Exec(`
-				UPDATE sys_nodes SET platform=?, name=?, project_id=?, location=?, base_url=?, priority=?, cutoff_percent=?, budget=?, billing_start_date=?, is_enabled=?
+				UPDATE sys_nodes SET name=?, provider=?, base_url=?, project_id=?, location=?, priority=?, balance=?, limit_percent=?, valid_from=?, valid_to=?, status=?
 				WHERE id=?`,
-				req.Platform, req.Name, req.ProjectID, req.Location, req.BaseURL, req.Priority, req.CutoffPercent, req.Budget, req.BillingStartDate, enabledInt, req.ID)
+				req.Name, req.Provider, req.BaseURL, req.ProjectID, req.Location, req.Priority, req.Balance, req.LimitPercent, req.ValidFrom, req.ValidTo, req.Status, req.ID)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -209,7 +215,6 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"status": "success"}`))
 		return
 	}
-	
 	
 	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 }
@@ -242,4 +247,133 @@ func AdminLogsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write(buf)
+}
+
+// AdminRoutesHandler handles CRUD for /api/routes
+func AdminRoutesHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method == http.MethodGet {
+		// Join with sys_nodes to get the node name
+		query := `
+			SELECT r.id, r.match_model, r.node_id, r.target_model, r.status, n.name as node_name
+			FROM sys_routes r
+			LEFT JOIN sys_nodes n ON r.node_id = n.id
+			ORDER BY r.id DESC
+		`
+		rows, err := db.DB().Query(query)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		var routes []map[string]interface{}
+		for rows.Next() {
+			var id, nodeID, status int
+			var matchModel, targetModel string
+			var nodeName sql.NullString
+			
+			if err := rows.Scan(&id, &matchModel, &nodeID, &targetModel, &status, &nodeName); err != nil {
+				continue
+			}
+
+			routes = append(routes, map[string]interface{}{
+				"id":           id,
+				"match_model":  matchModel,
+				"node_id":      nodeID,
+				"node_name":    nodeName.String,
+				"target_model": targetModel,
+				"status":       status,
+			})
+		}
+		json.NewEncoder(w).Encode(routes)
+		return
+	}
+
+	if r.Method == http.MethodPost {
+		var req struct {
+			MatchModel  string `json:"match_model"`
+			NodeID      int    `json:"node_id"`
+			TargetModel string `json:"target_model"`
+			Status      int    `json:"status"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if req.TargetModel == "" {
+			req.TargetModel = req.MatchModel
+		}
+
+		_, err := db.DB().Exec(`
+			INSERT INTO sys_routes (match_model, node_id, target_model, status)
+			VALUES (?, ?, ?, ?)`,
+			req.MatchModel, req.NodeID, req.TargetModel, req.Status)
+		
+		if err != nil {
+			slog.Error("Failed to insert route", "error", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		
+		config.ReloadFromDB()
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status": "success"}`))
+		return
+	}
+
+	if r.Method == http.MethodPut {
+		var req struct {
+			ID          int    `json:"id"`
+			MatchModel  string `json:"match_model"`
+			NodeID      int    `json:"node_id"`
+			TargetModel string `json:"target_model"`
+			Status      int    `json:"status"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if req.TargetModel == "" {
+			req.TargetModel = req.MatchModel
+		}
+
+		_, err := db.DB().Exec(`
+			UPDATE sys_routes SET match_model=?, node_id=?, target_model=?, status=?
+			WHERE id=?`,
+			req.MatchModel, req.NodeID, req.TargetModel, req.Status, req.ID)
+		
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		
+		config.ReloadFromDB()
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status": "success"}`))
+		return
+	}
+
+	if r.Method == http.MethodDelete {
+		idStr := r.URL.Query().Get("id")
+		if idStr == "" {
+			http.Error(w, "missing id parameter", http.StatusBadRequest)
+			return
+		}
+		id, _ := strconv.Atoi(idStr)
+		_, err := db.DB().Exec("DELETE FROM sys_routes WHERE id=?", id)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		config.ReloadFromDB()
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status": "success"}`))
+		return
+	}
+	
+	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 }

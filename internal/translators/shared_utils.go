@@ -1,4 +1,4 @@
-package protocol_openai
+package translators
 
 import (
 	"fmt"
@@ -43,6 +43,10 @@ var (
 	openAICompletionRegex = regexp.MustCompile(`"completion_tokens"\s*:\s*(\d+)`)
 	openAICachedRegex     = regexp.MustCompile(`"cached_tokens"\s*:\s*(\d+)`)
 	modelRegex            = regexp.MustCompile(`"model"\s*:\s*"([^"]+)"`)
+	
+	promptRegex        = regexp.MustCompile(`"promptTokenCount":\s*(\d+)`)
+	candidateRegex     = regexp.MustCompile(`"candidatesTokenCount":\s*(\d+)`)
+	cachedContentRegex = regexp.MustCompile(`"cachedContentTokenCount":\s*(\d+)`)
 )
 
 func extractModelName(body []byte) string {

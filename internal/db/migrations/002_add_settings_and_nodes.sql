@@ -12,16 +12,28 @@ VALUES (1, '127.0.0.1:28888', 60, 3600, 3, 120);
 
 CREATE TABLE IF NOT EXISTS sys_nodes (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	platform TEXT NOT NULL,
 	name TEXT NOT NULL UNIQUE,
-	key_value TEXT NOT NULL,
-	project_id TEXT DEFAULT '',
-	location TEXT DEFAULT 'us-central1',
+	provider TEXT NOT NULL,
 	base_url TEXT DEFAULT '',
+	credentials TEXT NOT NULL,
+	project_id TEXT DEFAULT '',
+	location TEXT DEFAULT 'global',
 	priority INTEGER DEFAULT 0 CHECK (priority >= 0),
-	cutoff_percent REAL DEFAULT 95.0,
-	budget REAL DEFAULT 0.0,
-	billing_start_date TEXT DEFAULT '2000-01-01',
-	is_enabled INTEGER DEFAULT 1,
+	balance REAL DEFAULT 0.0,
+	used_amount REAL DEFAULT 0.0,
+	limit_percent REAL DEFAULT 90.0,
+	valid_from DATETIME DEFAULT CURRENT_TIMESTAMP,
+	valid_to DATETIME DEFAULT '2099-12-31 23:59:59',
+	status INTEGER DEFAULT 1,
 	created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS sys_routes (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	match_model TEXT NOT NULL,
+	node_id INTEGER NOT NULL,
+	target_model TEXT NOT NULL,
+	status INTEGER DEFAULT 1,
+	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	FOREIGN KEY (node_id) REFERENCES sys_nodes(id) ON DELETE CASCADE
 );

@@ -1,4 +1,4 @@
-package protocol_anthropic
+package translators
 
 import (
 	"bufio"
@@ -10,9 +10,10 @@ import (
 	"net/http"
 
 	"polaris-gateway/internal/db"
+	"polaris-gateway/internal/router"
 )
 
-func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, req MessageRequest, traceID string, state *AccountState, clientType, modelName string) {
+func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, req MessageRequest, traceID string, dest *router.MatchedDestination, clientType, modelName string) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -145,30 +146,18 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 	// Settle Usage
 	if promptTokens > 0 || completionTokens > 0 {
 		cost := calculateCost(modelName, int64(promptTokens), int64(completionTokens), int64(cachedTokens))
-		db.SaveUsage("vertex", state.Name, clientType, "anthropic_adapter", int64(promptTokens), int64(completionTokens), cost, http.StatusOK)
-
-		poolMutex.Lock()
-		state.TotalConsumed += cost
-		if state.Budget > 0 && state.CutoffPercent > 0 {
-			usagePercent := (state.TotalConsumed / state.Budget) * 100
-			if usagePercent >= state.CutoffPercent {
-				if state.Status != StatusExhausted {
-					state.Status = StatusExhausted
-					slog.Warn("🚫 [Anthropic 运行期熔断] 账号触达上限，物理隔离", "account", state.Name)
-				}
-			}
-		}
-		poolMutex.Unlock()
+		db.SaveUsage("vertex", dest.Node.Name, clientType, "anthropic_adapter", int64(promptTokens), int64(completionTokens), cost, http.StatusOK)
+		dest.Node.RecordCost(cost, traceID)
 
 		if cachedTokens > 0 {
-			slog.Info("💰 结算完成", "trace_id", traceID, "account", state.Name, "model", modelName, "prompt", promptTokens, "cached", cachedTokens, "completion", completionTokens, "cost", fmt.Sprintf("%.4f", cost))
+			slog.Info("💰 结算完成", "trace_id", traceID, "account", dest.Node.Name, "model", modelName, "prompt", promptTokens, "cached", cachedTokens, "completion", completionTokens, "cost", fmt.Sprintf("%.4f", cost))
 		} else {
-			slog.Info("💰 结算完成", "trace_id", traceID, "account", state.Name, "model", modelName, "prompt", promptTokens, "completion", completionTokens, "cost", fmt.Sprintf("%.4f", cost))
+			slog.Info("💰 结算完成", "trace_id", traceID, "account", dest.Node.Name, "model", modelName, "prompt", promptTokens, "completion", completionTokens, "cost", fmt.Sprintf("%.4f", cost))
 		}
 	}
 }
 
-func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Response, req MessageRequest, traceID string, state *AccountState, clientType, modelName string) {
+func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Response, req MessageRequest, traceID string, dest *router.MatchedDestination, clientType, modelName string) {
 	defer vertexResp.Body.Close()
 	bodyBytes, err := io.ReadAll(vertexResp.Body)
 	if err != nil {
@@ -212,25 +201,13 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 
 	if promptTokens > 0 || completionTokens > 0 {
 		cost := calculateCost(modelName, int64(promptTokens), int64(completionTokens), int64(cachedTokens))
-		db.SaveUsage("vertex", state.Name, clientType, "anthropic_adapter", int64(promptTokens), int64(completionTokens), cost, vertexResp.StatusCode)
-
-		poolMutex.Lock()
-		state.TotalConsumed += cost
-		if state.Budget > 0 && state.CutoffPercent > 0 {
-			usagePercent := (state.TotalConsumed / state.Budget) * 100
-			if usagePercent >= state.CutoffPercent {
-				if state.Status != StatusExhausted {
-					state.Status = StatusExhausted
-					slog.Warn("🚫 [Anthropic 运行期熔断] 账号触达上限，物理隔离", "account", state.Name)
-				}
-			}
-		}
-		poolMutex.Unlock()
+		db.SaveUsage("vertex", dest.Node.Name, clientType, "anthropic_adapter", int64(promptTokens), int64(completionTokens), cost, vertexResp.StatusCode)
+		dest.Node.RecordCost(cost, traceID)
 
 		if cachedTokens > 0 {
-			slog.Info("💰 结算完成", "trace_id", traceID, "account", state.Name, "model", modelName, "prompt", promptTokens, "cached", cachedTokens, "completion", completionTokens, "cost", fmt.Sprintf("%.4f", cost))
+			slog.Info("💰 结算完成", "trace_id", traceID, "account", dest.Node.Name, "model", modelName, "prompt", promptTokens, "cached", cachedTokens, "completion", completionTokens, "cost", fmt.Sprintf("%.4f", cost))
 		} else {
-			slog.Info("💰 结算完成", "trace_id", traceID, "account", state.Name, "model", modelName, "prompt", promptTokens, "completion", completionTokens, "cost", fmt.Sprintf("%.4f", cost))
+			slog.Info("💰 结算完成", "trace_id", traceID, "account", dest.Node.Name, "model", modelName, "prompt", promptTokens, "completion", completionTokens, "cost", fmt.Sprintf("%.4f", cost))
 		}
 	}
 

@@ -34,6 +34,11 @@
                         <span>🌐 节点管理</span>
                     </div>
                 </a>
+                <a @click="currentTab = 'routes'" :class="currentTab === 'routes' ? 'bg-pink-600/20 text-pink-400 border-pink-500/50' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200 border-transparent'" class="block px-4 py-3 rounded-lg cursor-pointer transition border">
+                    <div class="flex items-center gap-3 font-medium">
+                        <span>🔀 路由管理</span>
+                    </div>
+                </a>
                 <a @click="currentTab = 'settings'" :class="currentTab === 'settings' ? 'bg-purple-600/20 text-purple-400 border-purple-500/50' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200 border-transparent'" class="block px-4 py-3 rounded-lg cursor-pointer transition border">
                     <div class="flex items-center gap-3 font-medium">
                         <span>⚙️ 系统设置</span>
@@ -148,9 +153,9 @@
                                 </td>
                                 <td class="px-6 py-4 text-right font-bold text-emerald-400 align-top pt-5">$ {{ formatNum(row.period_cost_usd) }}</td>
                                 <td class="px-6 py-4 align-top pt-5">
-                                    <div v-if="row.budget > 0">
+                                    <div v-if="row.balance > 0">
                                         <div class="flex justify-between text-[10px] mb-1">
-                                            <span class="text-slate-400">自: {{ formatShortDate(row.start_date) }}</span>
+                                            <span class="text-slate-400">自: {{ formatShortDate(row.valid_from) }}</span>
                                             <span :class="getRemainingColor(row)" class="font-semibold">剩余可用: {{ getRemainingPercent(row) }}%</span>
                                         </div>
                                         <div class="w-full bg-slate-800 rounded-full h-2.5 relative overflow-hidden ring-1 ring-slate-700">
@@ -158,7 +163,7 @@
                                         </div>
                                         <div class="text-[10px] text-slate-500 mt-1 flex justify-between">
                                             <span>本期: ${{ formatNum(row.cycle_cost_usd) }}</span>
-                                            <span>总额: ${{ formatNum(row.budget) }}</span>
+                                            <span>总额: ${{ formatNum(row.balance) }}</span>
                                         </div>
                                     </div>
                                     <div v-else class="text-[10px] text-slate-500 bg-slate-800 px-2 py-1 rounded inline-block text-center w-full">无安全线拦截</div>
@@ -235,18 +240,19 @@
                         <tbody>
                             <tr v-for="node in nodes" :key="node.id" class="border-b border-slate-700 hover:bg-slate-700/50">
                                 <td class="px-6 py-4">
-                                    <span :class="node.platform === 'openai' ? 'bg-indigo-600 border-indigo-500/50' : 'bg-emerald-600 border-emerald-500/50'"
-                                        class="text-white text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">{{ node.platform }}</span>
+                                    <span :class="node.provider === 'openai' ? 'bg-indigo-600 border-indigo-500/50' : 'bg-emerald-600 border-emerald-500/50'"
+                                        class="text-white text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">{{ node.provider }}</span>
                                 </td>
                                 <td class="px-6 py-4 font-medium text-white">{{ node.name }}</td>
                                 <td class="px-6 py-4">{{ node.priority }}</td>
                                 <td class="px-6 py-4">
-                                    <span v-if="node.budget > 0">${{ node.budget }} ({{ node.cutoff_percent }}%)</span>
+                                    <span v-if="node.balance > 0">${{ node.balance }} ({{ node.limit_percent }}%)</span>
                                     <span v-else class="text-slate-500">无上限</span>
                                 </td>
                                 <td class="px-6 py-4 text-center">
-                                    <span v-if="node.is_enabled" class="text-emerald-400 text-xs bg-emerald-400/10 px-2 py-1 rounded">启用</span>
-                                    <span v-else class="text-slate-500 text-xs bg-slate-500/10 px-2 py-1 rounded">禁用</span>
+                                    <span v-if="node.status === 1" class="text-emerald-400 text-xs bg-emerald-400/10 px-2 py-1 rounded">启用</span>
+                                    <span v-else-if="node.status === 0" class="text-slate-500 text-xs bg-slate-500/10 px-2 py-1 rounded">禁用</span>
+                                    <span v-else-if="node.status === -1" class="text-red-500 text-xs bg-red-500/10 px-2 py-1 rounded">已熔断/过期</span>
                                 </td>
                                 <td class="px-6 py-4 text-right space-x-2">
                                     <button @click="openNodeModal(node)" class="text-blue-400 hover:text-blue-300 text-xs">编辑</button>
@@ -255,6 +261,48 @@
                             </tr>
                             <tr v-if="nodes.length === 0">
                                 <td colspan="6" class="px-6 py-8 text-center text-slate-500">暂无节点配置，请添加。</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Routes Tab -->
+            <div v-show="currentTab === 'routes'" class="max-w-6xl mx-auto">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-white">路由管理</h2>
+                    <button @click="openRouteModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition font-medium text-sm flex items-center gap-2">
+                        <span>+</span> 添加新路由
+                    </button>
+                </div>
+                
+                <div class="card rounded-xl shadow-lg overflow-hidden">
+                    <table class="w-full text-sm text-left text-slate-300">
+                        <thead class="text-xs text-slate-400 uppercase bg-slate-800 border-b border-slate-700">
+                            <tr>
+                                <th class="px-6 py-4">请求模型 (Match Model)</th>
+                                <th class="px-6 py-4">转发节点 (Target Node)</th>
+                                <th class="px-6 py-4">上游模型 (Target Model)</th>
+                                <th class="px-6 py-4 text-center">状态</th>
+                                <th class="px-6 py-4 text-right">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="route in routes" :key="route.id" class="border-b border-slate-700 hover:bg-slate-700/50">
+                                <td class="px-6 py-4 font-mono text-blue-400">{{ route.match_model }}</td>
+                                <td class="px-6 py-4 text-white font-medium">{{ route.node_name }}</td>
+                                <td class="px-6 py-4 font-mono text-emerald-400">{{ route.target_model }}</td>
+                                <td class="px-6 py-4 text-center">
+                                    <span v-if="route.status === 1" class="text-emerald-400 text-xs bg-emerald-400/10 px-2 py-1 rounded">启用</span>
+                                    <span v-else class="text-slate-500 text-xs bg-slate-500/10 px-2 py-1 rounded">禁用</span>
+                                </td>
+                                <td class="px-6 py-4 text-right space-x-2">
+                                    <button @click="openRouteModal(route)" class="text-blue-400 hover:text-blue-300 text-xs">编辑</button>
+                                    <button @click="deleteRoute(route.id)" class="text-red-400 hover:text-red-300 text-xs">删除</button>
+                                </td>
+                            </tr>
+                            <tr v-if="routes.length === 0">
+                                <td colspan="5" class="px-6 py-8 text-center text-slate-500">暂无路由配置，请添加。</td>
                             </tr>
                         </tbody>
                     </table>
@@ -357,11 +405,12 @@
                     <div class="p-6 overflow-y-auto flex-1 space-y-4">
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-slate-300 mb-1">协议类型 (Platform) *</label>
-                                <select v-model="nodeForm.platform" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                                <label class="block text-sm font-medium text-slate-300 mb-1">协议类型 (Provider) *</label>
+                                <select v-model="nodeForm.provider" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
                                     <option value="openai">OpenAI</option>
                                     <option value="vertex">Vertex (GCP)</option>
                                     <option value="anthropic">Anthropic</option>
+                                    <option value="gemini">Gemini (API Key)</option>
                                 </select>
                             </div>
                             <div>
@@ -371,25 +420,26 @@
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-slate-300 mb-1">API Key / Access Token *</label>
-                            <input v-model="nodeForm.key" type="password" placeholder="填写后将覆盖旧值，留空则保持原样" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                            <label class="block text-sm font-medium text-slate-300 mb-1">API Key / JSON Credentials *</label>
+                            <input v-model="nodeForm.credentials" type="password" placeholder="填写后将覆盖旧值，留空则保持原样" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
                         </div>
 
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-slate-300 mb-1">优先级 (数字越小越优先)</label>
+                                <label class="block text-sm font-medium text-slate-300 mb-1">优先级 (数字越大越优先)</label>
                                 <input v-model.number="nodeForm.priority" type="number" min="0" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-slate-300 mb-1">启用状态</label>
-                                <select v-model="nodeForm.is_enabled" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
-                                    <option :value="true">启用</option>
-                                    <option :value="false">禁用</option>
+                                <label class="block text-sm font-medium text-slate-300 mb-1">运行状态</label>
+                                <select v-model="nodeForm.status" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                                    <option :value="1">正常启用</option>
+                                    <option :value="0">手动禁用</option>
+                                    <option :value="-1">熔断/过期 (不分发流量)</option>
                                 </select>
                             </div>
                         </div>
 
-                        <div v-if="nodeForm.platform === 'vertex'" class="grid grid-cols-2 gap-4 p-4 bg-slate-900/50 rounded-lg border border-slate-700">
+                        <div v-if="nodeForm.provider === 'vertex'" class="grid grid-cols-2 gap-4 p-4 bg-slate-900/50 rounded-lg border border-slate-700">
                             <div>
                                 <label class="block text-sm font-medium text-slate-300 mb-1">GCP Project ID *</label>
                                 <input v-model="nodeForm.project_id" type="text" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none">
@@ -400,7 +450,7 @@
                             </div>
                         </div>
 
-                        <div v-if="nodeForm.platform === 'openai'" class="p-4 bg-slate-900/50 rounded-lg border border-slate-700">
+                        <div v-if="nodeForm.provider === 'openai' || nodeForm.provider === 'anthropic'" class="p-4 bg-slate-900/50 rounded-lg border border-slate-700">
                             <label class="block text-sm font-medium text-slate-300 mb-1">Base URL (可选中转地址)</label>
                             <input v-model="nodeForm.base_url" type="text" placeholder="https://api.openai.com/v1" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none">
                         </div>
@@ -410,15 +460,19 @@
                             <div class="grid grid-cols-3 gap-4">
                                 <div>
                                     <label class="block text-sm font-medium text-slate-300 mb-1">总额度 ($)</label>
-                                    <input v-model.number="nodeForm.budget" type="number" min="0" step="0.01" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none">
+                                    <input v-model.number="nodeForm.balance" type="number" min="0" step="0.01" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none">
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-slate-300 mb-1">阻断水位线 (%)</label>
-                                    <input v-model.number="nodeForm.cutoff_percent" type="number" min="0" max="100" step="0.1" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none">
+                                    <label class="block text-sm font-medium text-slate-300 mb-1">熔断水位线 (%)</label>
+                                    <input v-model.number="nodeForm.limit_percent" type="number" min="0" max="100" step="0.1" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none">
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-slate-300 mb-1">账期起点 (Y-m-d)</label>
-                                    <input v-model="nodeForm.billing_start_date" type="text" placeholder="2000-01-01" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none">
+                                    <label class="block text-sm font-medium text-slate-300 mb-1">起始有效时间</label>
+                                    <input v-model="nodeForm.valid_from" type="text" placeholder="2000-01-01 00:00:00" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none">
+                                </div>
+                                <div class="col-span-3">
+                                    <label class="block text-sm font-medium text-slate-300 mb-1">截止有效时间 (到期自动停用)</label>
+                                    <input v-model="nodeForm.valid_to" type="text" placeholder="2099-12-31 23:59:59" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none">
                                 </div>
                             </div>
                         </div>
@@ -426,6 +480,53 @@
                     <div class="p-6 border-t border-slate-700 flex justify-end gap-3 bg-slate-800/50">
                         <button @click="nodeModal.show = false" class="px-5 py-2 rounded-lg text-slate-300 hover:bg-slate-700 transition">取消</button>
                         <button @click="saveNode" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition shadow-lg shadow-blue-500/20">
+                            保存
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Route Editor Modal -->
+            <div v-if="routeModal.show" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-slate-800 border border-slate-700 rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+                    <div class="p-6 border-b border-slate-700 flex justify-between items-center">
+                        <h3 class="text-xl font-bold text-white">{{ routeModal.isEdit ? '编辑路由' : '添加新路由' }}</h3>
+                        <button @click="routeModal.show = false" class="text-slate-400 hover:text-white transition">✕</button>
+                    </div>
+                    <div class="p-6 overflow-y-auto flex-1 space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-300 mb-1">匹配客户端请求模型 (Match Model) *</label>
+                            <input v-model="routeForm.match_model" type="text" placeholder="例如: gpt-4o, claude-3-5-sonnet-20240620" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                            <p class="text-xs text-slate-500 mt-1">客户端传入该模型名时触发本路由。支持配置统配或其他匹配逻辑（视后端实现而定）。</p>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-slate-300 mb-1">转发到网关节点 (Target Node) *</label>
+                            <select v-model="routeForm.node_id" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                                <option value="0" disabled>请选择转发节点</option>
+                                <option v-for="node in nodes" :key="node.id" :value="node.id">
+                                    {{ node.name }} ({{ node.provider }})
+                                </option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-slate-300 mb-1">实际请求上游模型 (Target Model) *</label>
+                            <input v-model="routeForm.target_model" type="text" placeholder="例如: gemini-1.5-pro, 留空则保持原样" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                            <p class="text-xs text-slate-500 mt-1">发往上游 API 时的实际模型名。常用于 OpenAI 协议转 Vertex 时映射为 Gemini 模型。</p>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-slate-300 mb-1">路由状态</label>
+                            <select v-model="routeForm.status" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                                <option :value="1">启用</option>
+                                <option :value="0">禁用</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="p-6 border-t border-slate-700 flex justify-end gap-3 bg-slate-800/50">
+                        <button @click="routeModal.show = false" class="px-5 py-2 rounded-lg text-slate-300 hover:bg-slate-700 transition">取消</button>
+                        <button @click="saveRoute" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition shadow-lg shadow-blue-500/20">
                             保存
                         </button>
                     </div>

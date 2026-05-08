@@ -16,6 +16,12 @@ createApp({
         const isAutoScroll = ref(true);
 
         const nodes = ref([]);
+        const routes = ref([]);
+        const routeModal = ref({ show: false, isEdit: false });
+        const routeForm = ref({
+            id: 0, match_model: '', node_id: 0, target_model: '', status: 1
+        });
+
         const settings = ref({
             listen_addr: '127.0.0.1:28888',
             breaker: {
@@ -35,8 +41,8 @@ createApp({
 
         const nodeModal = ref({ show: false, isEdit: false });
         const nodeForm = ref({
-            id: 0, platform: 'openai', name: '', key: '', project_id: '', location: 'global', base_url: '',
-            priority: 0, cutoff_percent: 95.0, budget: 0.0, billing_start_date: '2000-01-01', is_enabled: true
+            id: 0, provider: 'openai', name: '', credentials: '', project_id: '', location: 'global', base_url: '',
+            priority: 0, limit_percent: 90.0, balance: 0.0, valid_from: '2000-01-01', valid_to: '2099-12-31', status: 1
         });
 
         const formatNum = (num) => Number(num).toFixed(4);
@@ -56,8 +62,8 @@ createApp({
                 const key = r.account;
                 if (!map[key]) {
                     map[key] = {
-                        account: r.account, platforms: new Set(), budget: r.budget, cutoff_percent: r.cutoff_percent,
-                        start_date: r.start_date, total_cost_usd: r.total_cost_usd, cycle_cost_usd: r.cycle_cost_usd,
+                        account: r.account, platforms: new Set(), balance: r.balance, limit_percent: r.limit_percent,
+                        valid_from: r.valid_from, total_cost_usd: r.total_cost_usd, cycle_cost_usd: r.cycle_cost_usd,
                         period_cost_usd: 0, prompt_tokens: 0, completion_tokens: 0, success_count: 0, error_count: 0, breakdown: []
                     };
                 }
@@ -80,27 +86,27 @@ createApp({
         });
 
         const getUsagePercent = (row) => {
-            if (!row.budget || row.budget <= 0) return 0;
-            return (row.cycle_cost_usd / row.budget) * 100;
+            if (!row.balance || row.balance <= 0) return 0;
+            return (row.cycle_cost_usd / row.balance) * 100;
         };
 
         const getRemainingPercent = (row) => {
-            if (!row.budget) return 100;
-            const remain = row.cutoff_percent - getUsagePercent(row);
+            if (!row.balance) return 100;
+            const remain = row.limit_percent - getUsagePercent(row);
             return Math.max(0, remain).toFixed(2);
         };
 
         const getBarColor = (row) => {
             const usage = getUsagePercent(row);
-            if (usage >= row.cutoff_percent) return 'bg-red-500';
-            if (usage >= row.cutoff_percent * 0.85) return 'bg-yellow-500';
+            if (usage >= row.limit_percent) return 'bg-red-500';
+            if (usage >= row.limit_percent * 0.85) return 'bg-yellow-500';
             return 'bg-emerald-500';
         };
 
         const getRemainingColor = (row) => {
             const remain = parseFloat(getRemainingPercent(row));
             if (remain <= 0) return 'text-red-400 animate-pulse';
-            if (remain <= row.cutoff_percent * 0.15) return 'text-yellow-400';
+            if (remain <= row.limit_percent * 0.15) return 'text-yellow-400';
             return 'text-emerald-400';
         };
 
@@ -129,6 +135,13 @@ createApp({
             try {
                 const res = await fetch('/api/admin/nodes');
                 nodes.value = await res.json() || [];
+            } catch (e) { console.error(e) }
+        };
+
+        const fetchRoutes = async () => {
+            try {
+                const res = await fetch('/api/admin/routes');
+                routes.value = await res.json() || [];
             } catch (e) { console.error(e) }
         };
 
@@ -179,38 +192,38 @@ createApp({
 
         const openNodeModal = (node = null) => {
             if (node) {
-                nodeForm.value = { ...node, key: '' }; // Don't show real key
+                nodeForm.value = { ...node, credentials: '' }; // Don't show real credentials
                 nodeModal.value = { show: true, isEdit: true };
             } else {
                 nodeForm.value = {
-                    id: 0, platform: 'openai', name: '', key: '', project_id: '', location: 'global', base_url: '',
-                    priority: 0, cutoff_percent: 95.0, budget: 0.0, billing_start_date: '2000-01-01', is_enabled: true
+                    id: 0, provider: 'openai', name: '', credentials: '', project_id: '', location: 'global', base_url: '',
+                    priority: 0, limit_percent: 90.0, balance: 0.0, valid_from: '2000-01-01', valid_to: '2099-12-31', status: 1
                 };
                 nodeModal.value = { show: true, isEdit: false };
             }
         };
 
         const saveNode = async () => {
-            if (!nodeForm.value.name || (!nodeModal.value.isEdit && !nodeForm.value.key)) {
-                showToast('节点名称和Key不能为空', 'error');
+            if (!nodeForm.value.name || (!nodeModal.value.isEdit && !nodeForm.value.credentials)) {
+                showToast('节点名称和API Key不能为空', 'error');
                 return;
             }
-            if (nodeForm.value.platform === 'vertex' && !nodeForm.value.project_id) {
+            if (nodeForm.value.provider === 'vertex' && !nodeForm.value.project_id) {
                 showToast('GCP Project ID 不能为空', 'error');
                 return;
             }
-            if (nodeForm.value.priority < 0 || nodeForm.value.budget < 0 || nodeForm.value.cutoff_percent < 0) {
+            if (nodeForm.value.priority < 0 || nodeForm.value.balance < 0 || nodeForm.value.limit_percent < 0) {
                 showToast('优先级、额度等数字不能为负数', 'error');
                 return;
             }
-            if (nodeForm.value.cutoff_percent > 100) {
+            if (nodeForm.value.limit_percent > 100) {
                 showToast('阻断水位线不能超过100', 'error');
                 return;
             }
             
-            const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-            if (!dateRegex.test(nodeForm.value.billing_start_date)) {
-                showToast('日期格式必须为 YYYY-MM-DD', 'error');
+            const dateRegex = /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}:\d{2})?$/;
+            if (nodeForm.value.valid_from && !dateRegex.test(nodeForm.value.valid_from)) {
+                showToast('起止日期格式有误', 'error');
                 return;
             }
 
@@ -241,6 +254,59 @@ createApp({
                 if (res.ok) {
                     showToast('节点已删除');
                     fetchNodes();
+                } else {
+                    showToast('删除失败', 'error');
+                }
+            } catch(e) {
+                showToast('网络错误', 'error');
+            }
+        };
+
+        const openRouteModal = (route = null) => {
+            if (route) {
+                routeForm.value = { ...route };
+                routeModal.value = { show: true, isEdit: true };
+            } else {
+                routeForm.value = {
+                    id: 0, match_model: '', node_id: 0, target_model: '', status: 1
+                };
+                routeModal.value = { show: true, isEdit: false };
+            }
+        };
+
+        const saveRoute = async () => {
+            if (!routeForm.value.match_model || routeForm.value.node_id === 0) {
+                showToast('必须填写匹配模型并选择转发节点', 'error');
+                return;
+            }
+
+            try {
+                const method = routeModal.value.isEdit ? 'PUT' : 'POST';
+                const res = await fetch('/api/admin/routes', {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(routeForm.value)
+                });
+                if (res.ok) {
+                    showToast(routeModal.value.isEdit ? '路由已更新' : '路由已添加');
+                    routeModal.value.show = false;
+                    fetchRoutes();
+                } else {
+                    const err = await res.text();
+                    showToast('保存失败: ' + err, 'error');
+                }
+            } catch(e) {
+                showToast('网络错误', 'error');
+            }
+        };
+
+        const deleteRoute = async (id) => {
+            if(!confirm('确定要删除这个路由吗？')) return;
+            try {
+                const res = await fetch(`/api/admin/routes?id=${id}`, { method: 'DELETE' });
+                if (res.ok) {
+                    showToast('路由已删除');
+                    fetchRoutes();
                 } else {
                     showToast('删除失败', 'error');
                 }
@@ -309,6 +375,10 @@ createApp({
         Vue.watch(currentTab, (newTab) => {
             if (newTab === 'settings') fetchSettings();
             if (newTab === 'nodes') fetchNodes();
+            if (newTab === 'routes') {
+                fetchNodes();
+                fetchRoutes();
+            }
             if (newTab === 'dashboard') fetchData();
             if (newTab === 'logs') fetchLogs();
         });
@@ -336,8 +406,9 @@ createApp({
             currentTab, apiData, availableAccounts, selectedAccount, selectedAccountLabel, activePreset, groupedApiData, singleAccountDetails,
             setPreset, aggregatedData, formatNum, formatToken, formatShortDate, successRateColor, concurrency,
             getUsagePercent, getRemainingPercent, getBarColor, getRemainingColor,
-            settings, nodes, fetchSettings, fetchNodes, saveSettings, resetSettings,
-            nodeModal, nodeForm, openNodeModal, saveNode, deleteNode, toast,
+            settings, nodes, routes, fetchSettings, fetchNodes, fetchRoutes, saveSettings, resetSettings,
+            nodeModal, nodeForm, openNodeModal, saveNode, deleteNode,
+            routeModal, routeForm, openRouteModal, saveRoute, deleteRoute, toast,
             logsText, isAutoScroll, logLevelFilter, fetchLogs
         };
     }

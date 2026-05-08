@@ -1,4 +1,4 @@
-package protocol_anthropic
+package translators
 
 func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 	vertexReq := make(map[string]interface{})
