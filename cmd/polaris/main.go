@@ -71,7 +71,9 @@ func main() {
 	slog.Info("==================================================")
 	slog.Info("🚀 Project Atlas / Polaris Gateway Active", "address", config.AppConfig.ListenAddr)
 	slog.Info("🚦 IO 并发排队槽位 (仅统计 Enabled: true 的物理节点)", "totalActive", totalActive)
-	slog.Info("🌐 Universal API 入口", "url", "http://"+config.AppConfig.ListenAddr+"/v1/")
+	slog.Info("🌐 OpenAI 接入", "url", "http://"+config.AppConfig.ListenAddr+"/v1/openai/")
+	slog.Info("🌐 Anthropic 接入", "url", "http://"+config.AppConfig.ListenAddr+"/v1/anthropic/")
+	slog.Info("🌐 Vertex/Gemini 接入", "url", "http://"+config.AppConfig.ListenAddr+"/v1/vertex/")
 	slog.Info("==================================================")
 
 	if err := http.ListenAndServe(config.AppConfig.ListenAddr, mux); err != nil {

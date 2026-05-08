@@ -46,6 +46,11 @@ func ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.Body.Close()
 
 	sourceProtocol := getIncomingProtocol(r.URL.Path)
+
+	// Strip the protocol prefix from the URL so translators receive clean paths
+	// /v1/openai/chat/completions → /v1/chat/completions
+	r.URL.Path = stripProtocolPrefix(r.URL.Path)
+	slog.Debug("🔧 [入口] URL 路径清洗后", "trace_id", traceID, "clean_path", r.URL.Path, "source_protocol", sourceProtocol)
 	slog.Debug("🔍 [入口] 协议检测结果", "trace_id", traceID, "source_protocol", sourceProtocol, "path", r.URL.Path, "body_size", len(bodyBytes))
 
 	if sourceProtocol == "unknown" {

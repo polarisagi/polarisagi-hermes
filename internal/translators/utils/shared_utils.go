@@ -19,11 +19,11 @@ type ModelPrice struct {
 	Candidate1M float64
 }
 
-var openAIPriceDict = map[string]ModelPrice{
+var modelPriceDict = map[string]ModelPrice{
 	// DeepSeek 系列
 	"deepseek-chat":  {Prompt1M: 0.14, Candidate1M: 0.28},
 	"deepseek-coder": {Prompt1M: 0.14, Candidate1M: 0.28},
-	// Google Gemini 3.1 系列
+	// Google Gemini 系列 (Vertex / Agent Platform)
 	"google/gemini-3.1-pro-preview-customtools": {Prompt1M: 1.25, Candidate1M: 3.75},
 	"google/gemini-3.1-pro-preview":             {Prompt1M: 1.25, Candidate1M: 3.75},
 	"google/gemini-3.1-pro":                     {Prompt1M: 1.25, Candidate1M: 3.75},
@@ -35,6 +35,16 @@ var openAIPriceDict = map[string]ModelPrice{
 	"google/gemini-2.5-flash":                   {Prompt1M: 0.075, Candidate1M: 0.30},
 	"google/gemini-2.0-pro-exp":                 {Prompt1M: 1.25, Candidate1M: 3.75},
 	"google/gemini-2.0-flash":                   {Prompt1M: 0.10, Candidate1M: 0.40},
+	// Anthropic Claude 系列 (passthrough / direct API)
+	"claude-3-5-sonnet-20240620":         {Prompt1M: 3.0, Candidate1M: 15.0},
+	"claude-3-5-sonnet-20241022":         {Prompt1M: 3.0, Candidate1M: 15.0},
+	"claude-3-5-haiku-20241022":          {Prompt1M: 0.80, Candidate1M: 4.0},
+	"claude-3-opus-20240229":             {Prompt1M: 15.0, Candidate1M: 75.0},
+	"claude-3-haiku-20240307":            {Prompt1M: 0.25, Candidate1M: 1.25},
+	// GPT-4 系列 (passthrough / direct API)
+	"gpt-4o":        {Prompt1M: 2.5, Candidate1M: 10.0},
+	"gpt-4o-mini":   {Prompt1M: 0.15, Candidate1M: 0.60},
+	"gpt-4-turbo":   {Prompt1M: 10.0, Candidate1M: 30.0},
 	// 兜底基准
 	"default": {Prompt1M: 1.0, Candidate1M: 2.0},
 }
@@ -69,9 +79,9 @@ func ExtractMethodName(incomingPath string) string {
 }
 
 func CalculateCost(modelName string, promptTokens, candidateTokens, cachedTokens int64) float64 {
-	price, exists := openAIPriceDict[modelName]
+	price, exists := modelPriceDict[modelName]
 	if !exists {
-		price = openAIPriceDict["default"]
+		price = modelPriceDict["default"]
 	}
 
 	promptRate := price.Prompt1M
