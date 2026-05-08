@@ -52,11 +52,17 @@ WantedBy=multi-user.target
 EOF
     sudo systemctl daemon-reload
     sudo systemctl enable polaris-gateway
-    sudo systemctl start polaris-gateway
+    sudo systemctl restart polaris-gateway
     echo "✅ Systemd 服务已启动。可通过 systemctl status polaris-gateway 查看状态。"
 elif [ "$OS" = "darwin" ]; then
     echo "⚙️ 正在配置 macOS launchd 后台服务..."
     PLIST_PATH="$HOME/Library/LaunchAgents/com.polaris.gateway.plist"
+    
+    # 卸载旧服务以支持无缝更新重启
+    if launchctl list | grep -q "com.polaris.gateway"; then
+        launchctl unload "$PLIST_PATH" 2>/dev/null || true
+    fi
+
     cat <<EOF > "$PLIST_PATH"
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
