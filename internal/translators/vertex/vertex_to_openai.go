@@ -16,8 +16,6 @@ import (
 	"polaris-gateway/internal/translators/utils"
 )
 
-var oaiHTTPClient = &http.Client{Timeout: 180 * time.Second}
-
 // VertexToOpenAI 将 Vertex 原生请求转发到 OpenAI 兼容后端
 // 自动去除模型名中的 "google/" 前缀，支持 Ge mini API Key 和标准 OpenAI 端点
 func VertexToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) {
@@ -28,7 +26,11 @@ func VertexToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	if targetURL == "" {
 		targetURL = "https://api.openai.com/v1"
 	}
-	targetURL = targetURL + r.URL.Path
+	subPath := strings.TrimPrefix(r.URL.Path, "/v1")
+	if !strings.HasPrefix(subPath, "/") {
+		subPath = "/" + subPath
+	}
+	targetURL = targetURL + subPath
 
 	// Strip google/ prefix from model name if present (Vertex→OpenAI passthrough)
 	currentBody := bodyBytes
@@ -42,10 +44,6 @@ func VertexToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Request,
 		currentBody = bytes.ReplaceAll(currentBody, []byte(fmt.Sprintf(`"model": "%s"`, utils.ExtractModelName(currentBody))), []byte(fmt.Sprintf(`"model": "%s"`, dest.TargetModel)))
 	}
 
-	if dest.IsProbationRun {
-		slog.Warn("⚠️ 启用 🟠 Probation 账号执行流量探路 (Vertex→OpenAI)", "trace_id", traceID, "account", dest.Node.Name)
-	}
-
 	proxyReq, _ := http.NewRequestWithContext(ctx, r.Method, targetURL, bytes.NewReader(currentBody))
 	for k, vv := range r.Header {
 		if !strings.EqualFold(k, "Host") && !strings.EqualFold(k, "Content-Length") &&
@@ -57,35 +55,10 @@ func VertexToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	}
 	proxyReq.Header.Set("Authorization", "Bearer "+dest.Node.Credentials)
 
-	startTime := time.Now()
-	finalResp, err := oaiHTTPClient.Do(proxyReq)
-	if err != nil {
-		errMsg := err.Error()
-		db.SaveUsage("openai", dest.Node.Name, clientType, methodName, 0, 0, 0, http.StatusBadGateway)
-		dest.Node.UpdateOnFailure(dest.IsProbationRun, traceID)
-		slog.Error("Vertex→OpenAI 物理网络断联", "trace_id", traceID, "error", errMsg)
-		http.Error(w, fmt.Sprintf("Polaris Gateway Network Error: %s", errMsg), http.StatusBadGateway)
-		return
-	}
-
-	statusCode := finalResp.StatusCode
-	isNodeFailure := statusCode >= 500 || statusCode == http.StatusTooManyRequests || statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden
-
-	if isNodeFailure {
-		db.SaveUsage("openai", dest.Node.Name, clientType, methodName, 0, 0, 0, statusCode)
-		slog.Warn("Vertex→OpenAI 节点异常/限流，记入熔断惩罚队列", "trace_id", traceID, "status", statusCode)
-	} else if statusCode >= 400 {
-		db.SaveUsage("openai", dest.Node.Name, clientType, methodName, 0, 0, 0, statusCode)
-		slog.Warn("Vertex→OpenAI 客户端业务请求参数错误", "trace_id", traceID, "status", statusCode)
-	}
-
-	streamAndSettleOpenAI(w, finalResp, dest, dest.TargetModel, clientType, methodName, traceID, startTime)
-
-	if isNodeFailure {
-		dest.Node.UpdateOnFailure(dest.IsProbationRun, traceID)
-	} else {
-		dest.Node.UpdateOnSuccess()
-	}
+	utils.ExecuteAndStream(w, proxyReq, dest, "openai", clientType, methodName, traceID, "Vertex→OpenAI",
+		func(finalResp *http.Response, startTime time.Time) {
+			streamAndSettleOpenAI(w, finalResp, dest, dest.TargetModel, clientType, methodName, traceID, startTime)
+		})
 }
 
 func streamAndSettleOpenAI(w http.ResponseWriter, finalResp *http.Response, dest *router.MatchedDestination, modelName, clientType, methodName, traceID string, startTime time.Time) {

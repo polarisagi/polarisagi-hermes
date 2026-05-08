@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"polaris-gateway/internal/db"
 	"polaris-gateway/internal/router"
+	"polaris-gateway/internal/translators/utils"
 )
 
 var httpClient = &http.Client{Timeout: 180 * time.Second}
@@ -55,24 +55,11 @@ func AnthropicToVertex(ctx context.Context, w http.ResponseWriter, r *http.Reque
 
 	finalResp, err := httpClient.Do(proxyReq)
 	if err != nil {
-		errMsg := err.Error()
-		db.SaveUsage("vertex", dest.Node.Name, clientType, "anthropic_adapter", 0, 0, 0, http.StatusBadGateway)
-		dest.Node.UpdateOnFailure(dest.IsProbationRun, traceID)
-		slog.Error("Anthropic(Vertex) 物理网络断联", "trace_id", traceID, "error", errMsg)
-		http.Error(w, fmt.Sprintf("Gateway Network Error: %s", errMsg), http.StatusBadGateway)
+		utils.HandleNetworkError(w, err, dest, "vertex", clientType, "anthropic_adapter", traceID, "Anthropic(Vertex)")
 		return
 	}
 
-	statusCode := finalResp.StatusCode
-	isNodeFailure := statusCode >= 500 || statusCode == http.StatusTooManyRequests || statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden
-
-	if isNodeFailure {
-		db.SaveUsage("vertex", dest.Node.Name, clientType, "anthropic_adapter", 0, 0, 0, statusCode)
-		slog.Warn("Anthropic(Vertex) 节点异常/限流，记入熔断惩罚队列", "trace_id", traceID, "status", statusCode)
-	} else if statusCode >= 400 {
-		db.SaveUsage("vertex", dest.Node.Name, clientType, "anthropic_adapter", 0, 0, 0, statusCode)
-		slog.Warn("Anthropic 客户端业务请求参数错误", "trace_id", traceID, "status", statusCode)
-	}
+	isNodeFailure, isQuotaExhausted := utils.CheckResponseStatus(finalResp, dest, "vertex", clientType, "anthropic_adapter", traceID, "Anthropic(Vertex)")
 
 	if req.Stream {
 		streamAnthropicResponse(w, finalResp, req, traceID, dest, clientType, model)
@@ -80,26 +67,34 @@ func AnthropicToVertex(ctx context.Context, w http.ResponseWriter, r *http.Reque
 		handleAnthropicNonStreamResponse(w, finalResp, req, traceID, dest, clientType, model)
 	}
 
-	if isNodeFailure {
-		dest.Node.UpdateOnFailure(dest.IsProbationRun, traceID)
-	} else {
-		dest.Node.UpdateOnSuccess()
-	}
+	utils.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
 }
 
 // buildAnthropicVertexTargetURL 构建 Anthropic→Vertex 转发的目标 URL
-// 格式: {baseURL}/projects/{project_id}/locations/{location}/publishers/google/models/{model}:{generateContent|streamGenerateContent}
+// 支持模板变量 {project_id}, {location}, {subpath}，与 Vertex 原生转发保持一致
 func buildAnthropicVertexTargetURL(node *router.NodeState, model string, stream bool) string {
-	baseURL := node.BaseURL
-	if baseURL == "" {
-		baseURL = fmt.Sprintf("https://%s-aiplatform.googleapis.com/v1", node.Location)
+	template := node.BaseURL
+	if template == "" {
+		template = "https://aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/google/{subpath}"
 	}
+
+	location := node.Location
+	if location == "" {
+		location = "global"
+	}
+
 	endpoint := "generateContent"
 	if stream {
 		endpoint = "streamGenerateContent"
 	}
-	return fmt.Sprintf("%s/projects/%s/locations/%s/publishers/google/models/%s:%s",
-		baseURL, node.ProjectID, node.Location, model, endpoint)
+
+	subpath := fmt.Sprintf("models/%s:%s", model, endpoint)
+
+	resURL := strings.ReplaceAll(template, "{project_id}", node.ProjectID)
+	resURL = strings.ReplaceAll(resURL, "{location}", location)
+	resURL = strings.ReplaceAll(resURL, "{subpath}", subpath)
+
+	return resURL
 }
 
 func init() {

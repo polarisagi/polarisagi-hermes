@@ -112,37 +112,19 @@ func AnthropicToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Reque
 
 	finalResp, err := oaiHTTPClient.Do(proxyReq)
 	if err != nil {
-		errMsg := err.Error()
-		db.SaveUsage("openai", dest.Node.Name, clientType, "anthropic_adapter", 0, 0, 0, http.StatusBadGateway)
-		dest.Node.UpdateOnFailure(dest.IsProbationRun, traceID)
-		slog.Error("Anthropic→OpenAI 物理网络断联", "trace_id", traceID, "error", errMsg)
-		http.Error(w, fmt.Sprintf("Gateway Network Error: %s", errMsg), http.StatusBadGateway)
+		utils.HandleNetworkError(w, err, dest, "openai", clientType, "anthropic_adapter", traceID, "Anthropic→OpenAI")
 		return
 	}
 
-	statusCode := finalResp.StatusCode
-	isNodeFailure := statusCode >= 500 || statusCode == http.StatusTooManyRequests || statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden
+	isNodeFailure, isQuotaExhausted := utils.CheckResponseStatus(finalResp, dest, "openai", clientType, "anthropic_adapter", traceID, "Anthropic→OpenAI")
 
-	if isNodeFailure {
-		db.SaveUsage("openai", dest.Node.Name, clientType, "anthropic_adapter", 0, 0, 0, statusCode)
-		slog.Warn("Anthropic→OpenAI 节点异常/限流，记入熔断惩罚队列", "trace_id", traceID, "status", statusCode)
-	} else if statusCode >= 400 {
-		db.SaveUsage("openai", dest.Node.Name, clientType, "anthropic_adapter", 0, 0, 0, statusCode)
-		slog.Warn("Anthropic→OpenAI 客户端业务请求参数错误", "trace_id", traceID, "status", statusCode)
-	}
-
-	// Use anthropic stream handler for response (Anthropic format output to client)
 	if oaiReq.Stream {
 		anthropicStreamOpenAI(w, finalResp, traceID, dest, clientType, oaiReq.Model)
 	} else {
 		anthropicNonStreamOpenAI(w, finalResp, traceID, dest, clientType, oaiReq.Model)
 	}
 
-	if isNodeFailure {
-		dest.Node.UpdateOnFailure(dest.IsProbationRun, traceID)
-	} else {
-		dest.Node.UpdateOnSuccess()
-	}
+	utils.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
 }
 
 // anthropicStreamOpenAI 读取 OpenAI 后端流式 SSE 响应，实时转为 Anthropic SSE 格式写入客户端

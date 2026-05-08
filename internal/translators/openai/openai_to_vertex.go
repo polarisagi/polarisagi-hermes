@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"polaris-gateway/internal/db"
 	"polaris-gateway/internal/router"
 	"polaris-gateway/internal/translators/utils"
 )
@@ -64,36 +63,11 @@ func OpenAIToVertex(ctx context.Context, w http.ResponseWriter, r *http.Request,
 		proxyReq.Header.Set("Authorization", "Bearer "+dest.Node.Credentials)
 	}
 
-	startTime := time.Now()
-	finalResp, err := httpClient.Do(proxyReq)
-
-	if err != nil {
-		errMsg := err.Error()
-		db.SaveUsage("vertex", dest.Node.Name, clientType, methodName, 0, 0, 0, http.StatusBadGateway)
-		dest.Node.UpdateOnFailure(dest.IsProbationRun, traceID)
-		slog.Error("OAI_To_Vertex 物理网络断联", "trace_id", traceID, "error", errMsg)
-		http.Error(w, fmt.Sprintf("Polaris Gateway Network Error: %s", errMsg), http.StatusBadGateway)
-		return
-	}
-
-	statusCode := finalResp.StatusCode
-	isNodeFailure := statusCode >= 500 || statusCode == http.StatusTooManyRequests || statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden
-
-	if isNodeFailure {
-		db.SaveUsage("vertex", dest.Node.Name, clientType, methodName, 0, 0, 0, statusCode)
-		slog.Warn("OAI_To_Vertex 节点异常/限流，记入熔断惩罚队列", "trace_id", traceID, "status", statusCode)
-	} else if statusCode >= 400 {
-		db.SaveUsage("vertex", dest.Node.Name, clientType, methodName, 0, 0, 0, statusCode)
-		slog.Warn("OAI_To_Vertex 客户端业务请求参数错误", "trace_id", traceID, "status", statusCode)
-	}
-
-	streamAndSettleUsage(w, finalResp, dest, dest.TargetModel, clientType, methodName, traceID, startTime)
-
-	if isNodeFailure {
-		dest.Node.UpdateOnFailure(dest.IsProbationRun, traceID)
-	} else {
-		dest.Node.UpdateOnSuccess()
-	}
+	// Probation 探路日志由 ExecuteAndStream 统一处理
+	utils.ExecuteAndStream(w, proxyReq, dest, "vertex", clientType, methodName, traceID, "OAI→Vertex",
+		func(finalResp *http.Response, startTime time.Time) {
+			streamAndSettleUsage(w, finalResp, dest, dest.TargetModel, clientType, methodName, traceID, startTime)
+		})
 }
 
 func init() {

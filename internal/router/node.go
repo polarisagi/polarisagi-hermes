@@ -72,24 +72,47 @@ func (s *NodeState) UpdateOnSuccess() {
 // UpdateOnFailure 请求失败后更新节点状态
 // 如果处于试用期（Probation）或累积失败数达到阈值，则将节点置为 Cooldown
 // 冷却时长每次翻倍（指数退避），直到达到 MaxCooldownSeconds 上限
+// 如果在到达 MaxCooldownSeconds 后探路依然失败，则彻底隔离为 Exhausted
 func (s *NodeState) UpdateOnFailure(isProbationRun bool, traceID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.Status == StatusExhausted {
 		return
 	}
-	if isProbationRun || s.recordFailureAndCheck() {
+
+	// 始终调用 recordFailureAndCheck 以确保时间戳数组正确记录和清理
+	isThresholdReached := s.recordFailureAndCheck()
+
+	if isProbationRun || isThresholdReached {
+		maxDuration := time.Duration(config.AppConfig.Breaker.MaxCooldownSeconds) * time.Second
+
+		// 终极死亡判定：如果在 Probation 阶段失败，并且冷却惩罚已经撑满上限，直接物理隔离
+		if isProbationRun && s.CurrentCooldown >= maxDuration {
+			s.Status = StatusExhausted
+			slog.Warn("☠️ [终极隔离] 节点探路反复失败且触达最大冷却上限，永久隔离", "trace_id", traceID, "node", s.Name, "provider", s.Provider)
+			return
+		}
+
 		s.Status = StatusCooldown
 		s.CooldownUntil = time.Now().Add(s.CurrentCooldown)
 		slog.Warn("🧊 [节点熔断] 账号进入冷却隔离", "trace_id", traceID, "node", s.Name, "provider", s.Provider, "duration", s.CurrentCooldown.String(), "until", s.CooldownUntil.Format("2006-01-02 15:04:05"), "failure_count", len(s.FailureTimestamps), "budget", fmt.Sprintf("$%.2f/%.2f", s.TotalConsumed, s.Balance))
 
 		s.CurrentCooldown *= 2
-		maxDuration := time.Duration(config.AppConfig.Breaker.MaxCooldownSeconds) * time.Second
 		if s.CurrentCooldown > maxDuration {
 			s.CurrentCooldown = maxDuration
 		}
 	} else {
 		s.Status = StatusIdle
+	}
+}
+
+// MarkAsExhausted 强制将节点标记为彻底耗尽（用于 Quota exceeded 等致命错误）
+func (s *NodeState) MarkAsExhausted(reason string, traceID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.Status != StatusExhausted {
+		s.Status = StatusExhausted
+		slog.Warn("🚫 [致命隔离] 节点遇到不可恢复错误，物理隔离", "trace_id", traceID, "node", s.Name, "reason", reason)
 	}
 }
 

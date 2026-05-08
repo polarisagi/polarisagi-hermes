@@ -72,24 +72,11 @@ func AnthropicToAnthropic(ctx context.Context, w http.ResponseWriter, r *http.Re
 	startTime := time.Now()
 	finalResp, err := passthroughHTTPClient.Do(proxyReq)
 	if err != nil {
-		errMsg := err.Error()
-		db.SaveUsage("anthropic", dest.Node.Name, clientType, "passthrough", 0, 0, 0, http.StatusBadGateway)
-		dest.Node.UpdateOnFailure(dest.IsProbationRun, traceID)
-		slog.Error("Anthropic Passthrough 物理网络断联", "trace_id", traceID, "error", errMsg)
-		http.Error(w, fmt.Sprintf("Gateway Network Error: %s", errMsg), http.StatusBadGateway)
+		utils.HandleNetworkError(w, err, dest, "anthropic", clientType, "passthrough", traceID, "Anthropic Passthrough")
 		return
 	}
 
-	statusCode := finalResp.StatusCode
-	isNodeFailure := statusCode >= 500 || statusCode == http.StatusTooManyRequests || statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden
-
-	if isNodeFailure {
-		db.SaveUsage("anthropic", dest.Node.Name, clientType, "passthrough", 0, 0, 0, statusCode)
-		slog.Warn("Anthropic Passthrough 节点异常/限流", "trace_id", traceID, "status", statusCode)
-	} else if statusCode >= 400 {
-		db.SaveUsage("anthropic", dest.Node.Name, clientType, "passthrough", 0, 0, 0, statusCode)
-		slog.Warn("Anthropic Passthrough 客户端参数错误", "trace_id", traceID, "status", statusCode)
-	}
+	isNodeFailure, isQuotaExhausted := utils.CheckResponseStatus(finalResp, dest, "anthropic", clientType, "passthrough", traceID, "Anthropic Passthrough")
 
 	if req.Stream {
 		anthropicPassthroughStream(w, finalResp, traceID, dest, clientType, modelName)
@@ -98,11 +85,7 @@ func AnthropicToAnthropic(ctx context.Context, w http.ResponseWriter, r *http.Re
 	}
 
 	_ = startTime
-	if isNodeFailure {
-		dest.Node.UpdateOnFailure(dest.IsProbationRun, traceID)
-	} else {
-		dest.Node.UpdateOnSuccess()
-	}
+	utils.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
 }
 
 // anthropicPassthroughStream 直通流式响应：读取上游 Anthropic SSE 流，原样写回客户端并结算

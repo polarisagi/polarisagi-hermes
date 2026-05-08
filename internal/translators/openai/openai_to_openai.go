@@ -7,17 +7,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
-	"polaris-gateway/internal/db"
 	"polaris-gateway/internal/router"
 	"polaris-gateway/internal/translators/utils"
 )
-
-var httpClient = &http.Client{Timeout: 180 * time.Second} // 全局 HTTP 客户端，180 秒超时
 
 // OpenAIToOpenAI 处理 OpenAI 协议到 OpenAI/Gemini 兼容后端的转发
 // 仅做: 模型名替换 + API Key 注入 + 头透传，不做协议格式转换
@@ -25,11 +21,15 @@ func OpenAIToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	clientType := utils.IdentifyClient(r)
 	methodName := utils.ExtractMethodName(r.URL.Path)
 
-	targetURL := dest.Node.BaseURL
+	targetURL := strings.TrimSuffix(dest.Node.BaseURL, "/")
 	if targetURL == "" {
 		targetURL = "https://api.openai.com/v1"
 	}
-	targetURL = strings.TrimSuffix(targetURL, "/") + r.URL.Path
+	subPath := strings.TrimPrefix(r.URL.Path, "/v1")
+	if !strings.HasPrefix(subPath, "/") {
+		subPath = "/" + subPath
+	}
+	targetURL = targetURL + subPath
 
 	if dest.TargetModel != "" && dest.TargetModel != utils.ExtractModelName(bodyBytes) {
 		bodyBytes = bytes.ReplaceAll(bodyBytes, []byte(fmt.Sprintf(`"model":"%s"`, utils.ExtractModelName(bodyBytes))), []byte(fmt.Sprintf(`"model":"%s"`, dest.TargetModel)))
@@ -51,36 +51,11 @@ func OpenAIToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	}
 	proxyReq.Header.Set("Authorization", "Bearer "+dest.Node.Credentials)
 
-	startTime := time.Now()
-	finalResp, err := httpClient.Do(proxyReq)
-
-	if err != nil {
-		errMsg := err.Error()
-		db.SaveUsage("openai", dest.Node.Name, clientType, methodName, 0, 0, 0, http.StatusBadGateway)
-		dest.Node.UpdateOnFailure(dest.IsProbationRun, traceID)
-		slog.Error("OAI 物理网络断联", "trace_id", traceID, "error", errMsg)
-		http.Error(w, fmt.Sprintf("Polaris Gateway Network Error: %s", errMsg), http.StatusBadGateway)
-		return
-	}
-
-	statusCode := finalResp.StatusCode
-	isNodeFailure := statusCode >= 500 || statusCode == http.StatusTooManyRequests || statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden
-
-	if isNodeFailure {
-		db.SaveUsage("openai", dest.Node.Name, clientType, methodName, 0, 0, 0, statusCode)
-		slog.Warn("OAI 节点异常/限流，记入熔断惩罚队列", "trace_id", traceID, "status", statusCode)
-	} else if statusCode >= 400 {
-		db.SaveUsage("openai", dest.Node.Name, clientType, methodName, 0, 0, 0, statusCode)
-		slog.Warn("OAI 客户端业务请求参数错误", "trace_id", traceID, "status", statusCode)
-	}
-
-	streamAndSettleUsage(w, finalResp, dest, dest.TargetModel, clientType, methodName, traceID, startTime)
-
-	if isNodeFailure {
-		dest.Node.UpdateOnFailure(dest.IsProbationRun, traceID)
-	} else {
-		dest.Node.UpdateOnSuccess()
-	}
+	// OpenAIToOpenAI 本身原本没有输出 Probation 探路日志，这里交给 ExecuteAndStream 统一处理
+	utils.ExecuteAndStream(w, proxyReq, dest, "openai", clientType, methodName, traceID, "OAI",
+		func(finalResp *http.Response, startTime time.Time) {
+			streamAndSettleUsage(w, finalResp, dest, dest.TargetModel, clientType, methodName, traceID, startTime)
+		})
 }
 
 func init() {
