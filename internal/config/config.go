@@ -10,56 +10,69 @@ import (
 	"polaris-gateway/internal/db"
 )
 
+// AccountDetail 上游节点配置，对应数据库 sys_nodes 表中的一条记录
+// 每个节点代表一个可用的 API 账号（如 OpenAI Key、Vertex Service Account 等）
 type AccountDetail struct {
-	ID           int     `json:"id"`
-	Name         string  `json:"name"`
-	Provider     string  `json:"provider"`
-	BaseURL      string  `json:"base_url"`
-	Credentials  string  `json:"-"`
-	ProjectID    string  `json:"project_id"`
-	Location     string  `json:"location"`
-	Priority     int     `json:"priority"`
-	Balance      float64 `json:"balance"`
-	UsedAmount   float64 `json:"used_amount"`
-	LimitPercent float64 `json:"limit_percent"`
-	ValidFrom    string  `json:"valid_from"`
-	ValidTo      string  `json:"valid_to"`
-	Status       int     `json:"status"` // 1=正常, 0=手动禁用, -1=熔断/过期
+	ID           int     `json:"id"`             // 节点唯一 ID
+	Name         string  `json:"name"`           // 节点名称/账号邮箱（唯一标识）
+	Provider     string  `json:"provider"`        // 协议类型: openai/vertex/anthropic/gemini
+	BaseURL      string  `json:"base_url"`       // 自定义 API 端点（空则使用官方默认地址）
+	Credentials  string  `json:"-"`              // API Key / JSON 凭证（JSON 序列化时隐藏）
+	ProjectID    string  `json:"project_id"`     // GCP 项目 ID（仅 Vertex 节点使用）
+	Location     string  `json:"location"`       // GCP 区域（仅 Vertex 节点使用，默认 global）
+	Priority     int     `json:"priority"`       // 优先级，数字越大越优先被选中
+	Balance      float64 `json:"balance"`        // 总额度上限（美元）
+	UsedAmount   float64 `json:"used_amount"`    // 已使用金额
+	LimitPercent float64 `json:"limit_percent"`  // 熔断水位线百分比，超过后自动隔离节点
+	ValidFrom    string  `json:"valid_from"`     // 有效期起始时间
+	ValidTo      string  `json:"valid_to"`       // 有效期截止时间
+	Status       int     `json:"status"`         // 1=正常, 0=手动禁用, -1=熔断/过期
 }
 
+// ModelMapping 模型名映射规则，定义请求模型到目标模型的转换关系
+// 支持精确匹配、"*" 通配符、前缀通配（如 "gpt-*"）
 type ModelMapping struct {
-	Match  string `json:"match"`
-	Target string `json:"target"`
+	Match  string `json:"match"`  // 匹配模式: "gpt-4o" 精确匹配 / "*" 全匹配 / "gpt-*" 前缀通配
+	Target string `json:"target"` // 目标模型名，匹配后替换为此值
 }
 
+// RouteDetail 路由规则配置，定义协议间的转换规则和模型映射
+// 每条路由 = 源协议 + 目标协议 + 模型映射表
 type RouteDetail struct {
-	ID              int            `json:"id"`
-	SourceProtocol  string         `json:"source_protocol"`
-	TargetProtocol  string         `json:"target_protocol"`
-	ModelMappings   string         `json:"-"`
-	ModelMappingsParsed []ModelMapping `json:"model_mappings"`
-	Status          int            `json:"status"` // 1=正常, 0=禁用
+	ID                 int            `json:"id"`                   // 路由唯一 ID
+	SourceProtocol     string         `json:"source_protocol"`     // 源协议: openai/anthropic/vertex
+	TargetProtocol     string         `json:"target_protocol"`     // 目标协议: openai/vertex/gemini
+	ModelMappings      string         `json:"-"`                   // 模型映射 JSON 原始字符串（数据库存储）
+	ModelMappingsParsed []ModelMapping `json:"model_mappings"`     // 解析后的模型映射列表（API 输出）
+	Status             int            `json:"status"`              // 1=正常, 0=禁用
 }
 
+// Config 全局配置结构，对应数据库 sys_settings + sys_nodes + sys_routes 三张表
+// 在网关启动时从 SQLite 加载，运行期间可通过管理后台热重载
 type Config struct {
-	ListenAddr string `json:"listen_addr"`
-	DebugMode  bool   `json:"debug_mode"`
+	ListenAddr string `json:"listen_addr"` // HTTP 监听地址，如 "127.0.0.1:28888"
+	DebugMode  bool   `json:"debug_mode"`  // Debug 日志开关
 	Breaker    struct {
-		InitialCooldownSeconds int `json:"initial_cooldown_seconds"`
-		MaxCooldownSeconds     int `json:"max_cooldown_seconds"`
-		FailureThreshold       int `json:"failure_threshold"`
-		FailureWindowSeconds   int `json:"failure_window_seconds"`
+		InitialCooldownSeconds int `json:"initial_cooldown_seconds"` // 熔断初始冷却时间（秒），每次失败翻倍
+		MaxCooldownSeconds     int `json:"max_cooldown_seconds"`     // 熔断最大冷却时间上限（秒）
+		FailureThreshold       int `json:"failure_threshold"`        // 连续失败阈值，超过后触发熔断
+		FailureWindowSeconds   int `json:"failure_window_seconds"`   // 失败统计窗口（秒）
 	} `json:"breaker"`
-	Providers map[string][]AccountDetail `json:"providers"`
-	Routes    []RouteDetail              `json:"routes"`
+	Providers map[string][]AccountDetail `json:"providers"` // 按协议类型分组的节点池
+	Routes    []RouteDetail              `json:"routes"`    // 路由表
 }
 
 var AppConfig Config
 
+// LoadConfig 加载配置（当前实现直接从 SQLite 数据库读取）
 func LoadConfig(yamlFile string, envFile string) error {
 	return ReloadFromDB()
 }
 
+// ReloadFromDB 从 SQLite 数据库重新加载全部配置
+// 加载内容包括：系统设置、节点列表、路由表
+// 节点过滤规则: 状态必须为启用(1)、在有效期内、且未超过预算限额
+// 在以下时机被调用: 1) 网关启动  2) 管理后台修改后热重载
 func ReloadFromDB() error {
 	AppConfig = Config{
 		Providers: make(map[string][]AccountDetail),

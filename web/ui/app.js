@@ -17,6 +17,9 @@ createApp({
 
         const nodes = ref([]);
         const routes = ref([]);
+        const allModels = ref([]); // 所有模型（用于 datalist 建议）
+        const sourceModels = ref([]); // 当前源协议对应的模型列表
+        const targetModels = ref([]); // 当前目标协议对应的模型列表
         const routeModal = ref({ show: false, isEdit: false });
         const routeForm = ref({
             id: 0,
@@ -169,6 +172,31 @@ createApp({
             } catch (e) { console.error(e) }
         };
 
+        // 从后端加载所有协议的模型列表，用于路由配置页面的模型选择建议
+        const fetchAllModels = async () => {
+            try {
+                const res = await fetch('/api/admin/models');
+                const json = await res.json();
+                allModels.value = json.models || [];
+            } catch (e) { console.error(e) }
+        };
+
+        // 根据协议过滤模型列表，用于路由表单中的 datalist 建议
+        const getModelsForProtocol = (protocol) => {
+            if (!protocol) return [];
+            return allModels.value.filter(m => m.protocol === protocol);
+        };
+
+        // 当源协议改变时，更新源模型建议列表
+        const onSourceProtocolChange = () => {
+            sourceModels.value = getModelsForProtocol(routeForm.value.source_protocol);
+        };
+
+        // 当目标协议改变时，更新目标模型建议列表
+        const onTargetProtocolChange = () => {
+            targetModels.value = getModelsForProtocol(routeForm.value.target_protocol);
+        };
+
         const saveSettings = async () => {
             if (settings.value.breaker.failure_threshold < 0 || 
                 settings.value.breaker.failure_window_seconds < 0 || 
@@ -311,6 +339,9 @@ createApp({
                 };
                 routeModal.value = { show: true, isEdit: false };
             }
+            // 刷新模型列表并更新当前协议的模型建议
+            onSourceProtocolChange();
+            onTargetProtocolChange();
         };
 
         const addMapping = () => {
@@ -464,6 +495,7 @@ createApp({
             if (newTab === 'routes') {
                 fetchNodes();
                 fetchRoutes();
+                fetchAllModels();
             }
             if (newTab === 'dashboard') fetchData();
             if (newTab === 'logs') {
@@ -499,7 +531,8 @@ createApp({
             nodeModal, nodeForm, openNodeModal, saveNode, deleteNode,
             routeModal, routeForm, openRouteModal, saveRoute, deleteRoute, toast,
             addMapping, removeMapping, protocolLabel, protocolClass, protocolBadge,
-            logsText, isAutoScroll, logLevelFilter, debugEnabled, toggleDebug, fetchLogs
+            logsText, isAutoScroll, logLevelFilter, debugEnabled, toggleDebug, fetchLogs,
+            allModels, sourceModels, targetModels, fetchAllModels, onSourceProtocolChange, onTargetProtocolChange
         };
     }
 }).mount('#app');

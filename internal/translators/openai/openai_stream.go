@@ -1,3 +1,6 @@
+// OpenAI 流式响应处理 + 用量结算
+// 从上游后端读取 SSE 流，边写回客户端边在尾部 buffer 中缓存最近 8KB 数据
+// 流结束后从尾部 buffer 中提取 usage 字段完成计费
 package openai
 
 import (
@@ -13,6 +16,8 @@ import (
 	"polaris-gateway/internal/translators/utils"
 )
 
+// streamAndSettleUsage 流式转发上游响应到客户端，同时在尾部窗口收集 usage 数据完成计费
+// 尾部窗口: 保留最后 8KB 数据用于解析 usage 字段（位于 SSE 流的最后几条消息中）
 func streamAndSettleUsage(w http.ResponseWriter, finalResp *http.Response, dest *router.MatchedDestination, modelName, clientType, methodName, traceID string, startTime time.Time) {
 	defer finalResp.Body.Close()
 	for k, vv := range finalResp.Header {

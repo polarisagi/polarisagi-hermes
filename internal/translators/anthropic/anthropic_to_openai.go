@@ -15,10 +15,11 @@ import (
 	"polaris-gateway/internal/translators/utils"
 )
 
-// AnthropicToOpenAI converts Anthropic Messages API requests to OpenAI Chat Completions format
-// and forwards to any OpenAI-compatible backend (OpenAI, Gemini API Key, etc.)
-// WITH full token counting and cost tracking.
+// Anthropic → OpenAI 协议转换器
+// 将 Anthropic Messages API 格式转换为 OpenAI Chat Completions 格式
+// 支持流式和非流式，全程计费和 token 统计
 
+// oaiMessage OpenAI Chat Completions 消息格式
 type oaiMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
@@ -35,6 +36,9 @@ type oaiRequest struct {
 
 var oaiHTTPClient = &http.Client{Timeout: 180 * time.Second}
 
+// AnthropicToOpenAI 将 Anthropic Messages API 请求转换为 OpenAI Chat Completions 格式
+// 转换流程: 解析 Anthropic 消息 → 构建 OpenAI 请求 → 发送到 OpenAI 兼容后端 → 流式回写 Anthropic SSE 格式
+// 全程支持 token 计数和费用结算
 func AnthropicToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) {
 	clientType := "Anthropic-Adapter"
 
@@ -141,6 +145,7 @@ func AnthropicToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Reque
 	}
 }
 
+// anthropicStreamOpenAI 读取 OpenAI 后端流式 SSE 响应，实时转为 Anthropic SSE 格式写入客户端
 func anthropicStreamOpenAI(w http.ResponseWriter, oaiResp *http.Response, traceID string, dest *router.MatchedDestination, clientType, modelName string) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -269,6 +274,7 @@ func anthropicStreamOpenAI(w http.ResponseWriter, oaiResp *http.Response, traceI
 	}
 }
 
+// anthropicNonStreamOpenAI 处理 OpenAI 后端的非流式响应，提取内容转为 Anthropic JSON 格式
 func anthropicNonStreamOpenAI(w http.ResponseWriter, oaiResp *http.Response, traceID string, dest *router.MatchedDestination, clientType, modelName string) {
 	defer oaiResp.Body.Close()
 

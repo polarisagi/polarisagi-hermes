@@ -97,6 +97,10 @@ func ExtractMethodName(incomingPath string) string {
 	return sub
 }
 
+// CalculateCost 根据模型名和 token 用量计算费用
+// 定价策略: 从 modelPriceDict 查找模型单价 → 区分 cached/uncached prompt tokens
+// Gemini 模型超过 128K prompt tokens 时费率翻倍（长上下文定价）
+// cached tokens 折扣: Gemini 25%, DeepSeek 10%, 其他 50%
 func CalculateCost(modelName string, promptTokens, candidateTokens, cachedTokens int64) float64 {
 	price, exists := modelPriceDict[modelName]
 	if !exists {
@@ -132,6 +136,7 @@ func CalculateCost(modelName string, promptTokens, candidateTokens, cachedTokens
 	return math.Ceil(cost*10000) / 10000
 }
 
+// IdentifyClient 从 User-Agent 请求头识别客户端类型，用于统计面板按客户端分组
 func IdentifyClient(r *http.Request) string {
 	userAgent := strings.ToLower(r.UserAgent())
 	if strings.Contains(userAgent, "aider") {

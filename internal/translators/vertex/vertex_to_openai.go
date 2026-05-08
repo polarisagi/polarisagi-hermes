@@ -1,3 +1,5 @@
+// Vertex 原生协议 → OpenAI/Chat Completions 转换器
+// 接收 Vertex 原生格式请求，去除 google/ 模型名前缀后转发到 OpenAI 兼容后端
 package vertex
 
 import (
@@ -16,6 +18,8 @@ import (
 
 var oaiHTTPClient = &http.Client{Timeout: 180 * time.Second}
 
+// VertexToOpenAI 将 Vertex 原生请求转发到 OpenAI 兼容后端
+// 自动去除模型名中的 "google/" 前缀，支持 Ge mini API Key 和标准 OpenAI 端点
 func VertexToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) {
 	clientType := utils.IdentifyClient(r)
 	methodName := utils.ExtractMethodName(r.URL.Path)

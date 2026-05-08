@@ -1,3 +1,5 @@
+// Anthropic 响应流式/非流式处理 + SSE 写入工具
+// 从 Vertex 后端读取 GenerateContentResponse，实时转换为 Anthropic SSE 格式并推送给客户端
 package anthropic
 
 import (
@@ -14,6 +16,9 @@ import (
 	"polaris-gateway/internal/translators/utils"
 )
 
+// streamAnthropicResponse 从 Vertex 后端读取流式 SSE 响应，边读边转为 Anthropic SSE 格式
+// 事件序列: message_start → content_block_start → content_block_delta* → content_block_stop → message_delta → message_stop
+// 同时在最后解析 usageMetadata 完成计费结算
 func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, req MessageRequest, traceID string, dest *router.MatchedDestination, clientType, modelName string) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -158,6 +163,7 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 	}
 }
 
+// handleAnthropicNonStreamResponse 处理 Vertex 非流式响应，提取文本和用量，转为 Anthropic JSON 格式返回
 func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Response, req MessageRequest, traceID string, dest *router.MatchedDestination, clientType, modelName string) {
 	defer vertexResp.Body.Close()
 	bodyBytes, err := io.ReadAll(vertexResp.Body)
@@ -236,6 +242,8 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 	json.NewEncoder(w).Encode(anthropicResp)
 }
 
+// writeSSE 写入一条 Anthropic SSE 事件到 HTTP 响应流
+// 格式: event: <type>\ndata: <json>\n\n
 func writeSSE(w http.ResponseWriter, flusher http.Flusher, eventType string, data interface{}) {
 	b, _ := json.Marshal(data)
 	fmt.Fprintf(w, "event: %s\ndata: %s\n\n", eventType, b)

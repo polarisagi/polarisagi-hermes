@@ -1,3 +1,6 @@
+// Polaris Gateway — 多协议 LLM API 网关入口
+// 支持 OpenAI、Anthropic、Vertex 三大协议之间的任意转换路由
+// 核心功能: 协议转换 + 路由分发 + 负载均衡 + 熔断保护 + 用量计费
 package main
 
 import (
@@ -9,7 +12,7 @@ import (
 	"polaris-gateway/internal/db"
 	"polaris-gateway/internal/logger"
 	"polaris-gateway/internal/router"
-	_ "polaris-gateway/internal/translators/anthropic" // Register all translators
+	_ "polaris-gateway/internal/translators/anthropic" // 通过 init() 自动注册协议转换器
 	_ "polaris-gateway/internal/translators/openai"
 	_ "polaris-gateway/internal/translators/vertex"
 	"polaris-gateway/internal/webapi"
@@ -50,6 +53,7 @@ func main() {
 	mux.HandleFunc("/api/admin/routes", webapi.AdminRoutesHandler)
 	mux.HandleFunc("/api/admin/logs", webapi.AdminLogsHandler)
 	mux.HandleFunc("/api/admin/debug", webapi.AdminDebugHandler)
+	mux.HandleFunc("/api/admin/models", webapi.AdminModelsHandler)
 
 	// Unified Router Catch-All
 	mux.HandleFunc("/v1/", router.ServeHTTP)

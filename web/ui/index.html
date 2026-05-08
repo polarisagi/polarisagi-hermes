@@ -518,7 +518,7 @@
                         <div class="grid grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-slate-300 mb-1">源协议 (接收端) *</label>
-                                <select v-model="routeForm.source_protocol" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                                <select v-model="routeForm.source_protocol" @change="onSourceProtocolChange()" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
                                     <option value="openai">OpenAI (chat/completions)</option>
                                     <option value="anthropic">Anthropic (messages)</option>
                                     <option value="vertex">Vertex (原生协议)</option>
@@ -527,7 +527,7 @@
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-slate-300 mb-1">目标协议 (转发端) *</label>
-                                <select v-model="routeForm.target_protocol" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                                <select v-model="routeForm.target_protocol" @change="onTargetProtocolChange()" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
                                     <option value="openai">OpenAI (标准 API)</option>
                                     <option value="vertex">Vertex (GCP Agent Platform)</option>
                                     <option value="gemini">Gemini (API Key)</option>
@@ -543,17 +543,26 @@
                                     + 添加映射
                                 </button>
                             </div>
-                            <p class="text-xs text-slate-500 mb-3">当客户端请求的模型名匹配左侧规则时，自动替换为右侧的目标模型名并发往目标协议。</p>
+                            <p class="text-xs text-slate-500 mb-3">当客户端请求的模型名匹配左侧规则时，自动替换为右侧的目标模型名并发往目标协议。输入框支持从预设模型列表中自动补全。</p>
                             
                             <div class="space-y-2">
                                 <div v-for="(mapping, index) in routeForm.model_mappings" :key="index"
                                     class="flex items-center gap-2 bg-slate-900/50 rounded-lg p-2 border border-slate-700">
                                     <span class="text-slate-500 text-xs w-5">{{ index + 1 }}.</span>
                                     <input v-model="mapping.match" type="text" placeholder="匹配模型 (如 gpt-4o, * 为全部)" 
+                                        :list="'match-list-' + index"
                                         class="flex-1 bg-slate-900 border border-slate-600 rounded p-2 text-sm text-blue-400 font-mono outline-none focus:ring-1 focus:ring-blue-500">
+                                    <datalist :id="'match-list-' + index">
+                                        <option value="*">全部模型(通配符)</option>
+                                        <option v-for="m in sourceModels" :key="m.name" :value="m.name">{{ m.display_name }}</option>
+                                    </datalist>
                                     <span class="text-slate-600 text-sm">→</span>
                                     <input v-model="mapping.target" type="text" placeholder="目标模型 (如 gemini-1.5-pro)" 
+                                        :list="'target-list-' + index"
                                         class="flex-1 bg-slate-900 border border-slate-600 rounded p-2 text-sm text-emerald-400 font-mono outline-none focus:ring-1 focus:ring-emerald-500">
+                                    <datalist :id="'target-list-' + index">
+                                        <option v-for="m in targetModels" :key="m.name" :value="m.name">{{ m.display_name }}</option>
+                                    </datalist>
                                     <button @click="removeMapping(index)" 
                                         class="text-red-400 hover:text-red-300 transition text-lg px-1"
                                         :disabled="routeForm.model_mappings.length <= 1">×</button>

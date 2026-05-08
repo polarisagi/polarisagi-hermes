@@ -16,6 +16,8 @@ import (
 
 var httpClient = &http.Client{Timeout: 180 * time.Second}
 
+// AnthropicToVertex 将 Anthropic Messages API 请求转换为 Vertex GenerateContent API 格式
+// 转换流程: 解析 Anthropic 消息 → mapToVertexRequest 转换格式 → 发送到 Vertex 端点 → 流式/非流式回写 Anthropic 格式
 func AnthropicToVertex(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) {
 	clientType := "Anthropic-Adapter"
 	
@@ -85,6 +87,8 @@ func AnthropicToVertex(ctx context.Context, w http.ResponseWriter, r *http.Reque
 	}
 }
 
+// buildAnthropicVertexTargetURL 构建 Anthropic→Vertex 转发的目标 URL
+// 格式: {baseURL}/projects/{project_id}/locations/{location}/publishers/google/models/{model}:{generateContent|streamGenerateContent}
 func buildAnthropicVertexTargetURL(node *router.NodeState, model string, stream bool) string {
 	baseURL := node.BaseURL
 	if baseURL == "" {

@@ -1,3 +1,6 @@
+// 日志系统：同时输出到 stdout 和日志文件
+// 支持运行时切换 Debug 日志级别，无需重启网关
+// 日志文件存储在 ~/.polaris-gateway/polaris-gateway.log
 package logger
 
 import (
@@ -8,11 +11,12 @@ import (
 	"sync"
 )
 
-var LogFile *os.File
-var logWriter io.Writer
-var mu sync.Mutex
-var debugEnabled bool
+var LogFile *os.File       // 日志文件句柄，供管理后台读取日志内容
+var logWriter io.Writer    // 多路输出 writer（stdout + 文件）
+var mu sync.Mutex          // 保护 debugEnabled 和 slog handler 切换
+var debugEnabled bool      // 当前是否启用 Debug 日志级别
 
+// getLogPath 返回日志文件的完整路径：~/.polaris-gateway/polaris-gateway.log
 func getLogPath() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -27,6 +31,8 @@ func getLogPath() string {
 	return filepath.Join(dir, "polaris-gateway.log")
 }
 
+// SetDebug 运行时切换 Debug 日志级别，无需重启网关
+// enabled=true 时输出 DEBUG 及以上级别日志；false 时仅输出 INFO 及以上
 func SetDebug(enabled bool) {
 	mu.Lock()
 	defer mu.Unlock()

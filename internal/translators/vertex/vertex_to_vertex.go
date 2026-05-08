@@ -1,3 +1,6 @@
+// Vertex 原生直通处理器
+// 支持 Vertex → Vertex（同协议直通），使用 Vertex 原生的 generateContent/streamGenerateContent 端点
+// 自动构建包含 project_id/location/model 的 GCP 端点 URL，并注入 API Key 认证
 package vertex
 
 import (
@@ -16,6 +19,7 @@ import (
 
 var httpClient = &http.Client{Timeout: 180 * time.Second}
 
+// VertexToVertex Vertex 原生协议直通：不做协议转换，仅替换端点 URL 和认证方式
 func VertexToVertex(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) {
 	clientType := utils.IdentifyClient(r)
 	methodName := utils.ExtractMethodName(r.URL.Path)
@@ -79,6 +83,7 @@ func VertexToVertex(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	}
 }
 
+// streamVertexResponse 流式转发 Vertex 上游响应到客户端，同步从尾部提取 usageMetadata 完成计费
 func streamVertexResponse(w http.ResponseWriter, finalResp *http.Response, dest *router.MatchedDestination, modelName, clientType, methodName, traceID string, startTime time.Time) {
 	defer finalResp.Body.Close()
 
@@ -136,6 +141,10 @@ func streamVertexResponse(w http.ResponseWriter, finalResp *http.Response, dest 
 	}
 }
 
+// buildVertexTargetURL 构建 Vertex 原生端点 URL
+// 支持两种模式:
+//  1. 有 ProjectID: 使用 GCP Agent Platform 路由格式，支持 {project_id}/{location}/{subpath} 模板
+//  2. 无 ProjectID: 使用标准 BaseURL 拼接路径
 func buildVertexTargetURL(node *router.NodeState, incomingPath string) string {
 	subPath := strings.TrimPrefix(incomingPath, "/v1")
 	if !strings.HasPrefix(subPath, "/") {

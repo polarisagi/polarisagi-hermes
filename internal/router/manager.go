@@ -1,3 +1,14 @@
+// 路由引擎核心：节点池管理 + 路由匹配 + 负载均衡
+//
+// 架构说明：
+//   routesBySource: 按源协议索引的路由表，key 为 "openai"/"vertex"/"anthropic"
+//   nodesMap:       全局节点池，按节点 ID 索引，每个节点有状态机 (Idle/Busy/Cooldown/Probation/Exhausted)
+//
+// 请求分发流程：
+//   1. MatchAndAcquireRoute() 轮询等待可用路由和节点
+//   2. tryAcquire() 遍历路由 → 匹配模型映射 → 选择 Idle/Probation 的节点
+//   3. 按优先级排序选择最优节点 → 标记为 Busy → 交给协议转换器处理
+//   4. 请求完成后调用 ReleaseNode() 归还节点到 Idle 状态
 package router
 
 import (
@@ -14,12 +25,13 @@ import (
 )
 
 var (
-	nodesMap     map[int]*NodeState
-	routesBySource map[string][]config.RouteDetail
-	poolMutex    sync.RWMutex
-	initOnce     sync.Once
+	nodesMap        map[int]*NodeState          // 全局节点池，key=节点ID
+	routesBySource  map[string][]config.RouteDetail // 按源协议索引的路由表
+	poolMutex       sync.RWMutex                // 节点池读写锁
+	initOnce        sync.Once                   // 确保初始化只执行一次
 )
 
+// InitRouter 初始化路由引擎：启动冷却管理器后台协程 + 加载配置
 func InitRouter() {
 	initOnce.Do(func() {
 		go cooldownManager()
@@ -27,6 +39,9 @@ func InitRouter() {
 	ReloadFromConfig()
 }
 
+// ReloadFromConfig 从数据库重新加载全部配置并重建路由表和节点池
+// 在以下时机调用: 1) 网关启动  2) 管理后台 CRUD 操作触发热重载
+// 节点过滤规则: 状态=启用、有效期范围内、预算未超限
 func ReloadFromConfig() {
 	poolMutex.Lock()
 	defer poolMutex.Unlock()
@@ -73,6 +88,8 @@ func ReloadFromConfig() {
 	slog.Info("🛤️ Core Router Reloaded", "nodes", len(nodesMap), "routes", totalRoutes)
 }
 
+// cooldownManager 冷却守护协程：每秒检查一次，将冷却时间已到的节点
+// 从 Cooldown 状态恢复到 Probation (试用) 状态
 func cooldownManager() {
 	for {
 		time.Sleep(1 * time.Second)
@@ -91,14 +108,19 @@ func cooldownManager() {
 	}
 }
 
+// MatchedDestination 路由匹配结果，包含选中的节点、目标模型和目标协议
 type MatchedDestination struct {
-	Node           *NodeState
-	TargetModel    string
-	TargetProtocol string
-	IsProbationRun bool
+	Node           *NodeState // 被选中的目标节点
+	TargetModel    string     // 映射后的目标模型名
+	TargetProtocol string     // 目标协议类型 (openai/vertex/gemini)
+	IsProbationRun bool       // 是否为试用运行 (节点刚从冷却恢复)
 }
 
-// modelMatches checks if the requested model matches a mapping rule
+// modelMatches 检查请求的模型名是否匹配路由映射规则
+// 支持三种匹配模式:
+//  1. 精确匹配: "gpt-4o" == "gpt-4o"
+//  2. 通配符匹配: "*" 匹配所有模型
+//  3. 前缀通配: "gpt-*" 匹配 "gpt-4o", "gpt-3.5-turbo" 等
 func modelMatches(reqModel string, mapping config.ModelMapping) bool {
 	if mapping.Match == "*" {
 		return true
@@ -116,6 +138,10 @@ func modelMatches(reqModel string, mapping config.ModelMapping) bool {
 	return false
 }
 
+// MatchAndAcquireRoute 排队等待并获取可用路由和节点
+// 轮询机制: 每 100ms 调用 tryAcquire() 尝试匹配，直到成功或超时
+// 返回: 匹配的目标路由信息，或超时/取消错误
+// 首次失败时会输出一次 WARN 日志说明原因，方便诊断路由配置问题
 func MatchAndAcquireRoute(ctx context.Context, sourceProtocol, reqModel string) (*MatchedDestination, error) {
 	deadline, ok := ctx.Deadline()
 	if !ok {
@@ -125,6 +151,7 @@ func MatchAndAcquireRoute(ctx context.Context, sourceProtocol, reqModel string) 
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
+	diagnosed := false
 	for {
 		select {
 		case <-ctx.Done():
@@ -132,21 +159,50 @@ func MatchAndAcquireRoute(ctx context.Context, sourceProtocol, reqModel string) 
 		case <-timeoutChan:
 			return nil, fmt.Errorf("queue timeout")
 		case <-ticker.C:
-			if dest, found := tryAcquire(sourceProtocol, reqModel); found {
+			dest, reason, found := tryAcquire(sourceProtocol, reqModel)
+			if found {
 				return dest, nil
+			}
+			if !diagnosed {
+				diagnosed = true
+				pairs := []any{"source_protocol", sourceProtocol, "req_model", reqModel, "reason", reason}
+				poolMutex.RLock()
+				if srcRoutes, exist := routesBySource[sourceProtocol]; exist {
+					pairs = append(pairs, "route_count", len(srcRoutes))
+				} else {
+					pairs = append(pairs, "available_protocols", func() []string {
+						keys := make([]string, 0, len(routesBySource))
+						for k := range routesBySource {
+							keys = append(keys, k)
+						}
+						return keys
+					}())
+				}
+				pairs = append(pairs, "total_nodes", len(nodesMap))
+				poolMutex.RUnlock()
+				slog.Warn("⚠️ [路由引擎] 当前无法匹配到可用路由，将在后队列等待", pairs...)
 			}
 		}
 	}
 }
 
-func tryAcquire(sourceProtocol, reqModel string) (*MatchedDestination, bool) {
+// tryAcquire 尝试从路由表和节点池中匹配一个可用的目标和节点
+// 匹配流程:
+//  1. 查找源协议对应的所有路由
+//  2. 遍历每条路由的模型映射，找到匹配的规则
+//  3. 在目标协议的所有节点中寻找 Idle/Probation 状态的
+//  4. 按优先级排序，选择最高优先级的节点
+//  5. 将选中节点标记为 Busy
+//
+// 返回值: dest=匹配结果, reason=失败原因(调试用), found=是否匹配成功
+func tryAcquire(sourceProtocol, reqModel string) (dest *MatchedDestination, reason string, found bool) {
 	poolMutex.RLock()
 	defer poolMutex.RUnlock()
 
 	// Find routes for this source protocol
 	candidateRoutes, exists := routesBySource[sourceProtocol]
 	if !exists || len(candidateRoutes) == 0 {
-		return nil, false
+		return nil, "no routes for source_protocol", false
 	}
 
 	type Candidate struct {
@@ -215,7 +271,26 @@ func tryAcquire(sourceProtocol, reqModel string) (*MatchedDestination, bool) {
 	}
 
 	if len(validCandidates) == 0 {
-		return nil, false
+		if len(candidateRoutes) > 0 {
+			// Routes exist but no model matched or all nodes busy
+			totalNodes := 0
+			busyNodes := 0
+			for _, route := range candidateRoutes {
+				for _, state := range nodesMap {
+					if state.Provider == route.TargetProtocol {
+						totalNodes++
+						if state.Status != StatusIdle && state.Status != StatusProbation {
+							busyNodes++
+						}
+					}
+				}
+			}
+			if totalNodes == 0 {
+				return nil, "no nodes for target protocol of matching routes", false
+			}
+			return nil, fmt.Sprintf("all %d nodes busy/exhausted for target protocol", busyNodes), false
+		}
+		return nil, "no model mapping matched", false
 	}
 
 	// Sort by Priority Descending -> auto load balancing
@@ -237,9 +312,10 @@ func tryAcquire(sourceProtocol, reqModel string) (*MatchedDestination, bool) {
 		TargetModel:    chosen.TargetModel,
 		TargetProtocol:  chosen.TargetProtocol,
 		IsProbationRun: isProbationRun,
-	}, true
+	}, "", true
 }
 
+// ReleaseNode 释放节点：将 Busy 状态的节点恢复为 Idle，供后续请求使用
 func ReleaseNode(nodeID int) {
 	poolMutex.RLock()
 	defer poolMutex.RUnlock()

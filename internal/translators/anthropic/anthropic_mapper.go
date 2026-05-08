@@ -1,5 +1,14 @@
+// Anthropic → Vertex 请求映射器
+// 将 Anthropic Messages API 格式转换为 Vertex GenerateContent API 格式
 package anthropic
 
+// mapToVertexRequest 将 Anthropic Messages 请求转换为 Vertex 原生的 generateContent 请求体
+// 转换规则:
+//   - Anthropic system → Vertex systemInstruction
+//   - Anthropic user/assistant → Vertex user/model 角色
+//   - Anthropic 纯文本/多模态内容块 → Vertex parts 数组
+//   - Anthropic max_tokens → Vertex maxOutputTokens
+//   - Anthropic temperature/topP/topK → Vertex generationConfig
 func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 	vertexReq := make(map[string]interface{})
 

@@ -12,6 +12,7 @@ import (
 	"polaris-gateway/internal/config"
 	"polaris-gateway/internal/db"
 	"polaris-gateway/internal/logger"
+	"polaris-gateway/internal/models"
 )
 
 // AdminDebugHandler toggles debug mode
@@ -72,13 +73,43 @@ func AdminSettingsHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		
 		config.ReloadFromDB()
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status": "success"}`))
 		return
 	}
+
 	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+}
+
+// AdminModelsHandler 返回指定协议的可用模型列表，用于后台路由配置页面的模型选择下拉框
+// GET /api/admin/models?protocol=vertex → 返回 vertex 协议的所有模型
+// GET /api/admin/models → 返回所有协议的所有模型
+func AdminModelsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	protocol := r.URL.Query().Get("protocol")
+
+	var result []models.ModelInfo
+	if protocol != "" {
+		result = models.GetModelsByProtocol(protocol)
+		if result == nil {
+			result = []models.ModelInfo{}
+		}
+	} else {
+		// 返回所有协议的模型，按协议分组
+		for _, p := range models.GetAllProtocols() {
+			result = append(result, models.GetModelsByProtocol(p)...)
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"models": result,
+	})
 }
 
 // AdminNodesHandler handles CRUD for /api/nodes

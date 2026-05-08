@@ -105,6 +105,7 @@ func AnthropicToAnthropic(ctx context.Context, w http.ResponseWriter, r *http.Re
 	}
 }
 
+// anthropicPassthroughStream 直通流式响应：读取上游 Anthropic SSE 流，原样写回客户端并结算
 func anthropicPassthroughStream(w http.ResponseWriter, upstreamResp *http.Response, traceID string, dest *router.MatchedDestination, clientType, modelName string) {
 	defer upstreamResp.Body.Close()
 
@@ -150,6 +151,7 @@ func anthropicPassthroughStream(w http.ResponseWriter, upstreamResp *http.Respon
 	}
 }
 
+// anthropicPassthroughNonStream 直通非流式响应：读取上游 Anthropic JSON 响应，解析 usage 并结算后原样写回
 func anthropicPassthroughNonStream(w http.ResponseWriter, upstreamResp *http.Response, traceID string, dest *router.MatchedDestination, clientType, modelName string) {
 	defer upstreamResp.Body.Close()
 	bodyBytes, err := io.ReadAll(upstreamResp.Body)
@@ -186,6 +188,7 @@ func anthropicPassthroughNonStream(w http.ResponseWriter, upstreamResp *http.Res
 	w.Write(bodyBytes)
 }
 
+// extractAndRecordAnthropicUsage 从 Anthropic SSE 流的尾部 buffer 中提取 output_tokens 并完成计费
 func extractAndRecordAnthropicUsage(tailBuf []byte, modelName string, dest *router.MatchedDestination, clientType, methodName, traceID string) {
 	// Try to find output_tokens in the tail buffer (Anthropic stream format)
 	re := regexp.MustCompile(`"output_tokens"\s*:\s*(\d+)`)

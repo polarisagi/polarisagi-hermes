@@ -1,3 +1,5 @@
+// 网关中间件: 并发统计 + 实时统计 API
+// ActiveCount/WaitingCount 用于监控大盘的实时队列状态
 package webapi
 
 import (
@@ -12,11 +14,12 @@ import (
 )
 
 var (
-	MaxConcurrency int
-	ActiveCount    int32
-	WaitingCount   int32
+	MaxConcurrency int   // 最大并发数（=活跃节点数）
+	ActiveCount    int32 // 正在处理的请求计数（原子操作）
+	WaitingCount   int32 // 排队等待的请求计数（原子操作）
 )
 
+// InitMiddleware 初始化并发限制，concurrency 为活跃节点总数
 func InitMiddleware(concurrency int) {
 	if concurrency <= 0 {
 		concurrency = 2
@@ -30,6 +33,9 @@ func ConcurrencyLimiter(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// StatsHandler 实时统计 API 端点
+// 按 platform + node_name + client_id + method_name 多维度聚合查询指定日期范围内的用量数据
+// 返回: 用量明细 + 活跃并发数 + 排队等待数 + 最大并发限制
 func StatsHandler(w http.ResponseWriter, r *http.Request) {
 	startStr := r.URL.Query().Get("start")
 	endStr := r.URL.Query().Get("end")

@@ -15,6 +15,9 @@ import (
 	"polaris-gateway/internal/translators/utils"
 )
 
+// OpenAIToVertex 将 OpenAI Chat Completions 请求转发到 Vertex AI 端点
+// 自动在模型名前添加 "google/" 前缀（满足 Vertex OpenAI 兼容端点的要求）
+// 带有 ProjectID 的 Vertex 节点使用查询参数 ?key= 认证，否则使用 Bearer Token
 func OpenAIToVertex(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) {
 	clientType := utils.IdentifyClient(r)
 	methodName := utils.ExtractMethodName(r.URL.Path)

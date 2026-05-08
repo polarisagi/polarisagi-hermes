@@ -36,19 +36,23 @@ func DB() *sql.DB {
 	return db
 }
 
+// UsageLog 请求用量记录，通过 channel 异步写入数据库
+// 避免同步 I/O 阻塞 API 请求路径，以 1024 缓冲区缓解写入峰值
 type UsageLog struct {
-	Platform    string // 新增：所属平台标识 (如 "vertex", "openai")
-	NodeName   string
-	ClientID   string
-	MethodName string
-	Prompt      int64
-	Completion  int64
-	Cost        float64
-	Status      int
+	Platform    string  // 所属平台标识: "openai"/"vertex"/"anthropic"
+	NodeName   string   // 节点名称
+	ClientID   string   // 客户端识别标识（从 User-Agent 推导）
+	MethodName string   // 调用方法名，如 "chat/completions"
+	Prompt      int64   // 提示词 token 数
+	Completion  int64   // 生成 token 数
+	Cost        float64 // 本次调用费用（美元）
+	Status      int     // HTTP 状态码
 }
 
-var logChan = make(chan UsageLog, 1024)
+var logChan = make(chan UsageLog, 1024) // 异步写入通道，缓冲区 1024 条
 
+// InitDB 初始化 SQLite 数据库连接，启用 WAL 模式提高并发读写性能
+// 自动执行嵌入的 schema 迁移脚本，并启动后台异步写入协程
 func InitDB() {
 	var err error
 	dbPath := getDBPath()
@@ -105,6 +109,8 @@ func runMigrations() {
 	}
 }
 
+// dbWriter 后台异步写入协程，从 channel 读取用量记录并写入 SQLite
+// 使用 channel 解耦保证 API 响应路径不会被数据库 I/O 阻塞
 func dbWriter() {
 	for logEntry := range logChan {
 		_, err := db.Exec(
@@ -124,7 +130,8 @@ func CloseDB() {
 	}
 }
 
-// SaveUsage 签名更新，要求调用方显式传入 platform 来源
+// SaveUsage 异步保存用量记录，要求调用方显式传入 platform 来源
+// 不阻塞调用方，通过 channel 发送给后台 dbWriter 协程异步写入
 func SaveUsage(platform, name, client, method string, prompt, completion int64, cost float64, status int) {
 	logChan <- UsageLog{
 		Platform:   platform,

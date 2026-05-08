@@ -1,3 +1,6 @@
+// OpenAI 直通/转发处理器
+// 支持 OpenAI → OpenAI（同协议直通）和 OpenAI → Gemini API Key（同为 OpenAI 兼容协议）
+// 仅做模型名替换和认证头注入，请求体格式保持不变
 package openai
 
 import (
@@ -14,8 +17,10 @@ import (
 	"polaris-gateway/internal/translators/utils"
 )
 
-var httpClient = &http.Client{Timeout: 180 * time.Second}
+var httpClient = &http.Client{Timeout: 180 * time.Second} // 全局 HTTP 客户端，180 秒超时
 
+// OpenAIToOpenAI 处理 OpenAI 协议到 OpenAI/Gemini 兼容后端的转发
+// 仅做: 模型名替换 + API Key 注入 + 头透传，不做协议格式转换
 func OpenAIToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) {
 	clientType := utils.IdentifyClient(r)
 	methodName := utils.ExtractMethodName(r.URL.Path)

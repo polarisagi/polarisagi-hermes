@@ -1,3 +1,6 @@
+// 节点状态机 + 熔断器 + 计费控制
+// 状态转换: Idle → Busy → Idle (成功) / Cooldown → Probation → Busy/Cooldown → Exhausted
+// 节点同时管理熔断器（基于连续失败次数）和预算控制（基于费用累加）
 package router
 
 import (
@@ -9,26 +12,31 @@ import (
 	"polaris-gateway/internal/config"
 )
 
+// NodeStatus 节点运行时状态枚举
 type NodeStatus int
 
 const (
-	StatusIdle NodeStatus = iota
-	StatusBusy
-	StatusCooldown
-	StatusProbation
-	StatusExhausted
+	StatusIdle      NodeStatus = iota // 空闲，可接收新请求
+	StatusBusy                         // 繁忙，正在处理请求
+	StatusCooldown                     // 冷却中，暂时不可用（熔断惩罚期）
+	StatusProbation                    // 试用期，刚从冷却恢复，再次失败将快速回到冷却
+	StatusExhausted                    // 已耗尽，预算超限或手动禁用
 )
 
+// NodeState 节点运行时状态，包装了静态配置（AccountDetail）和动态状态机
+// 每个节点是 goroutine-safe 的，通过内部的 sync.Mutex 保护状态转换
 type NodeState struct {
-	config.AccountDetail
-	Status            NodeStatus
-	FailureTimestamps []time.Time
-	CurrentCooldown   time.Duration
-	CooldownUntil     time.Time
-	TotalConsumed     float64
-	mu                sync.Mutex
+	config.AccountDetail                                     // 内嵌静态配置
+	Status                NodeStatus                         // 当前状态
+	FailureTimestamps     []time.Time                        // 失败时间戳列表（用于滑动窗口计数）
+	CurrentCooldown       time.Duration                      // 当前冷却时长（失败后翻倍增长）
+	CooldownUntil         time.Time                          // 冷却结束时间
+	TotalConsumed         float64                            // 当前账期累计消费金额
+	mu                    sync.Mutex                         // 保护并发状态修改
 }
 
+// checkFailureWindow 检查在滑动窗口内是否有足够多的失败以触发熔断
+// 使用 FailureWindowSeconds 作为窗口大小，超过窗口的旧失败记录会被自动清理
 func (s *NodeState) checkFailureWindow() bool {
 	threshold := config.AppConfig.Breaker.FailureThreshold
 	window := time.Duration(config.AppConfig.Breaker.FailureWindowSeconds) * time.Second
@@ -43,11 +51,13 @@ func (s *NodeState) checkFailureWindow() bool {
 	return len(s.FailureTimestamps) >= threshold
 }
 
+// recordFailureAndCheck 记录一次失败并检查是否需要熔断
 func (s *NodeState) recordFailureAndCheck() bool {
 	s.FailureTimestamps = append(s.FailureTimestamps, time.Now())
 	return s.checkFailureWindow()
 }
 
+// UpdateOnSuccess 请求成功后更新节点状态：清除失败记录，重置冷却时间，恢复为 Idle
 func (s *NodeState) UpdateOnSuccess() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -59,6 +69,9 @@ func (s *NodeState) UpdateOnSuccess() {
 	s.Status = StatusIdle
 }
 
+// UpdateOnFailure 请求失败后更新节点状态
+// 如果处于试用期（Probation）或累积失败数达到阈值，则将节点置为 Cooldown
+// 冷却时长每次翻倍（指数退避），直到达到 MaxCooldownSeconds 上限
 func (s *NodeState) UpdateOnFailure(isProbationRun bool, traceID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -80,6 +93,7 @@ func (s *NodeState) UpdateOnFailure(isProbationRun bool, traceID string) {
 	}
 }
 
+// RecordCost 累加请求费用，并在超过预算上限时自动将节点标记为 Exhausted
 func (s *NodeState) RecordCost(cost float64, traceID string) {
 	if cost <= 0 {
 		return
