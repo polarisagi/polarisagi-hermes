@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 
 var (
 	nodesMap     map[int]*NodeState
-	activeRoutes []config.RouteDetail
+	routesBySource map[string][]config.RouteDetail
 	poolMutex    sync.RWMutex
 	initOnce     sync.Once
 )
@@ -31,9 +32,9 @@ func ReloadFromConfig() {
 	defer poolMutex.Unlock()
 
 	nodesMap = make(map[int]*NodeState)
-	activeRoutes = make([]config.RouteDetail, 0)
+	routesBySource = make(map[string][]config.RouteDetail)
 
-	// Build nodes map
+	// Build nodes map from all providers
 	for _, providers := range config.AppConfig.Providers {
 		for _, acc := range providers {
 			cycleConsumed := db.GetConsumedSince(acc.Name, acc.ValidFrom)
@@ -58,20 +59,25 @@ func ReloadFromConfig() {
 		}
 	}
 
-	// Filter active routes
+	// Index routes by source_protocol
 	for _, route := range config.AppConfig.Routes {
 		if route.Status == 1 {
-			activeRoutes = append(activeRoutes, route)
+			routesBySource[route.SourceProtocol] = append(routesBySource[route.SourceProtocol], route)
 		}
 	}
-	slog.Info("🛤️ Core Router Reloaded", "nodes", len(nodesMap), "routes", len(activeRoutes))
+
+	totalRoutes := 0
+	for _, v := range routesBySource {
+		totalRoutes += len(v)
+	}
+	slog.Info("🛤️ Core Router Reloaded", "nodes", len(nodesMap), "routes", totalRoutes)
 }
 
 func cooldownManager() {
 	for {
 		time.Sleep(1 * time.Second)
 		now := time.Now()
-		
+
 		poolMutex.RLock()
 		for _, state := range nodesMap {
 			state.mu.Lock()
@@ -88,10 +94,29 @@ func cooldownManager() {
 type MatchedDestination struct {
 	Node           *NodeState
 	TargetModel    string
+	TargetProtocol string
 	IsProbationRun bool
 }
 
-func MatchAndAcquireRoute(ctx context.Context, reqModel string) (*MatchedDestination, error) {
+// modelMatches checks if the requested model matches a mapping rule
+func modelMatches(reqModel string, mapping config.ModelMapping) bool {
+	if mapping.Match == "*" {
+		return true
+	}
+	if reqModel == mapping.Match {
+		return true
+	}
+	// Wildcard prefix: "gpt-*" matches "gpt-4o", "gpt-3.5"
+	if strings.HasSuffix(mapping.Match, "*") {
+		prefix := strings.TrimSuffix(mapping.Match, "*")
+		if strings.HasPrefix(reqModel, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func MatchAndAcquireRoute(ctx context.Context, sourceProtocol, reqModel string) (*MatchedDestination, error) {
 	deadline, ok := ctx.Deadline()
 	if !ok {
 		deadline = time.Now().Add(120 * time.Second)
@@ -107,47 +132,85 @@ func MatchAndAcquireRoute(ctx context.Context, reqModel string) (*MatchedDestina
 		case <-timeoutChan:
 			return nil, fmt.Errorf("queue timeout")
 		case <-ticker.C:
-			if dest, found := tryAcquire(reqModel); found {
+			if dest, found := tryAcquire(sourceProtocol, reqModel); found {
 				return dest, nil
 			}
 		}
 	}
 }
 
-func tryAcquire(reqModel string) (*MatchedDestination, bool) {
+func tryAcquire(sourceProtocol, reqModel string) (*MatchedDestination, bool) {
 	poolMutex.RLock()
 	defer poolMutex.RUnlock()
 
-	var candidateRoutes []config.RouteDetail
-
-	for _, r := range activeRoutes {
-		if r.MatchModel == reqModel || r.MatchModel == "*" || (len(r.MatchModel) > 1 && r.MatchModel[len(r.MatchModel)-1] == '*' && reqModel[:len(r.MatchModel)-1] == r.MatchModel[:len(r.MatchModel)-1]) {
-			candidateRoutes = append(candidateRoutes, r)
-		}
-	}
-
-	if len(candidateRoutes) == 0 {
+	// Find routes for this source protocol
+	candidateRoutes, exists := routesBySource[sourceProtocol]
+	if !exists || len(candidateRoutes) == 0 {
 		return nil, false
 	}
 
 	type Candidate struct {
-		State *NodeState
-		Route config.RouteDetail
+		State         *NodeState
+		TargetModel   string
+		TargetProtocol string
 	}
 	var validCandidates []Candidate
 
-	for _, cr := range candidateRoutes {
-		state, exists := nodesMap[cr.NodeID]
-		if !exists {
-			continue
-		}
-		
-		state.mu.Lock()
-		isIdleOrProb := (state.Status == StatusIdle || state.Status == StatusProbation)
-		state.mu.Unlock()
+	// Iterate through matching routes to find model mappings
+	for _, route := range candidateRoutes {
+		// Try exact match first, then wildcard
+		var matchedTargetModel string
+		matched := false
 
-		if isIdleOrProb {
-			validCandidates = append(validCandidates, Candidate{State: state, Route: cr})
+		for _, mapping := range route.ModelMappingsParsed {
+			if modelMatches(reqModel, mapping) {
+				matchedTargetModel = mapping.Target
+				matched = true
+				break
+			}
+		}
+
+		// If no model mapping matched, use the first mapping's target as fallback
+		// or skip this route
+		if !matched {
+			if len(route.ModelMappingsParsed) == 0 {
+				continue
+			}
+			// Route with empty match ("*") acts as catch-all
+			for _, mapping := range route.ModelMappingsParsed {
+				if mapping.Match == "*" || mapping.Match == "" {
+					matchedTargetModel = mapping.Target
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				continue
+			}
+		}
+
+		// Find all available nodes for the target protocol
+		for _, state := range nodesMap {
+			if state.Provider != route.TargetProtocol {
+				continue
+			}
+
+			state.mu.Lock()
+			isIdleOrProb := (state.Status == StatusIdle || state.Status == StatusProbation)
+			state.mu.Unlock()
+
+			if isIdleOrProb {
+				validCandidates = append(validCandidates, Candidate{
+					State:          state,
+					TargetModel:    matchedTargetModel,
+					TargetProtocol:  route.TargetProtocol,
+				})
+			}
+		}
+
+		// If we found candidates for this route, break (first matching route wins)
+		if len(validCandidates) > 0 {
+			break
 		}
 	}
 
@@ -155,13 +218,13 @@ func tryAcquire(reqModel string) (*MatchedDestination, bool) {
 		return nil, false
 	}
 
-	// Sort by Priority Descending
+	// Sort by Priority Descending -> auto load balancing
 	sort.Slice(validCandidates, func(i, j int) bool {
 		return validCandidates[i].State.Priority > validCandidates[j].State.Priority
 	})
 
 	chosen := validCandidates[0]
-	
+
 	chosen.State.mu.Lock()
 	isProbationRun := (chosen.State.Status == StatusProbation)
 	chosen.State.Status = StatusBusy
@@ -169,7 +232,8 @@ func tryAcquire(reqModel string) (*MatchedDestination, bool) {
 
 	return &MatchedDestination{
 		Node:           chosen.State,
-		TargetModel:    chosen.Route.TargetModel,
+		TargetModel:    chosen.TargetModel,
+		TargetProtocol:  chosen.TargetProtocol,
 		IsProbationRun: isProbationRun,
 	}, true
 }
@@ -177,7 +241,7 @@ func tryAcquire(reqModel string) (*MatchedDestination, bool) {
 func ReleaseNode(nodeID int) {
 	poolMutex.RLock()
 	defer poolMutex.RUnlock()
-	
+
 	if state, exists := nodesMap[nodeID]; exists {
 		state.mu.Lock()
 		if state.Status == StatusBusy {

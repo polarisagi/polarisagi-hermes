@@ -19,7 +19,11 @@ createApp({
         const routes = ref([]);
         const routeModal = ref({ show: false, isEdit: false });
         const routeForm = ref({
-            id: 0, match_model: '', node_id: 0, target_model: '', status: 1
+            id: 0,
+            source_protocol: 'openai',
+            target_protocol: 'openai',
+            model_mappings: [{ match: '', target: '' }],
+            status: 1
         });
 
         const settings = ref({
@@ -49,6 +53,20 @@ createApp({
         const formatToken = (num) => new Intl.NumberFormat().format(num);
         const formatShortDate = (dt) => dt ? dt.split(' ')[0] : '-';
         const successRateColor = (rate) => rate > 95 ? 'border-emerald-500' : (rate > 80 ? 'border-yellow-500' : 'border-red-500');
+
+        // Protocol display helpers
+        const protocolLabel = (p) => {
+            const labels = { openai: 'OpenAI', vertex: 'Vertex (GCP)', anthropic: 'Anthropic', gemini: 'Gemini' };
+            return labels[p] || p;
+        };
+        const protocolClass = (p) => {
+            const classes = { openai: 'text-indigo-400', vertex: 'text-emerald-400', anthropic: 'text-orange-400', gemini: 'text-blue-400' };
+            return classes[p] || 'text-slate-400';
+        };
+        const protocolBadge = (p) => {
+            const badges = { openai: 'bg-indigo-600 border-indigo-500/50', vertex: 'bg-emerald-600 border-emerald-500/50', anthropic: 'bg-orange-600 border-orange-500/50', gemini: 'bg-blue-600 border-blue-500/50' };
+            return badges[p] || 'bg-slate-600 border-slate-500/50';
+        };
 
         const selectedAccountLabel = computed(() => {
             if (selectedAccount.value === 'all') return '全部汇总';
@@ -141,7 +159,12 @@ createApp({
         const fetchRoutes = async () => {
             try {
                 const res = await fetch('/api/admin/routes');
-                routes.value = await res.json() || [];
+                const data = await res.json() || [];
+                // Ensure model_mappings is always an array
+                data.forEach(r => {
+                    if (!Array.isArray(r.model_mappings)) r.model_mappings = [];
+                });
+                routes.value = data;
             } catch (e) { console.error(e) }
         };
 
@@ -192,7 +215,7 @@ createApp({
 
         const openNodeModal = (node = null) => {
             if (node) {
-                nodeForm.value = { ...node, credentials: '' }; // Don't show real credentials
+                nodeForm.value = { ...node, credentials: '' };
                 nodeModal.value = { show: true, isEdit: true };
             } else {
                 nodeForm.value = {
@@ -262,30 +285,68 @@ createApp({
             }
         };
 
+        // --- Route management (new protocol-to-protocol design) ---
+
         const openRouteModal = (route = null) => {
             if (route) {
-                routeForm.value = { ...route };
+                const mappings = Array.isArray(route.model_mappings) && route.model_mappings.length > 0
+                    ? route.model_mappings.map(m => ({ match: m.match || '', target: m.target || '' }))
+                    : [{ match: '', target: '' }];
+                routeForm.value = {
+                    id: route.id,
+                    source_protocol: route.source_protocol || 'openai',
+                    target_protocol: route.target_protocol || 'openai',
+                    model_mappings: mappings,
+                    status: route.status
+                };
                 routeModal.value = { show: true, isEdit: true };
             } else {
                 routeForm.value = {
-                    id: 0, match_model: '', node_id: 0, target_model: '', status: 1
+                    id: 0,
+                    source_protocol: 'openai',
+                    target_protocol: 'openai',
+                    model_mappings: [{ match: '', target: '' }],
+                    status: 1
                 };
                 routeModal.value = { show: true, isEdit: false };
             }
         };
 
+        const addMapping = () => {
+            routeForm.value.model_mappings.push({ match: '', target: '' });
+        };
+
+        const removeMapping = (index) => {
+            if (routeForm.value.model_mappings.length > 1) {
+                routeForm.value.model_mappings.splice(index, 1);
+            }
+        };
+
         const saveRoute = async () => {
-            if (!routeForm.value.match_model || routeForm.value.node_id === 0) {
-                showToast('必须填写匹配模型并选择转发节点', 'error');
+            // Validate: at least one valid mapping
+            const validMappings = routeForm.value.model_mappings.filter(m => m.match.trim() !== '');
+            if (validMappings.length === 0) {
+                showToast('至少需要填写一个模型匹配规则', 'error');
+                return;
+            }
+            if (!routeForm.value.source_protocol || !routeForm.value.target_protocol) {
+                showToast('必须选择源协议和目标协议', 'error');
                 return;
             }
 
             try {
                 const method = routeModal.value.isEdit ? 'PUT' : 'POST';
+                const payload = {
+                    id: routeForm.value.id,
+                    source_protocol: routeForm.value.source_protocol,
+                    target_protocol: routeForm.value.target_protocol,
+                    model_mappings: validMappings,
+                    status: routeForm.value.status
+                };
                 const res = await fetch('/api/admin/routes', {
                     method,
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(routeForm.value)
+                    body: JSON.stringify(payload)
                 });
                 if (res.ok) {
                     showToast(routeModal.value.isEdit ? '路由已更新' : '路由已添加');
@@ -409,6 +470,7 @@ createApp({
             settings, nodes, routes, fetchSettings, fetchNodes, fetchRoutes, saveSettings, resetSettings,
             nodeModal, nodeForm, openNodeModal, saveNode, deleteNode,
             routeModal, routeForm, openRouteModal, saveRoute, deleteRoute, toast,
+            addMapping, removeMapping, protocolLabel, protocolClass, protocolBadge,
             logsText, isAutoScroll, logLevelFilter, fetchLogs
         };
     }

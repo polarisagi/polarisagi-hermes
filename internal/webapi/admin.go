@@ -1,7 +1,6 @@
 package webapi
 
 import (
-	"database/sql"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -74,11 +73,10 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			
-			// Mask credentials for security if it's an API Key. For JSON, just masking part of it is tricky, but let's do a simple mask
 			maskedCred := credentials
 			if len(credentials) > 15 {
 				maskedCred = credentials[:5] + "......" + credentials[len(credentials)-5:]
-			} else {
+			} else if len(credentials) > 0 {
 				maskedCred = "***"
 			}
 
@@ -171,7 +169,6 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Only update credentials if it wasn't masked
 		if !strings.Contains(req.Credentials, "......") && req.Credentials != "***" && req.Credentials != "" {
 			_, err := db.DB().Exec(`
 				UPDATE sys_nodes SET name=?, provider=?, base_url=?, credentials=?, project_id=?, location=?, priority=?, balance=?, limit_percent=?, valid_from=?, valid_to=?, status=?
@@ -233,7 +230,6 @@ func AdminLogsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Read last 50KB maximum
 	var size int64 = 50 * 1024
 	if info.Size() < size {
 		size = info.Size()
@@ -249,19 +245,12 @@ func AdminLogsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(buf)
 }
 
-// AdminRoutesHandler handles CRUD for /api/routes
+// AdminRoutesHandler handles CRUD for /api/admin/routes
 func AdminRoutesHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if r.Method == http.MethodGet {
-		// Join with sys_nodes to get the node name
-		query := `
-			SELECT r.id, r.match_model, r.node_id, r.target_model, r.status, n.name as node_name
-			FROM sys_routes r
-			LEFT JOIN sys_nodes n ON r.node_id = n.id
-			ORDER BY r.id DESC
-		`
-		rows, err := db.DB().Query(query)
+		rows, err := db.DB().Query("SELECT id, source_protocol, target_protocol, model_mappings, status FROM sys_routes ORDER BY id DESC")
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -270,21 +259,28 @@ func AdminRoutesHandler(w http.ResponseWriter, r *http.Request) {
 
 		var routes []map[string]interface{}
 		for rows.Next() {
-			var id, nodeID, status int
-			var matchModel, targetModel string
-			var nodeName sql.NullString
+			var id, status int
+			var sourceProtocol, targetProtocol, modelMappings string
 			
-			if err := rows.Scan(&id, &matchModel, &nodeID, &targetModel, &status, &nodeName); err != nil {
+			if err := rows.Scan(&id, &sourceProtocol, &targetProtocol, &modelMappings, &status); err != nil {
 				continue
 			}
 
+			// Parse model_mappings JSON for the frontend
+			var mappings []map[string]string
+			if modelMappings != "" {
+				json.Unmarshal([]byte(modelMappings), &mappings)
+			}
+			if mappings == nil {
+				mappings = []map[string]string{}
+			}
+
 			routes = append(routes, map[string]interface{}{
-				"id":           id,
-				"match_model":  matchModel,
-				"node_id":      nodeID,
-				"node_name":    nodeName.String,
-				"target_model": targetModel,
-				"status":       status,
+				"id":              id,
+				"source_protocol": sourceProtocol,
+				"target_protocol": targetProtocol,
+				"model_mappings":  mappings,
+				"status":          status,
 			})
 		}
 		json.NewEncoder(w).Encode(routes)
@@ -293,24 +289,22 @@ func AdminRoutesHandler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodPost {
 		var req struct {
-			MatchModel  string `json:"match_model"`
-			NodeID      int    `json:"node_id"`
-			TargetModel string `json:"target_model"`
-			Status      int    `json:"status"`
+			SourceProtocol  string                   `json:"source_protocol"`
+			TargetProtocol  string                   `json:"target_protocol"`
+			ModelMappings   []map[string]string      `json:"model_mappings"`
+			Status          int                      `json:"status"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		if req.TargetModel == "" {
-			req.TargetModel = req.MatchModel
-		}
+		modelMappingsJSON, _ := json.Marshal(req.ModelMappings)
 
 		_, err := db.DB().Exec(`
-			INSERT INTO sys_routes (match_model, node_id, target_model, status)
+			INSERT INTO sys_routes (source_protocol, target_protocol, model_mappings, status)
 			VALUES (?, ?, ?, ?)`,
-			req.MatchModel, req.NodeID, req.TargetModel, req.Status)
+			req.SourceProtocol, req.TargetProtocol, string(modelMappingsJSON), req.Status)
 		
 		if err != nil {
 			slog.Error("Failed to insert route", "error", err)
@@ -326,25 +320,23 @@ func AdminRoutesHandler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodPut {
 		var req struct {
-			ID          int    `json:"id"`
-			MatchModel  string `json:"match_model"`
-			NodeID      int    `json:"node_id"`
-			TargetModel string `json:"target_model"`
-			Status      int    `json:"status"`
+			ID              int                      `json:"id"`
+			SourceProtocol  string                   `json:"source_protocol"`
+			TargetProtocol  string                   `json:"target_protocol"`
+			ModelMappings   []map[string]string      `json:"model_mappings"`
+			Status          int                      `json:"status"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		if req.TargetModel == "" {
-			req.TargetModel = req.MatchModel
-		}
+		modelMappingsJSON, _ := json.Marshal(req.ModelMappings)
 
 		_, err := db.DB().Exec(`
-			UPDATE sys_routes SET match_model=?, node_id=?, target_model=?, status=?
+			UPDATE sys_routes SET source_protocol=?, target_protocol=?, model_mappings=?, status=?
 			WHERE id=?`,
-			req.MatchModel, req.NodeID, req.TargetModel, req.Status, req.ID)
+			req.SourceProtocol, req.TargetProtocol, string(modelMappingsJSON), req.Status, req.ID)
 		
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)

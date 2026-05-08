@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -26,12 +27,18 @@ type AccountDetail struct {
 	Status       int     `json:"status"` // 1=正常, 0=手动禁用, -1=熔断/过期
 }
 
+type ModelMapping struct {
+	Match  string `json:"match"`
+	Target string `json:"target"`
+}
+
 type RouteDetail struct {
-	ID          int    `json:"id"`
-	MatchModel  string `json:"match_model"`
-	NodeID      int    `json:"node_id"`
-	TargetModel string `json:"target_model"`
-	Status      int    `json:"status"` // 1=正常, 0=禁用
+	ID              int            `json:"id"`
+	SourceProtocol  string         `json:"source_protocol"`
+	TargetProtocol  string         `json:"target_protocol"`
+	ModelMappings   string         `json:"-"`
+	ModelMappingsParsed []ModelMapping `json:"model_mappings"`
+	Status          int            `json:"status"` // 1=正常, 0=禁用
 }
 
 type Config struct {
@@ -96,12 +103,10 @@ func ReloadFromDB() error {
 			continue
 		}
 
-		// Runtime checks
 		if acc.Status != 1 {
-			continue // Skip manually disabled or broken nodes
+			continue
 		}
 
-		// Date checks
 		if acc.ValidFrom != "" && acc.ValidFrom != "2000-01-01" {
 			tFrom, _ := time.Parse("2006-01-02 15:04:05", acc.ValidFrom)
 			if !tFrom.IsZero() && now.Before(tFrom) {
@@ -115,11 +120,9 @@ func ReloadFromDB() error {
 			}
 		}
 
-		// Balance & Limit checks (only if balance is > 0 which means it's limited)
 		if acc.Balance > 0 {
 			limitAmount := acc.Balance * (acc.LimitPercent / 100.0)
 			if acc.UsedAmount >= limitAmount {
-				// 标记为已熔断，不过这里仅是内存中跳过，实际可以在后台任务中把DB改掉
 				continue
 			}
 		}
@@ -127,9 +130,7 @@ func ReloadFromDB() error {
 		AppConfig.Providers[acc.Provider] = append(AppConfig.Providers[acc.Provider], acc)
 	}
 
-	// Sort & Check
 	for provider, accounts := range AppConfig.Providers {
-		// Priority descending
 		sort.Slice(accounts, func(i, j int) bool {
 			return accounts[i].Priority > accounts[j].Priority
 		})
@@ -139,17 +140,25 @@ func ReloadFromDB() error {
 		}
 	}
 
-	// Load Routes
-	routeRows, err := db.DB().Query("SELECT id, match_model, node_id, target_model, status FROM sys_routes WHERE status = 1")
+	// Load Routes (new schema)
+	routeRows, err := db.DB().Query("SELECT id, source_protocol, target_protocol, model_mappings, status FROM sys_routes WHERE status = 1")
 	if err != nil {
-		return fmt.Errorf("读取路由列表失败: %v", err)
-	}
-	defer routeRows.Close()
-
-	for routeRows.Next() {
-		var r RouteDetail
-		if err := routeRows.Scan(&r.ID, &r.MatchModel, &r.NodeID, &r.TargetModel, &r.Status); err == nil {
-			AppConfig.Routes = append(AppConfig.Routes, r)
+		slog.Warn("读取路由列表失败(非致命)", "error", err)
+	} else {
+		defer routeRows.Close()
+		for routeRows.Next() {
+			var r RouteDetail
+			var mappingsJSON string
+			if err := routeRows.Scan(&r.ID, &r.SourceProtocol, &r.TargetProtocol, &mappingsJSON, &r.Status); err == nil {
+				r.ModelMappings = mappingsJSON
+				if mappingsJSON != "" {
+					json.Unmarshal([]byte(mappingsJSON), &r.ModelMappingsParsed)
+				}
+				if r.ModelMappingsParsed == nil {
+					r.ModelMappingsParsed = []ModelMapping{}
+				}
+				AppConfig.Routes = append(AppConfig.Routes, r)
+			}
 		}
 	}
 	if len(AppConfig.Routes) > 0 {
