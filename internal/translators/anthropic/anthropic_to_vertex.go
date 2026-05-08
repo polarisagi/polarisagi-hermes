@@ -1,4 +1,4 @@
-package translators
+package anthropic
 
 import (
 	"bytes"
@@ -8,10 +8,13 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"polaris-gateway/internal/db"
 	"polaris-gateway/internal/router"
 )
+
+var httpClient = &http.Client{Timeout: 180 * time.Second}
 
 func AnthropicToVertex(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) {
 	clientType := "Anthropic-Adapter"

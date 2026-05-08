@@ -1,4 +1,4 @@
-package translators
+package openai
 
 import (
 	"bytes"
@@ -10,6 +10,7 @@ import (
 
 	"polaris-gateway/internal/db"
 	"polaris-gateway/internal/router"
+	"polaris-gateway/internal/translators/utils"
 )
 
 func streamAndSettleUsage(w http.ResponseWriter, finalResp *http.Response, dest *router.MatchedDestination, modelName, clientType, methodName, traceID string, startTime time.Time) {
@@ -49,23 +50,23 @@ func streamAndSettleUsage(w http.ResponseWriter, finalResp *http.Response, dest 
 	}
 
 	if bytes.Contains(tailBuf, []byte("usage")) || bytes.Contains(tailBuf, []byte("prompt_tokens")) {
-		pMatch := openAIPromptRegex.FindSubmatch(tailBuf)
-		cMatch := openAICompletionRegex.FindSubmatch(tailBuf)
-		cacheMatch := openAICachedRegex.FindSubmatch(tailBuf)
+		pMatch := utils.OpenAIPromptRegex.FindSubmatch(tailBuf)
+		cMatch := utils.OpenAICompletionRegex.FindSubmatch(tailBuf)
+		cacheMatch := utils.OpenAICachedRegex.FindSubmatch(tailBuf)
 
 		var p, c, cached int64
 		if len(pMatch) > 1 {
-			p = parseToInt(pMatch[1])
+			p = utils.ParseToInt(pMatch[1])
 		}
 		if len(cMatch) > 1 {
-			c = parseToInt(cMatch[1])
+			c = utils.ParseToInt(cMatch[1])
 		}
 		if len(cacheMatch) > 1 {
-			cached = parseToInt(cacheMatch[1])
+			cached = utils.ParseToInt(cacheMatch[1])
 		}
 
 		if p > 0 || c > 0 {
-			cost := calculateCost(modelName, p, c, cached)
+			cost := utils.CalculateCost(modelName, p, c, cached)
 
 			db.SaveUsage("openai", dest.Node.Name, clientType, methodName, p, c, cost, finalResp.StatusCode)
 			dest.Node.RecordCost(cost, traceID)

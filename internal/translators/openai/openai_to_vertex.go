@@ -1,4 +1,4 @@
-package translators
+package openai
 
 import (
 	"bytes"
@@ -12,13 +12,14 @@ import (
 
 	"polaris-gateway/internal/db"
 	"polaris-gateway/internal/router"
+	"polaris-gateway/internal/translators/utils"
 )
 
 func OpenAIToVertex(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) {
-	clientType := identifyClient(r)
-	methodName := extractMethodName(r.URL.Path)
+	clientType := utils.IdentifyClient(r)
+	methodName := utils.ExtractMethodName(r.URL.Path)
 
-	targetURL := buildTargetURL(dest.Node.AccountDetail, r.URL.Path)
+	targetURL := utils.BuildTargetURL(dest.Node.AccountDetail, r.URL.Path)
 	currentBody := bodyBytes
 
 	if dest.Node.ProjectID != "" {
@@ -29,8 +30,8 @@ func OpenAIToVertex(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	}
 
 	if dest.TargetModel != "" {
-		currentBody = bytes.ReplaceAll(currentBody, []byte(fmt.Sprintf(`"model":"%s"`, extractModelName(currentBody))), []byte(fmt.Sprintf(`"model":"google/%s"`, dest.TargetModel)))
-		currentBody = bytes.ReplaceAll(currentBody, []byte(fmt.Sprintf(`"model": "%s"`, extractModelName(currentBody))), []byte(fmt.Sprintf(`"model": "google/%s"`, dest.TargetModel)))
+		currentBody = bytes.ReplaceAll(currentBody, []byte(fmt.Sprintf(`"model":"%s"`, utils.ExtractModelName(currentBody))), []byte(fmt.Sprintf(`"model":"google/%s"`, dest.TargetModel)))
+		currentBody = bytes.ReplaceAll(currentBody, []byte(fmt.Sprintf(`"model": "%s"`, utils.ExtractModelName(currentBody))), []byte(fmt.Sprintf(`"model": "google/%s"`, dest.TargetModel)))
 	}
 
 	if dest.IsProbationRun {

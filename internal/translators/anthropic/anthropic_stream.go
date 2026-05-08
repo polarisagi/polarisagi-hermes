@@ -1,4 +1,4 @@
-package translators
+package anthropic
 
 import (
 	"bufio"
@@ -11,6 +11,7 @@ import (
 
 	"polaris-gateway/internal/db"
 	"polaris-gateway/internal/router"
+	"polaris-gateway/internal/translators/utils"
 )
 
 func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, req MessageRequest, traceID string, dest *router.MatchedDestination, clientType, modelName string) {
@@ -145,7 +146,7 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 
 	// Settle Usage
 	if promptTokens > 0 || completionTokens > 0 {
-		cost := calculateCost(modelName, int64(promptTokens), int64(completionTokens), int64(cachedTokens))
+		cost := utils.CalculateCost(modelName, int64(promptTokens), int64(completionTokens), int64(cachedTokens))
 		db.SaveUsage("vertex", dest.Node.Name, clientType, "anthropic_adapter", int64(promptTokens), int64(completionTokens), cost, http.StatusOK)
 		dest.Node.RecordCost(cost, traceID)
 
@@ -200,7 +201,7 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 	}
 
 	if promptTokens > 0 || completionTokens > 0 {
-		cost := calculateCost(modelName, int64(promptTokens), int64(completionTokens), int64(cachedTokens))
+		cost := utils.CalculateCost(modelName, int64(promptTokens), int64(completionTokens), int64(cachedTokens))
 		db.SaveUsage("vertex", dest.Node.Name, clientType, "anthropic_adapter", int64(promptTokens), int64(completionTokens), cost, vertexResp.StatusCode)
 		dest.Node.RecordCost(cost, traceID)
 

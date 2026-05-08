@@ -1,4 +1,4 @@
-package translators
+package openai
 
 import (
 	"bytes"
@@ -11,13 +11,14 @@ import (
 
 	"polaris-gateway/internal/db"
 	"polaris-gateway/internal/router"
+	"polaris-gateway/internal/translators/utils"
 )
 
 var httpClient = &http.Client{Timeout: 180 * time.Second}
 
 func OpenAIToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) {
-	clientType := identifyClient(r)
-	methodName := extractMethodName(r.URL.Path)
+	clientType := utils.IdentifyClient(r)
+	methodName := utils.ExtractMethodName(r.URL.Path)
 
 	targetURL := dest.Node.BaseURL
 	if targetURL == "" {
@@ -25,9 +26,9 @@ func OpenAIToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	}
 	targetURL = strings.TrimSuffix(targetURL, "/") + r.URL.Path
 
-	if dest.TargetModel != "" && dest.TargetModel != extractModelName(bodyBytes) {
-		bodyBytes = bytes.ReplaceAll(bodyBytes, []byte(fmt.Sprintf(`"model":"%s"`, extractModelName(bodyBytes))), []byte(fmt.Sprintf(`"model":"%s"`, dest.TargetModel)))
-		bodyBytes = bytes.ReplaceAll(bodyBytes, []byte(fmt.Sprintf(`"model": "%s"`, extractModelName(bodyBytes))), []byte(fmt.Sprintf(`"model": "%s"`, dest.TargetModel)))
+	if dest.TargetModel != "" && dest.TargetModel != utils.ExtractModelName(bodyBytes) {
+		bodyBytes = bytes.ReplaceAll(bodyBytes, []byte(fmt.Sprintf(`"model":"%s"`, utils.ExtractModelName(bodyBytes))), []byte(fmt.Sprintf(`"model":"%s"`, dest.TargetModel)))
+		bodyBytes = bytes.ReplaceAll(bodyBytes, []byte(fmt.Sprintf(`"model": "%s"`, utils.ExtractModelName(bodyBytes))), []byte(fmt.Sprintf(`"model": "%s"`, dest.TargetModel)))
 	}
 
 	proxyReq, _ := http.NewRequestWithContext(ctx, r.Method, targetURL, bytes.NewReader(bodyBytes))

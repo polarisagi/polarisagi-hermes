@@ -1,4 +1,4 @@
-package translators
+package anthropic
 
 func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 	vertexReq := make(map[string]interface{})
@@ -43,7 +43,6 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 			}
 		}
 		
-		// Optional: handling for empty parts if needed, though Anthropic typically doesn't send empty content
 		if len(parts) == 0 {
 			parts = append(parts, map[string]interface{}{"text": ""})
 		}

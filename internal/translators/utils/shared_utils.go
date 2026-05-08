@@ -1,4 +1,4 @@
-package translators
+package utils
 
 import (
 	"fmt"
@@ -39,26 +39,26 @@ var openAIPriceDict = map[string]ModelPrice{
 }
 
 var (
-	openAIPromptRegex     = regexp.MustCompile(`"prompt_tokens"\s*:\s*(\d+)`)
-	openAICompletionRegex = regexp.MustCompile(`"completion_tokens"\s*:\s*(\d+)`)
-	openAICachedRegex     = regexp.MustCompile(`"cached_tokens"\s*:\s*(\d+)`)
-	modelRegex            = regexp.MustCompile(`"model"\s*:\s*"([^"]+)"`)
+	OpenAIPromptRegex     = regexp.MustCompile(`"prompt_tokens"\s*:\s*(\d+)`)
+	OpenAICompletionRegex = regexp.MustCompile(`"completion_tokens"\s*:\s*(\d+)`)
+	OpenAICachedRegex     = regexp.MustCompile(`"cached_tokens"\s*:\s*(\d+)`)
+	ModelRegex            = regexp.MustCompile(`"model"\s*:\s*"([^"]+)"`)
 	
-	promptRegex        = regexp.MustCompile(`"promptTokenCount":\s*(\d+)`)
-	candidateRegex     = regexp.MustCompile(`"candidatesTokenCount":\s*(\d+)`)
-	cachedContentRegex = regexp.MustCompile(`"cachedContentTokenCount":\s*(\d+)`)
+	PromptRegex        = regexp.MustCompile(`"promptTokenCount":\s*(\d+)`)
+	CandidateRegex     = regexp.MustCompile(`"candidatesTokenCount":\s*(\d+)`)
+	CachedContentRegex = regexp.MustCompile(`"cachedContentTokenCount":\s*(\d+)`)
 )
 
-func extractModelName(body []byte) string {
-	match := modelRegex.FindSubmatch(body)
+func ExtractModelName(body []byte) string {
+	match := ModelRegex.FindSubmatch(body)
 	if len(match) > 1 {
 		return string(match[1])
 	}
 	return "unknown"
 }
 
-// extractMethodName 从 URL 路径中动态推导 OpenAPI 标准接口 (如 chat/completions, embeddings)
-func extractMethodName(incomingPath string) string {
+// ExtractMethodName 从 URL 路径中动态推导 OpenAPI 标准接口 (如 chat/completions, embeddings)
+func ExtractMethodName(incomingPath string) string {
 	sub := strings.TrimPrefix(incomingPath, "/v1/")
 	sub = strings.TrimPrefix(sub, "/")
 	if sub == "" {
@@ -67,7 +67,7 @@ func extractMethodName(incomingPath string) string {
 	return sub
 }
 
-func calculateCost(modelName string, promptTokens, candidateTokens, cachedTokens int64) float64 {
+func CalculateCost(modelName string, promptTokens, candidateTokens, cachedTokens int64) float64 {
 	price, exists := openAIPriceDict[modelName]
 	if !exists {
 		price = openAIPriceDict["default"]
@@ -102,7 +102,7 @@ func calculateCost(modelName string, promptTokens, candidateTokens, cachedTokens
 	return math.Ceil(cost*10000) / 10000
 }
 
-func identifyClient(r *http.Request) string {
+func IdentifyClient(r *http.Request) string {
 	userAgent := strings.ToLower(r.UserAgent())
 	if strings.Contains(userAgent, "aider") {
 		return "Aider"
@@ -122,8 +122,8 @@ func identifyClient(r *http.Request) string {
 	return r.UserAgent()
 }
 
-// buildTargetURL 实现多态路由分发，原生支持 Vertex 端点的多子路径拼接
-func buildTargetURL(acc config.AccountDetail, incomingPath string) string {
+// BuildTargetURL 实现多态路由分发，原生支持 Vertex 端点的多子路径拼接
+func BuildTargetURL(acc config.AccountDetail, incomingPath string) string {
 	// 1. 提取业务子路径 (例如 chat/completions)
 	subPath := strings.TrimPrefix(incomingPath, "/v1")
 	if !strings.HasPrefix(subPath, "/") {
@@ -154,7 +154,7 @@ func buildTargetURL(acc config.AccountDetail, incomingPath string) string {
 	return baseURL + "/v1" + subPath
 }
 
-func parseToInt(b []byte) int64 {
+func ParseToInt(b []byte) int64 {
 	var n int64
 	if _, err := fmt.Sscanf(string(b), "%d", &n); err != nil {
 		return 0

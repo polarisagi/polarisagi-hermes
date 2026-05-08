@@ -9,7 +9,9 @@ import (
 	"polaris-gateway/internal/db"
 	"polaris-gateway/internal/logger"
 	"polaris-gateway/internal/router"
-	_ "polaris-gateway/internal/translators" // Register all translators
+	_ "polaris-gateway/internal/translators/anthropic" // Register all translators
+	_ "polaris-gateway/internal/translators/openai"
+	_ "polaris-gateway/internal/translators/vertex"
 	"polaris-gateway/internal/webapi"
 )
 

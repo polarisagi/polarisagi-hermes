@@ -1,4 +1,4 @@
-package translators
+package anthropic
 
 type MessageRequest struct {
 	Model       string    `json:"model"`

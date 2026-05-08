@@ -1,4 +1,4 @@
-package translators
+package vertex
 
 import (
 	"bytes"
@@ -11,11 +11,14 @@ import (
 
 	"polaris-gateway/internal/db"
 	"polaris-gateway/internal/router"
+	"polaris-gateway/internal/translators/utils"
 )
 
+var httpClient = &http.Client{Timeout: 180 * time.Second}
+
 func VertexToVertex(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) {
-	clientType := identifyClient(r)
-	methodName := extractMethodName(r.URL.Path)
+	clientType := utils.IdentifyClient(r)
+	methodName := utils.ExtractMethodName(r.URL.Path)
 
 	targetURL := buildVertexTargetURL(dest.Node, r.URL.Path)
 
@@ -117,19 +120,19 @@ func streamVertexResponse(w http.ResponseWriter, finalResp *http.Response, dest 
 	}
 
 	if bytes.Contains(tailBuf, []byte("usageMetadata")) {
-		pMatch := promptRegex.FindSubmatch(tailBuf)
-		cMatch := candidateRegex.FindSubmatch(tailBuf)
-		cacheMatch := cachedContentRegex.FindSubmatch(tailBuf)
+		pMatch := utils.PromptRegex.FindSubmatch(tailBuf)
+		cMatch := utils.CandidateRegex.FindSubmatch(tailBuf)
+		cacheMatch := utils.CachedContentRegex.FindSubmatch(tailBuf)
 
 		if len(pMatch) > 1 && len(cMatch) > 1 {
-			p := parseToInt(pMatch[1])
-			c := parseToInt(cMatch[1])
+			p := utils.ParseToInt(pMatch[1])
+			c := utils.ParseToInt(cMatch[1])
 			var cached int64
 			if len(cacheMatch) > 1 {
-				cached = parseToInt(cacheMatch[1])
+				cached = utils.ParseToInt(cacheMatch[1])
 			}
 
-			cost := calculateCost(modelName, p, c, cached)
+			cost := utils.CalculateCost(modelName, p, c, cached)
 
 			db.SaveUsage("vertex", dest.Node.Name, clientType, methodName, p, c, cost, finalResp.StatusCode)
 			dest.Node.RecordCost(cost, traceID)
