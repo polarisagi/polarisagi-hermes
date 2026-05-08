@@ -17,7 +17,7 @@ func HandleNetworkError(w http.ResponseWriter, err error, dest *router.MatchedDe
 	errMsg := err.Error()
 	db.SaveUsage(platform, dest.Node.Name, clientType, methodName, 0, 0, 0, http.StatusBadGateway)
 	dest.Node.UpdateOnFailure(dest.IsProbationRun, traceID)
-	slog.Error(fmt.Sprintf("%s 物理网络断联", logPrefix), "trace_id", traceID, "error", errMsg)
+	slog.Error(fmt.Sprintf("%s 物理网络断联", logPrefix), "trace_id", traceID, "account", dest.Node.Name, "error", errMsg)
 	http.Error(w, fmt.Sprintf("Polaris Gateway Network Error: %s", errMsg), http.StatusBadGateway)
 }
 
@@ -37,10 +37,10 @@ func CheckResponseStatus(finalResp *http.Response, dest *router.MatchedDestinati
 		}
 
 		db.SaveUsage(platform, dest.Node.Name, clientType, methodName, 0, 0, 0, statusCode)
-		slog.Warn(fmt.Sprintf("%s 节点异常/限流，记入熔断惩罚队列", logPrefix), "trace_id", traceID, "status", statusCode)
+		slog.Warn(fmt.Sprintf("%s 节点异常/限流，记入熔断惩罚队列", logPrefix), "trace_id", traceID, "account", dest.Node.Name, "status", statusCode)
 	} else if statusCode >= 400 {
 		db.SaveUsage(platform, dest.Node.Name, clientType, methodName, 0, 0, 0, statusCode)
-		slog.Warn(fmt.Sprintf("%s 客户端业务请求参数错误", logPrefix), "trace_id", traceID, "status", statusCode)
+		slog.Warn(fmt.Sprintf("%s 客户端业务请求参数错误", logPrefix), "trace_id", traceID, "account", dest.Node.Name, "status", statusCode)
 	}
 
 	return isNodeFailure, isQuotaExhausted
