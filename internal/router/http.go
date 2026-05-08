@@ -7,7 +7,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -23,18 +22,10 @@ func RegisterTranslator(incomingProtocol, targetProvider string, f TranslatorFun
 	Translators[key] = f
 }
 
-func getIncomingProtocol(path string) string {
-	if strings.Contains(path, "chat/completions") || strings.Contains(path, "embeddings") || strings.Contains(path, "models") {
-		return "openai"
-	}
-	if strings.Contains(path, "messages") {
-		return "anthropic"
-	}
-	return "unknown"
-}
-
 func ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	traceID := fmt.Sprintf("req-%d", time.Now().UnixNano())
+
+	slog.Debug("📥 [入口] 请求到达", "trace_id", traceID, "method", r.Method, "path", r.URL.Path, "user_agent", r.UserAgent())
 
 	if r.Method == http.MethodOptions {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -55,18 +46,29 @@ func ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.Body.Close()
 
 	sourceProtocol := getIncomingProtocol(r.URL.Path)
+	slog.Debug("🔍 [入口] 协议检测结果", "trace_id", traceID, "source_protocol", sourceProtocol, "path", r.URL.Path, "body_size", len(bodyBytes))
+
 	if sourceProtocol == "unknown" {
+		slog.Warn("⚠️ [入口] 无法识别协议", "trace_id", traceID, "path", r.URL.Path, "body_preview", string(bodyBytes[:min(len(bodyBytes), 200)]))
 		http.Error(w, `{"error": "Unsupported protocol endpoint"}`, http.StatusBadRequest)
 		return
 	}
 
 	modelName := extractModelName(bodyBytes, sourceProtocol)
-	if modelName == "" {
+
+	// For Vertex native protocol, extract model name from URL path if not found in body
+	if sourceProtocol == "vertex" && (modelName == "" || modelName == "_vertex_native_") {
+		modelName = extractModelFromVertexPath(r.URL.Path)
+		slog.Debug("🔍 [入口] Vertex 从 URL 路径提取模型名", "trace_id", traceID, "model", modelName, "path", r.URL.Path)
+	}
+
+	slog.Debug("📥 [入口] 模型提取结果", "trace_id", traceID, "source_protocol", sourceProtocol, "model", modelName)
+
+	if modelName == "" || modelName == "_vertex_native_" {
+		slog.Warn("⚠️ [入口] 无法提取模型名", "trace_id", traceID, "source_protocol", sourceProtocol, "path", r.URL.Path, "body_preview", string(bodyBytes[:min(len(bodyBytes), 200)]))
 		http.Error(w, `{"error": "Missing model field in request"}`, http.StatusBadRequest)
 		return
 	}
-
-	slog.Debug("📥 [入口] 收到请求", "trace_id", traceID, "source_protocol", sourceProtocol, "model", modelName, "path", r.URL.Path)
 
 	ctx, cancel := context.WithTimeout(r.Context(), 180*time.Second)
 	defer cancel()
