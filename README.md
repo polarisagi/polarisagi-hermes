@@ -1,5 +1,9 @@
 # Polaris Gateway 🌌
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/mrlaoliai/polaris-gateway)](https://goreportcard.com/report/github.com/mrlaoliai/polaris-gateway)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Release](https://img.shields.io/github/v/release/mrlaoliai/polaris-gateway)](https://github.com/mrlaoliai/polaris-gateway/releases)
+
 <p align="center">
   <a href="#english"><strong>🇬🇧 English</strong></a> · 
   <a href="#简体中文"><strong>🇨🇳 简体中文</strong></a>
