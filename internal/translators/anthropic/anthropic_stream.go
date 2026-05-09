@@ -163,7 +163,14 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 				
 				var argsBytes []byte
 				if args, ok := fc["args"].(map[string]interface{}); ok {
-					argsBytes, _ = json.Marshal(args)
+					buffer := &bytes.Buffer{}
+					encoder := json.NewEncoder(buffer)
+					encoder.SetEscapeHTML(false)
+					_ = encoder.Encode(args)
+					argsBytes = buffer.Bytes()
+					if len(argsBytes) > 0 && argsBytes[len(argsBytes)-1] == '\n' {
+						argsBytes = argsBytes[:len(argsBytes)-1]
+					}
 				}
 				if len(argsBytes) == 0 || string(argsBytes) == "null" {
 					argsBytes = []byte("{}")

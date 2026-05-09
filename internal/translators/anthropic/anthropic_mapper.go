@@ -272,6 +272,20 @@ func sanitizeSchema(schema map[string]interface{}) map[string]interface{} {
 		result["required"] = req
 	}
 	
+	if nullable, ok := schema["nullable"].(bool); ok {
+		result["nullable"] = nullable
+	}
+	
+	if anyOf, ok := schema["anyOf"].([]interface{}); ok {
+		cleanAnyOf := make([]interface{}, 0, len(anyOf))
+		for _, item := range anyOf {
+			if itemMap, ok := item.(map[string]interface{}); ok {
+				cleanAnyOf = append(cleanAnyOf, sanitizeSchema(itemMap))
+			}
+		}
+		result["anyOf"] = cleanAnyOf
+	}
+	
 	if props, ok := schema["properties"].(map[string]interface{}); ok {
 		cleanProps := make(map[string]interface{})
 		for k, v := range props {
