@@ -119,6 +119,34 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 								contentStr = fmt.Sprintf("Error: %s", contentStr)
 							}
 							respContent = map[string]interface{}{"content": contentStr}
+						} else if contentArr, ok := m["content"].([]interface{}); ok {
+							var textContents []string
+							for _, cItem := range contentArr {
+								if cMap, ok := cItem.(map[string]interface{}); ok {
+									if cMap["type"] == "text" {
+										if textStr, ok := cMap["text"].(string); ok {
+											textContents = append(textContents, textStr)
+										}
+									} else if cMap["type"] == "image" {
+										if source, ok := cMap["source"].(map[string]interface{}); ok {
+											if source["type"] == "base64" {
+												parts = append(parts, map[string]interface{}{
+													"inlineData": map[string]interface{}{
+														"mimeType": source["media_type"],
+														"data":     source["data"],
+													},
+												})
+											}
+										}
+									}
+								}
+							}
+							
+							combinedText := strings.Join(textContents, "\n")
+							if isError {
+								combinedText = fmt.Sprintf("Error: %s", combinedText)
+							}
+							respContent = map[string]interface{}{"content": combinedText}
 						} else {
 							if isError {
 								respContent = map[string]interface{}{"error": true, "content": m["content"]}
