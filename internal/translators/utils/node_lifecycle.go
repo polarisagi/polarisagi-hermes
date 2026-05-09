@@ -39,8 +39,12 @@ func CheckResponseStatus(finalResp *http.Response, dest *router.MatchedDestinati
 		db.SaveUsage(platform, dest.Node.Name, clientType, methodName, 0, 0, 0, statusCode)
 		slog.Warn(fmt.Sprintf("%s 节点异常/限流，记入熔断惩罚队列", logPrefix), "trace_id", traceID, "account", dest.Node.Name, "status", statusCode)
 	} else if statusCode >= 400 {
+		errBody, _ := io.ReadAll(finalResp.Body)
+		finalResp.Body.Close()
+		finalResp.Body = io.NopCloser(bytes.NewReader(errBody))
+
 		db.SaveUsage(platform, dest.Node.Name, clientType, methodName, 0, 0, 0, statusCode)
-		slog.Warn(fmt.Sprintf("%s 客户端业务请求参数错误", logPrefix), "trace_id", traceID, "account", dest.Node.Name, "status", statusCode)
+		slog.Warn(fmt.Sprintf("%s 客户端业务请求参数错误", logPrefix), "trace_id", traceID, "account", dest.Node.Name, "status", statusCode, "body", string(errBody))
 	}
 
 	return isNodeFailure, isQuotaExhausted

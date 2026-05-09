@@ -18,6 +18,17 @@ import (
 // AdminDebugHandler toggles debug mode
 var DebugEnabled bool
 
+var Version = "v2.1.2"
+
+func AdminInfoHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(fmt.Sprintf(`{"version": "%s", "debug": %v}`, Version, DebugEnabled)))
+		return
+	}
+	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+}
+
 func AdminDebugHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		w.Header().Set("Content-Type", "application/json")

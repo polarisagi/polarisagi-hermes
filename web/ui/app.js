@@ -41,6 +41,7 @@ createApp({
         
         const logLevelFilter = ref('all');
         const debugEnabled = ref(false);
+        const version = ref('');
         const toast = ref({ show: false, message: '', type: 'success' });
         const showToast = (msg, type = 'success') => {
             toast.value = { show: true, message: msg, type };
@@ -505,6 +506,14 @@ createApp({
         });
 
         onMounted(() => {
+            fetch('/api/admin/info')
+                .then(r => r.json())
+                .then(d => {
+                    version.value = d.version;
+                    debugEnabled.value = d.debug;
+                })
+                .catch(e => console.error(e));
+
             fpInstance = flatpickr("#datePicker", {
                 mode: "range", dateFormat: "Y-m-d", locale: "zh",
                 onChange: (selectedDates) => {
@@ -525,14 +534,14 @@ createApp({
 
         return {
             currentTab, apiData, availableAccounts, selectedAccount, selectedAccountLabel, activePreset, groupedApiData, singleAccountDetails,
-            setPreset, aggregatedData, formatNum, formatToken, formatShortDate, successRateColor, concurrency,
-            getUsagePercent, getRemainingPercent, getBarColor, getRemainingColor,
-            settings, nodes, routes, fetchSettings, fetchNodes, fetchRoutes, saveSettings, resetSettings,
-            nodeModal, nodeForm, openNodeModal, saveNode, deleteNode,
-            routeModal, routeForm, openRouteModal, saveRoute, deleteRoute, toast,
-            addMapping, removeMapping, protocolLabel, protocolClass, protocolBadge,
-            logsText, isAutoScroll, logLevelFilter, debugEnabled, toggleDebug, fetchLogs,
-            allModels, sourceModels, targetModels, fetchAllModels, onSourceProtocolChange, onTargetProtocolChange
+            concurrency, startDate, endDate, setPreset, logsText, isAutoScroll, toggleAutoScroll,
+            nodes, routes, allModels, sourceModels, targetModels,
+            routeModal, routeForm, openRouteModal, closeRouteModal, saveRoute, editRoute, deleteRoute, updateRouteStatus,
+            addModelMapping, removeModelMapping,
+            settings, saveSettings, fetchSettings,
+            nodeModal, nodeForm, openNodeModal, closeNodeModal, saveNode, editNode, deleteNode, updateNodeStatus, resetNodeExhaustion,
+            logLevelFilter, filteredLogs, debugEnabled, toggleDebug, version,
+            toast, showToast, formatTime, formatDateTime
         };
     }
 }).mount('#app');

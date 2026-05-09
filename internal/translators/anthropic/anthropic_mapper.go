@@ -156,13 +156,14 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 	if len(req.Tools) > 0 {
 		var functionDeclarations []map[string]interface{}
 		for _, t := range req.Tools {
+			var params map[string]interface{}
 			if t.InputSchema != nil {
-				uppercaseTypeFields(t.InputSchema)
+				params = sanitizeSchema(t.InputSchema)
 			}
 			decl := map[string]interface{}{
 				"name":        t.Name,
 				"description": t.Description,
-				"parameters":  t.InputSchema,
+				"parameters":  params,
 			}
 			functionDeclarations = append(functionDeclarations, decl)
 		}
@@ -202,19 +203,47 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 	return vertexReq, nil
 }
 
-// uppercaseTypeFields 递归地将 JSON Schema 中的 type 字段转换为大写，以满足 Vertex API 的要求
-func uppercaseTypeFields(schema map[string]interface{}) {
-	if t, ok := schema["type"].(string); ok {
-		schema["type"] = strings.ToUpper(t)
+// sanitizeSchema 递归清洗 JSON Schema，仅保留 Vertex AI 支持的字段，并将 type 转换为大写
+func sanitizeSchema(schema map[string]interface{}) map[string]interface{} {
+	if schema == nil {
+		return nil
 	}
+	
+	result := make(map[string]interface{})
+	
+	if t, ok := schema["type"].(string); ok {
+		result["type"] = strings.ToUpper(t)
+	}
+	
+	if desc, ok := schema["description"].(string); ok {
+		result["description"] = desc
+	}
+	
+	if format, ok := schema["format"].(string); ok {
+		result["format"] = format
+	}
+	
+	if enum, ok := schema["enum"]; ok {
+		result["enum"] = enum
+	}
+	
+	if req, ok := schema["required"]; ok {
+		result["required"] = req
+	}
+	
 	if props, ok := schema["properties"].(map[string]interface{}); ok {
-		for _, v := range props {
+		cleanProps := make(map[string]interface{})
+		for k, v := range props {
 			if propMap, ok := v.(map[string]interface{}); ok {
-				uppercaseTypeFields(propMap)
+				cleanProps[k] = sanitizeSchema(propMap)
 			}
 		}
+		result["properties"] = cleanProps
 	}
+	
 	if items, ok := schema["items"].(map[string]interface{}); ok {
-		uppercaseTypeFields(items)
+		result["items"] = sanitizeSchema(items)
 	}
+	
+	return result
 }

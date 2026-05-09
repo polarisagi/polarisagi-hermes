@@ -48,6 +48,7 @@ func main() {
 	})
 	mux.Handle("/dashboard/", webapi.DashboardHandler())
 	mux.HandleFunc("/api/stats", webapi.StatsHandler)
+	mux.HandleFunc("/api/admin/info", webapi.AdminInfoHandler)
 	mux.HandleFunc("/api/admin/settings", webapi.AdminSettingsHandler)
 	mux.HandleFunc("/api/admin/nodes", webapi.AdminNodesHandler)
 	mux.HandleFunc("/api/admin/routes", webapi.AdminRoutesHandler)
