@@ -244,60 +244,58 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 	return vertexReq, nil
 }
 
-// sanitizeSchema 递归清洗 JSON Schema，仅保留 Vertex AI 支持的字段，并将 type 转换为大写
+// sanitizeSchema 递归清洗 JSON Schema，将所有字段透传，仅将 type 转换为大写并递归处理嵌套结构
 func sanitizeSchema(schema map[string]interface{}) map[string]interface{} {
 	if schema == nil {
 		return nil
 	}
 	
 	result := make(map[string]interface{})
-	
-	if t, ok := schema["type"].(string); ok {
-		result["type"] = strings.ToUpper(t)
-	}
-	
-	if desc, ok := schema["description"].(string); ok {
-		result["description"] = desc
-	}
-	
-	if format, ok := schema["format"].(string); ok {
-		result["format"] = format
-	}
-	
-	if enum, ok := schema["enum"]; ok {
-		result["enum"] = enum
-	}
-	
-	if req, ok := schema["required"]; ok {
-		result["required"] = req
-	}
-	
-	if nullable, ok := schema["nullable"].(bool); ok {
-		result["nullable"] = nullable
-	}
-	
-	if anyOf, ok := schema["anyOf"].([]interface{}); ok {
-		cleanAnyOf := make([]interface{}, 0, len(anyOf))
-		for _, item := range anyOf {
-			if itemMap, ok := item.(map[string]interface{}); ok {
-				cleanAnyOf = append(cleanAnyOf, sanitizeSchema(itemMap))
+	for k, v := range schema {
+		switch k {
+		case "type":
+			if t, ok := v.(string); ok {
+				result[k] = strings.ToUpper(t)
+			} else {
+				result[k] = v
 			}
-		}
-		result["anyOf"] = cleanAnyOf
-	}
-	
-	if props, ok := schema["properties"].(map[string]interface{}); ok {
-		cleanProps := make(map[string]interface{})
-		for k, v := range props {
-			if propMap, ok := v.(map[string]interface{}); ok {
-				cleanProps[k] = sanitizeSchema(propMap)
+		case "properties":
+			if props, ok := v.(map[string]interface{}); ok {
+				cleanProps := make(map[string]interface{})
+				for pk, pv := range props {
+					if propMap, ok := pv.(map[string]interface{}); ok {
+						cleanProps[pk] = sanitizeSchema(propMap)
+					} else {
+						cleanProps[pk] = pv
+					}
+				}
+				result[k] = cleanProps
+			} else {
+				result[k] = v
 			}
+		case "items":
+			if items, ok := v.(map[string]interface{}); ok {
+				result[k] = sanitizeSchema(items)
+			} else {
+				result[k] = v
+			}
+		case "anyOf", "allOf", "oneOf":
+			if arr, ok := v.([]interface{}); ok {
+				cleanArr := make([]interface{}, 0, len(arr))
+				for _, item := range arr {
+					if itemMap, ok := item.(map[string]interface{}); ok {
+						cleanArr = append(cleanArr, sanitizeSchema(itemMap))
+					} else {
+						cleanArr = append(cleanArr, item)
+					}
+				}
+				result[k] = cleanArr
+			} else {
+				result[k] = v
+			}
+		default:
+			result[k] = v
 		}
-		result["properties"] = cleanProps
-	}
-	
-	if items, ok := schema["items"].(map[string]interface{}); ok {
-		result["items"] = sanitizeSchema(items)
 	}
 	
 	return result
