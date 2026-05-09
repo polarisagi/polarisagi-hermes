@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -60,6 +61,22 @@ func AnthropicToVertex(ctx context.Context, w http.ResponseWriter, r *http.Reque
 	}
 
 	isNodeFailure, isQuotaExhausted := utils.CheckResponseStatus(finalResp, dest, "vertex", clientType, "anthropic_adapter", traceID, "Anthropic(Vertex)")
+
+	if finalResp.StatusCode != http.StatusOK {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(finalResp.StatusCode)
+		errBody, _ := io.ReadAll(finalResp.Body)
+		errResp := map[string]interface{}{
+			"type": "error",
+			"error": map[string]interface{}{
+				"type":    "api_error",
+				"message": fmt.Sprintf("Vertex API returned status %d: %s", finalResp.StatusCode, string(errBody)),
+			},
+		}
+		json.NewEncoder(w).Encode(errResp)
+		utils.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
+		return
+	}
 
 	if req.Stream {
 		streamAnthropicResponse(w, finalResp, req, traceID, dest, clientType, model)

@@ -2,7 +2,10 @@
 // 将 Anthropic Messages API 格式转换为 Vertex GenerateContent API 格式
 package anthropic
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 // mapToVertexRequest 将 Anthropic Messages 请求转换为 Vertex 原生的 generateContent 请求体
 // 转换规则:
@@ -107,12 +110,21 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 							name = "unknown_function"
 						}
 						
+						isError, _ := m["is_error"].(bool)
+						
 						// Vertex functionResponse expects a JSON object
 						var respContent interface{}
 						if contentStr, ok := m["content"].(string); ok {
+							if isError {
+								contentStr = fmt.Sprintf("Error: %s", contentStr)
+							}
 							respContent = map[string]interface{}{"content": contentStr}
 						} else {
-							respContent = map[string]interface{}{"content": m["content"]}
+							if isError {
+								respContent = map[string]interface{}{"error": true, "content": m["content"]}
+							} else {
+								respContent = map[string]interface{}{"content": m["content"]}
+							}
 						}
 						
 						parts = append(parts, map[string]interface{}{
