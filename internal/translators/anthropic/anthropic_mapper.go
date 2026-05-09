@@ -254,9 +254,16 @@ func sanitizeSchema(schema map[string]interface{}) map[string]interface{} {
 	
 	// 先拷贝所有属性实现全面透传，但要过滤掉 Vertex API 明确不支持的 JSON Schema 字段
 	for k, v := range schema {
-		if k == "$schema" || k == "propertyNames" || k == "const" || k == "exclusiveMinimum" {
+		if k == "$schema" || k == "propertyNames" || k == "exclusiveMinimum" {
 			continue
 		}
+		
+		// 将 const 转换为 enum，因为 Vertex 支持 enum 但不支持 const
+		if k == "const" {
+			result["enum"] = []interface{}{v}
+			continue
+		}
+		
 		result[k] = v
 	}
 
