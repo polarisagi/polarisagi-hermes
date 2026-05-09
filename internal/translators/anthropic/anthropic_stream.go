@@ -31,11 +31,12 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 	startEvent := StreamEvent{
 		Type: "message_start",
 		Message: &MessageResponse{
-			ID:    fmt.Sprintf("msg_%s", traceID),
-			Type:  "message",
-			Role:  "assistant",
-			Model: modelName,
-			Usage: Usage{},
+			ID:      fmt.Sprintf("msg_%s", traceID),
+			Type:    "message",
+			Role:    "assistant",
+			Content: []Content{}, // Prevents "content": null
+			Model:   modelName,
+			Usage:   Usage{},
 		},
 	}
 	writeSSE(w, flusher, "message_start", startEvent)
@@ -156,7 +157,7 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 						Type:  "tool_use",
 						ID:    toolID,
 						Name:  name,
-						Input: make(map[string]interface{}),
+						Input: struct{}{}, // Ensures "input": {} instead of missing field due to omitempty
 					},
 				})
 				

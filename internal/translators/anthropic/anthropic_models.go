@@ -54,7 +54,7 @@ type Content struct {
 	Text      string                 `json:"text,omitempty"`        // for text
 	ID        string                 `json:"id,omitempty"`          // for tool_use
 	Name      string                 `json:"name,omitempty"`        // for tool_use
-	Input     map[string]interface{} `json:"input,omitempty"`       // for tool_use
+	Input     interface{}            `json:"input,omitempty"`       // for tool_use (using interface{} to allow struct{}{} for empty {})
 	ToolUseID string                 `json:"tool_use_id,omitempty"` // for tool_result
 	Content   interface{}            `json:"content,omitempty"`     // for tool_result
 	Source    map[string]interface{} `json:"source,omitempty"`      // for image
