@@ -2,6 +2,8 @@
 // 将 Anthropic Messages API 格式转换为 Vertex GenerateContent API 格式
 package anthropic
 
+import "strings"
+
 // mapToVertexRequest 将 Anthropic Messages 请求转换为 Vertex 原生的 generateContent 请求体
 // 转换规则:
 //   - Anthropic system → Vertex systemInstruction
@@ -154,6 +156,9 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 	if len(req.Tools) > 0 {
 		var functionDeclarations []map[string]interface{}
 		for _, t := range req.Tools {
+			if t.InputSchema != nil {
+				uppercaseTypeFields(t.InputSchema)
+			}
 			decl := map[string]interface{}{
 				"name":        t.Name,
 				"description": t.Description,
@@ -195,4 +200,21 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 	}
 
 	return vertexReq, nil
+}
+
+// uppercaseTypeFields 递归地将 JSON Schema 中的 type 字段转换为大写，以满足 Vertex API 的要求
+func uppercaseTypeFields(schema map[string]interface{}) {
+	if t, ok := schema["type"].(string); ok {
+		schema["type"] = strings.ToUpper(t)
+	}
+	if props, ok := schema["properties"].(map[string]interface{}); ok {
+		for _, v := range props {
+			if propMap, ok := v.(map[string]interface{}); ok {
+				uppercaseTypeFields(propMap)
+			}
+		}
+	}
+	if items, ok := schema["items"].(map[string]interface{}); ok {
+		uppercaseTypeFields(items)
+	}
 }
