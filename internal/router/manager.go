@@ -213,6 +213,7 @@ func tryAcquire(sourceProtocol, reqModel string) (dest *MatchedDestination, reas
 		TargetProtocol string
 	}
 	var validCandidates []Candidate
+	var modelMatchedAnyRoute bool
 
 	// Iterate through matching routes to find model mappings
 	for _, route := range candidateRoutes {
@@ -247,6 +248,8 @@ func tryAcquire(sourceProtocol, reqModel string) (dest *MatchedDestination, reas
 			}
 		}
 
+		modelMatchedAnyRoute = true
+
 		// Find all available nodes for the target protocol
 		for _, state := range nodesMap {
 			if state.Provider != route.TargetProtocol {
@@ -273,6 +276,9 @@ func tryAcquire(sourceProtocol, reqModel string) (dest *MatchedDestination, reas
 	}
 
 	if len(validCandidates) == 0 {
+		if !modelMatchedAnyRoute && len(candidateRoutes) > 0 {
+			return nil, "no model mapping matched", false
+		}
 		if len(candidateRoutes) > 0 {
 			// Routes exist but no model matched or all nodes busy
 			totalNodes := 0
