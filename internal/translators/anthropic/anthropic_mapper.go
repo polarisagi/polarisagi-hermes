@@ -127,13 +127,20 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 										if textStr, ok := cMap["text"].(string); ok {
 											textContents = append(textContents, textStr)
 										}
-									} else if cMap["type"] == "image" {
+									} else if t, ok := cMap["type"].(string); ok && (t == "image" || t == "document" || t == "audio" || t == "video" || t == "media") {
 										if source, ok := cMap["source"].(map[string]interface{}); ok {
 											if source["type"] == "base64" {
 												parts = append(parts, map[string]interface{}{
 													"inlineData": map[string]interface{}{
 														"mimeType": source["media_type"],
 														"data":     source["data"],
+													},
+												})
+											} else if source["type"] == "url" {
+												parts = append(parts, map[string]interface{}{
+													"fileData": map[string]interface{}{
+														"mimeType": source["media_type"],
+														"fileUri":  source["url"],
 													},
 												})
 											}
