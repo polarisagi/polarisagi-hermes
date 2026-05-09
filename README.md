@@ -45,6 +45,8 @@ By default, the gateway listens on `127.0.0.1:28888`.
    - Vertex/Gemini: `http://127.0.0.1:28888/v1/vertex/`
    *(API keys can be anything, the gateway will swap them with your physical keys)*
 
+> **Note**: If you are using Claude Code or Codex, it is recommended to use them together with [cc-switch](https://github.com/farion1231/cc-switch).
+
 ---
 
 <h2 id="中文">🇨🇳 中文</h2>
@@ -86,6 +88,8 @@ iwr -useb https://raw.githubusercontent.com/mrlaoliai/polaris-gateway/main/scrip
    - OpenAI 协议: `http://127.0.0.1:28888/v1/openai/`
    - Anthropic 协议: `http://127.0.0.1:28888/v1/anthropic/`
    - Vertex/Gemini 协议: `http://127.0.0.1:28888/v1/vertex/`
+
+> **提示**: 如果 Claude code，Codex 使用，建议配合 [cc-switch](https://github.com/farion1231/cc-switch) 使用。
 
 ---
 
