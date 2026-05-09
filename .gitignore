@@ -12,4 +12,7 @@ docs/superpowers/
 *.md
 !README.md
 
+# Sisyphus
+.sisyphus/
+
 

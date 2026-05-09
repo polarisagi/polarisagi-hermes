@@ -21,8 +21,8 @@ import (
 
 // oaiMessage OpenAI Chat Completions 消息格式
 type oaiMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role    string      `json:"role"`
+	Content interface{} `json:"content"`
 }
 
 type oaiRequest struct {
@@ -69,29 +69,81 @@ func AnthropicToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Reque
 		if role == "assistant" {
 			role = "assistant"
 		}
-		content := ""
+		
+		var oaiParts []map[string]interface{}
+		var textContent string
+
 		switch v := msg.Content.(type) {
 		case string:
-			content = v
+			textContent = v
 		case []interface{}:
 			for _, item := range v {
 				if m, ok := item.(map[string]interface{}); ok {
-					if m["type"] == "text" {
+					switch m["type"] {
+					case "text":
 						if t, ok := m["text"].(string); ok {
-							content += t
+							oaiParts = append(oaiParts, map[string]interface{}{
+								"type": "text",
+								"text": t,
+							})
+							textContent += t
+						}
+					case "image", "document", "audio", "video", "media":
+						if source, ok := m["source"].(map[string]interface{}); ok {
+							var url string
+							if source["type"] == "base64" {
+								mediaType, _ := source["media_type"].(string)
+								data, _ := source["data"].(string)
+								url = fmt.Sprintf("data:%s;base64,%s", mediaType, data)
+							} else if source["type"] == "url" {
+								url, _ = source["url"].(string)
+							}
+							
+							if url != "" {
+								oaiParts = append(oaiParts, map[string]interface{}{
+									"type": "image_url",
+									"image_url": map[string]interface{}{
+										"url": url,
+									},
+								})
+							}
 						}
 					}
 				}
 			}
 		}
-		if content != "" {
-			oaiReq.Messages = append(oaiReq.Messages, oaiMessage{Role: role, Content: content})
+
+		if len(oaiParts) > 0 {
+			if len(oaiParts) == 1 && oaiParts[0]["type"] == "text" {
+				oaiReq.Messages = append(oaiReq.Messages, oaiMessage{Role: role, Content: textContent})
+			} else {
+				oaiReq.Messages = append(oaiReq.Messages, oaiMessage{Role: role, Content: oaiParts})
+			}
+		} else if textContent != "" {
+			oaiReq.Messages = append(oaiReq.Messages, oaiMessage{Role: role, Content: textContent})
 		}
 	}
 
-	if req.System != "" {
-		// Prepend system message
-		oaiReq.Messages = append([]oaiMessage{{Role: "system", Content: req.System}}, oaiReq.Messages...)
+	if req.System != nil {
+		var sysText string
+		switch sys := req.System.(type) {
+		case string:
+			sysText = sys
+		case []interface{}:
+			for _, item := range sys {
+				if m, ok := item.(map[string]interface{}); ok {
+					if m["type"] == "text" {
+						if t, ok := m["text"].(string); ok {
+							sysText += t
+						}
+					}
+				}
+			}
+		}
+		if sysText != "" {
+			// Prepend system message
+			oaiReq.Messages = append([]oaiMessage{{Role: "system", Content: sysText}}, oaiReq.Messages...)
+		}
 	}
 
 	oaiBody, _ := json.Marshal(oaiReq)

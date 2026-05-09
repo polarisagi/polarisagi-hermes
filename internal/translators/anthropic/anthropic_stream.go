@@ -40,19 +40,15 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 	}
 	writeSSE(w, flusher, "message_start", startEvent)
 
-	// Send content_block_start
-	cbStartEvent := StreamEvent{
-		Type: "content_block_start",
-		Index: ptrInt(0),
-		ContentBlock: &Content{
-			Type: "text",
-			Text: "",
-		},
-	}
-	writeSSE(w, flusher, "content_block_start", cbStartEvent)
-
 	reader := bufio.NewReader(vertexResp.Body)
 	var promptTokens, completionTokens, cachedTokens int
+
+	blockIndex := 0
+	inText := false
+	inTool := false
+	var toolID string
+	var latestToolArgs map[string]interface{}
+	stopReason := "end_turn"
 
 	for {
 		line, err := reader.ReadBytes('\n')
@@ -91,13 +87,21 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 			}
 		}
 
-		// Extract text delta
 		candidates, ok := vResp["candidates"].([]interface{})
 		if !ok || len(candidates) == 0 {
 			continue
 		}
 
 		cand, _ := candidates[0].(map[string]interface{})
+		
+		if finishReason, ok := cand["finishReason"].(string); ok && finishReason != "" {
+			if finishReason == "MAX_TOKENS" {
+				stopReason = "max_tokens"
+			} else if finishReason == "STOP" {
+				// We'll leave it as end_turn or tool_use based on whether we were in a tool
+			}
+		}
+
 		content, ok := cand["content"].(map[string]interface{})
 		if !ok {
 			continue
@@ -108,34 +112,118 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 			continue
 		}
 
-		part, _ := parts[0].(map[string]interface{})
-		text, _ := part["text"].(string)
+		for _, partIntf := range parts {
+			part, _ := partIntf.(map[string]interface{})
 
-		if text != "" {
-			deltaEvent := StreamEvent{
-				Type:  "content_block_delta",
-				Index: ptrInt(0),
-				Delta: &Delta{
-					Type: "text_delta",
-					Text: text,
-				},
+			if text, ok := part["text"].(string); ok && text != "" {
+				if inTool {
+					// Close previous tool block
+					argsBytes, _ := json.Marshal(latestToolArgs)
+					if string(argsBytes) == "null" {
+						argsBytes = []byte("{}")
+					}
+					writeSSE(w, flusher, "content_block_delta", StreamEvent{
+						Type:  "content_block_delta",
+						Index: ptrInt(blockIndex),
+						Delta: &Delta{
+							Type:        "input_json_delta",
+							PartialJson: string(argsBytes),
+						},
+					})
+					writeSSE(w, flusher, "content_block_stop", StreamEvent{
+						Type:  "content_block_stop",
+						Index: ptrInt(blockIndex),
+					})
+					inTool = false
+					blockIndex++
+				}
+
+				if !inText {
+					writeSSE(w, flusher, "content_block_start", StreamEvent{
+						Type:  "content_block_start",
+						Index: ptrInt(blockIndex),
+						ContentBlock: &Content{
+							Type: "text",
+							Text: "",
+						},
+					})
+					inText = true
+				}
+
+				writeSSE(w, flusher, "content_block_delta", StreamEvent{
+					Type:  "content_block_delta",
+					Index: ptrInt(blockIndex),
+					Delta: &Delta{
+						Type: "text_delta",
+						Text: text,
+					},
+				})
 			}
-			writeSSE(w, flusher, "content_block_delta", deltaEvent)
+
+			if fc, ok := part["functionCall"].(map[string]interface{}); ok {
+				if inText {
+					writeSSE(w, flusher, "content_block_stop", StreamEvent{
+						Type:  "content_block_stop",
+						Index: ptrInt(blockIndex),
+					})
+					inText = false
+					blockIndex++
+				}
+
+				if !inTool {
+					name, _ := fc["name"].(string)
+					toolID = fmt.Sprintf("toolu_%s_%d", traceID, blockIndex)
+					writeSSE(w, flusher, "content_block_start", StreamEvent{
+						Type:  "content_block_start",
+						Index: ptrInt(blockIndex),
+						ContentBlock: &Content{
+							Type:  "tool_use",
+							ID:    toolID,
+							Name:  name,
+							Input: make(map[string]interface{}),
+						},
+					})
+					inTool = true
+					stopReason = "tool_use"
+				}
+
+				if args, ok := fc["args"].(map[string]interface{}); ok {
+					latestToolArgs = args
+				}
+			}
 		}
 	}
 
-	// Send content_block_stop
-	cbStopEvent := StreamEvent{
-		Type:  "content_block_stop",
-		Index: ptrInt(0),
+	// Close any open blocks
+	if inTool {
+		argsBytes, _ := json.Marshal(latestToolArgs)
+		if string(argsBytes) == "null" {
+			argsBytes = []byte("{}")
+		}
+		writeSSE(w, flusher, "content_block_delta", StreamEvent{
+			Type:  "content_block_delta",
+			Index: ptrInt(blockIndex),
+			Delta: &Delta{
+				Type:        "input_json_delta",
+				PartialJson: string(argsBytes),
+			},
+		})
+		writeSSE(w, flusher, "content_block_stop", StreamEvent{
+			Type:  "content_block_stop",
+			Index: ptrInt(blockIndex),
+		})
+	} else if inText {
+		writeSSE(w, flusher, "content_block_stop", StreamEvent{
+			Type:  "content_block_stop",
+			Index: ptrInt(blockIndex),
+		})
 	}
-	writeSSE(w, flusher, "content_block_stop", cbStopEvent)
 
 	// Send message_delta (stop reason + usage)
 	msgDeltaEvent := StreamEvent{
 		Type: "message_delta",
 		Delta: &Delta{
-			StopReason: "end_turn",
+			StopReason: stopReason,
 		},
 		Usage: &Usage{
 			OutputTokens: completionTokens,
@@ -191,14 +279,39 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 		}
 	}
 
-	var text string
+	var contents []Content
+	stopReason := "end_turn"
+
 	if candidates, ok := vResp["candidates"].([]interface{}); ok && len(candidates) > 0 {
 		if cand, ok := candidates[0].(map[string]interface{}); ok {
+			if finishReason, ok := cand["finishReason"].(string); ok && finishReason != "" {
+				if finishReason == "MAX_TOKENS" {
+					stopReason = "max_tokens"
+				}
+			}
 			if content, ok := cand["content"].(map[string]interface{}); ok {
 				if parts, ok := content["parts"].([]interface{}); ok && len(parts) > 0 {
-					if part, ok := parts[0].(map[string]interface{}); ok {
-						if t, ok := part["text"].(string); ok {
-							text = t
+					for i, partIntf := range parts {
+						part, _ := partIntf.(map[string]interface{})
+						if t, ok := part["text"].(string); ok && t != "" {
+							contents = append(contents, Content{
+								Type: "text",
+								Text: t,
+							})
+						}
+						if fc, ok := part["functionCall"].(map[string]interface{}); ok {
+							name, _ := fc["name"].(string)
+							args, _ := fc["args"].(map[string]interface{})
+							if args == nil {
+								args = make(map[string]interface{})
+							}
+							contents = append(contents, Content{
+								Type:  "tool_use",
+								ID:    fmt.Sprintf("toolu_%s_%d", traceID, i),
+								Name:  name,
+								Input: args,
+							})
+							stopReason = "tool_use"
 						}
 					}
 				}
@@ -223,18 +336,13 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 		Type:         "message",
 		Role:         "assistant",
 		Model:        modelName,
-		StopReason:   "end_turn",
+		StopReason:   stopReason,
 		StopSequence: "",
 		Usage: Usage{
 			InputTokens:  promptTokens,
 			OutputTokens: completionTokens,
 		},
-		Content: []Content{
-			{
-				Type: "text",
-				Text: text,
-			},
-		},
+		Content: contents,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

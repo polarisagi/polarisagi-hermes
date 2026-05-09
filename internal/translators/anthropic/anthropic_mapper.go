@@ -6,17 +6,52 @@ package anthropic
 // 转换规则:
 //   - Anthropic system → Vertex systemInstruction
 //   - Anthropic user/assistant → Vertex user/model 角色
-//   - Anthropic 纯文本/多模态内容块 → Vertex parts 数组
+//   - Anthropic 纯文本/多模态/工具调用内容块 → Vertex parts 数组
 //   - Anthropic max_tokens → Vertex maxOutputTokens
 //   - Anthropic temperature/topP/topK → Vertex generationConfig
+//   - Anthropic tools → Vertex tools (functionDeclarations)
+//   - Anthropic tool_choice → Vertex toolConfig
 func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 	vertexReq := make(map[string]interface{})
 
-	if req.System != "" {
-		vertexReq["systemInstruction"] = map[string]interface{}{
-			"parts": []map[string]interface{}{
-				{"text": req.System},
-			},
+	if req.System != nil {
+		var parts []map[string]interface{}
+		switch sys := req.System.(type) {
+		case string:
+			if sys != "" {
+				parts = append(parts, map[string]interface{}{"text": sys})
+			}
+		case []interface{}:
+			for _, item := range sys {
+				if m, ok := item.(map[string]interface{}); ok {
+					if text, ok := m["text"].(string); ok {
+						parts = append(parts, map[string]interface{}{"text": text})
+					}
+				}
+			}
+		}
+		if len(parts) > 0 {
+			vertexReq["systemInstruction"] = map[string]interface{}{
+				"parts": parts,
+			}
+		}
+	}
+
+	// Build a map of tool_use_id to tool name for mapping tool_results later
+	toolMap := make(map[string]string)
+	for _, msg := range req.Messages {
+		if arr, ok := msg.Content.([]interface{}); ok {
+			for _, item := range arr {
+				if m, ok := item.(map[string]interface{}); ok {
+					if m["type"] == "tool_use" {
+						if id, ok := m["id"].(string); ok {
+							if name, ok := m["name"].(string); ok {
+								toolMap[id] = name
+							}
+						}
+					}
+				}
+			}
 		}
 	}
 
@@ -34,9 +69,10 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 		case []interface{}:
 			for _, item := range v {
 				if m, ok := item.(map[string]interface{}); ok {
-					if m["type"] == "text" {
+					switch m["type"] {
+					case "text":
 						parts = append(parts, map[string]interface{}{"text": m["text"]})
-					} else if m["type"] == "image" {
+					case "image", "document", "audio", "video", "media":
 						if source, ok := m["source"].(map[string]interface{}); ok {
 							if source["type"] == "base64" {
 								parts = append(parts, map[string]interface{}{
@@ -45,8 +81,43 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 										"data":     source["data"],
 									},
 								})
+							} else if source["type"] == "url" {
+								parts = append(parts, map[string]interface{}{
+									"fileData": map[string]interface{}{
+										"mimeType": source["media_type"],
+										"fileUri":  source["url"],
+									},
+								})
 							}
 						}
+					case "tool_use":
+						parts = append(parts, map[string]interface{}{
+							"functionCall": map[string]interface{}{
+								"name": m["name"],
+								"args": m["input"],
+							},
+						})
+					case "tool_result":
+						toolUseID, _ := m["tool_use_id"].(string)
+						name := toolMap[toolUseID]
+						if name == "" {
+							name = "unknown_function"
+						}
+						
+						// Vertex functionResponse expects a JSON object
+						var respContent interface{}
+						if contentStr, ok := m["content"].(string); ok {
+							respContent = map[string]interface{}{"content": contentStr}
+						} else {
+							respContent = map[string]interface{}{"content": m["content"]}
+						}
+						
+						parts = append(parts, map[string]interface{}{
+							"functionResponse": map[string]interface{}{
+								"name":     name,
+								"response": respContent,
+							},
+						})
 					}
 				}
 			}
@@ -76,7 +147,52 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 	if req.TopK != nil {
 		genConfig["topK"] = *req.TopK
 	}
-	vertexReq["generationConfig"] = genConfig
+	if len(genConfig) > 0 {
+		vertexReq["generationConfig"] = genConfig
+	}
+
+	if len(req.Tools) > 0 {
+		var functionDeclarations []map[string]interface{}
+		for _, t := range req.Tools {
+			decl := map[string]interface{}{
+				"name":        t.Name,
+				"description": t.Description,
+				"parameters":  t.InputSchema,
+			}
+			functionDeclarations = append(functionDeclarations, decl)
+		}
+		vertexReq["tools"] = []map[string]interface{}{
+			{
+				"functionDeclarations": functionDeclarations,
+			},
+		}
+	}
+
+	if req.ToolChoice != nil {
+		mode := "AUTO"
+		var allowedNames []string
+		
+		switch req.ToolChoice.Type {
+		case "any":
+			mode = "ANY"
+		case "tool":
+			mode = "ANY"
+			if req.ToolChoice.Name != "" {
+				allowedNames = []string{req.ToolChoice.Name}
+			}
+		}
+		
+		funcConfig := map[string]interface{}{
+			"mode": mode,
+		}
+		if len(allowedNames) > 0 {
+			funcConfig["allowedFunctionNames"] = allowedNames
+		}
+		
+		vertexReq["toolConfig"] = map[string]interface{}{
+			"functionCallingConfig": funcConfig,
+		}
+	}
 
 	return vertexReq, nil
 }
