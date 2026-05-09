@@ -252,8 +252,11 @@ func sanitizeSchema(schema map[string]interface{}) map[string]interface{} {
 
 	result := make(map[string]interface{})
 	
-	// 先拷贝所有属性实现全面透传
+	// 先拷贝所有属性实现全面透传，但要过滤掉 Vertex API 明确不支持的 JSON Schema 字段
 	for k, v := range schema {
+		if k == "$schema" || k == "propertyNames" {
+			continue
+		}
 		result[k] = v
 	}
 
