@@ -18,7 +18,7 @@ import (
 // AdminDebugHandler toggles debug mode
 var DebugEnabled bool
 
-var Version = "v2.1.2"
+var Version = "v2.1.3"
 
 func AdminInfoHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {

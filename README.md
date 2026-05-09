@@ -1,13 +1,15 @@
 # Polaris Gateway 🌌
 
-Polaris Gateway 是一款轻量级、智能化的 **大语言模型 API 代理分发与并发控制网关**，主要用于高效、安全地访问 **Gemini Enterprise Agent Platform** (原 Google Cloud Vertex AI)。专为高并发业务和多账号池轮询设计，完美解决因单一 API Key 限流、封禁或余额不足造成的业务中断问题。
+Polaris Gateway 是一款轻量级、智能化的 **大语言模型 API 代理分发与并发控制网关**
+主要用于高效、安全地访问 **Gemini Enterprise Agent Platform** (原 Google Cloud Vertex AI)。专为高并发业务和多账号池轮询设计，完美解决因单一 API Key 限流、封禁或余额不足造成的业务中断问题。
 
 > **注意**：
 > Google Cloud 的 Vertex AI 现已正式更名为 **Agent Platform**。
-> google 的 Gemini Enterprise Agent Platform 官方文档：https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/start?hl=zh_CN#googlegenaisdk_textgen_with_txt-drest。
+> google 的 Gemini Enterprise Agent Platform 
+> 官方文档：https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/start?hl=zh_CN#googlegenaisdk_textgen_with_txt-drest。
 > 只有在Google Cloud 上创建的项目，并且访问 Gemini Enterprise Agent Platform 才能使用每个新的Google Cloud 账号的赠金。其他方式现在都不可以（google 改了赠金的使用政策）。
 
-最新版本已彻底重构为 **零配置启动 (Zero-Config)**、**SQLite 数据库驱动**，并内置了现代化的 **Web Admin Dashboard**，为您提供开箱即用的商用级体验。
+最新版本已彻底重构为 **零配置启动 (Zero-Config)**、**SQLite 数据库驱动**，并内置了管理页面 **Web Admin Dashboard**，为您提供开箱即用的商用级体验。
 
 ---
 
@@ -73,7 +75,7 @@ iwr -useb https://raw.githubusercontent.com/mrlaoliai/polaris-gateway/main/scrip
 - 修改系统的熔断参数和网关监听端口。
 
 ### 2. 在业务端调用
-将你的业务代码（如 NextChat, Aider, LiteLLM 等）的 API URL 指向 Polaris Gateway。
+将你的客户端（如 Claude code, Opencode, Aider, Codex 等）的 API URL 指向 Polaris Gateway。
 
 **OpenAI 协议接入 (含透传 + 可选转 Vertex/Gemini)：**
 - Base URL: `http://127.0.0.1:28888/v1/openai/`
@@ -88,6 +90,7 @@ iwr -useb https://raw.githubusercontent.com/mrlaoliai/polaris-gateway/main/scrip
 - API Key: 任意值
 
 > URL 的第一个 path segment 明确声明客户端协议（`openai` / `anthropic` / `vertex`），网关据此决定透传或协议转换。透传模式（如 `openai→openai`）只做负载均衡和计费，不改请求体。
+> 如果 Claude code，Codex 使用，建议配合 cc-switch`https://github.com/farion1231/cc-switch` 使用。
 
 ### 3. 常见 AI 客户端接入配置
 

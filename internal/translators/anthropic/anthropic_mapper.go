@@ -98,6 +98,7 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 								"name": m["name"],
 								"args": m["input"],
 							},
+							"thoughtSignature": "skip_thought_signature_validator",
 						})
 					case "tool_result":
 						toolUseID, _ := m["tool_use_id"].(string)
