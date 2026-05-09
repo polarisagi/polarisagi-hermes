@@ -1,6 +1,9 @@
 # Polaris Gateway 🌌
 
-[**English**](#english) | [**中文**](#中文)
+<p align="center">
+  <a href="#english"><strong>🇬🇧 English</strong></a> · 
+  <a href="#简体中文"><strong>🇨🇳 简体中文</strong></a>
+</p>
 
 ---
 
@@ -47,9 +50,24 @@ By default, the gateway listens on `127.0.0.1:28888`.
 
 > **Note**: If you are using Claude Code or Codex, it is recommended to use them together with [cc-switch](https://github.com/farion1231/cc-switch).
 
+### 🗑️ Uninstall
+
+**macOS / Linux:**
+```bash
+curl -sSL https://raw.githubusercontent.com/mrlaoliai/polaris-gateway/main/scripts/uninstall.sh | bash
+```
+**Windows:**
+```powershell
+iwr -useb https://raw.githubusercontent.com/mrlaoliai/polaris-gateway/main/scripts/uninstall.ps1 | iex
+```
+> **Note**: Uninstalling only removes the service and binary. Data remains safely in `~/.polaris-gateway/`.
+
+### 📄 License
+MIT License. *(If you use this code, please retain the original author credit: `mrlaoliai`)*
+
 ---
 
-<h2 id="中文">🇨🇳 中文</h2>
+<h2 id="简体中文">🇨🇳 简体中文</h2>
 
 **Polaris Gateway** 是一款轻量级、智能化的 **大语言模型 API 代理分发与并发控制网关**。
 专为高并发业务和多账号池轮询设计，完美解决因单一 API Key 限流、封禁或余额不足造成的业务中断问题。主要用于高效、安全地访问 **Gemini Enterprise Agent Platform** (原 Google Cloud Vertex AI)，同时支持 OpenAI 和 Anthropic 等主流协议的跨协议转发。
@@ -89,11 +107,9 @@ iwr -useb https://raw.githubusercontent.com/mrlaoliai/polaris-gateway/main/scrip
    - Anthropic 协议: `http://127.0.0.1:28888/v1/anthropic/`
    - Vertex/Gemini 协议: `http://127.0.0.1:28888/v1/vertex/`
 
-> **提示**: 如果 Claude code，Codex 使用，建议配合 [cc-switch](https://github.com/farion1231/cc-switch) 使用。
+> **提示**: 如果您在使用 Claude Code 或 Codex，建议配合 [cc-switch](https://github.com/farion1231/cc-switch) 使用。
 
----
-
-### 🗑️ Uninstall / 一键卸载
+### 🗑️ 一键卸载
 
 **macOS / Linux:**
 ```bash
@@ -103,10 +119,7 @@ curl -sSL https://raw.githubusercontent.com/mrlaoliai/polaris-gateway/main/scrip
 ```powershell
 iwr -useb https://raw.githubusercontent.com/mrlaoliai/polaris-gateway/main/scripts/uninstall.ps1 | iex
 ```
-> **注意 / Note**: 卸载脚本只会移除系统服务和二进制主程序。为了防止误删数据，您的所有账号配置和账单记录（数据库）将安全保留在 `~/.polaris-gateway/` 目录下。如需彻底清理，请手动删除该目录。 / Uninstalling only removes the service and binary. Data remains safely in `~/.polaris-gateway/`.
+> **注意**: 卸载脚本只会移除系统服务和二进制主程序。为了防止误删数据，您的所有账号配置和账单记录（数据库）将安全保留在 `~/.polaris-gateway/` 目录下。如需彻底清理，请手动删除该目录。
 
----
-
-### 📄 License / 开源协议
-MIT License.
-*(If you use this code, please retain the original author credit: `mrlaoliai`)*
+### 📄 开源协议
+MIT License. *(如果您使用了此代码，请保留原作者信息：`mrlaoliai`)*

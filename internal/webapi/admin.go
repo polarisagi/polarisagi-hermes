@@ -18,7 +18,8 @@ import (
 // AdminDebugHandler toggles debug mode
 var DebugEnabled bool
 
-var Version = "v2.1.3"
+// Version can be injected via build flags (-ldflags="-X 'polaris-gateway/internal/webapi.Version=vX.Y.Z'")
+var Version = "dev"
 
 func AdminInfoHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {

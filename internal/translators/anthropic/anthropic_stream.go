@@ -45,9 +45,7 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 
 	blockIndex := 0
 	inText := false
-	inTool := false
 	var toolID string
-	var latestToolArgs map[string]interface{}
 	stopReason := "end_turn"
 
 	for {
@@ -116,28 +114,6 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 			part, _ := partIntf.(map[string]interface{})
 
 			if text, ok := part["text"].(string); ok && text != "" {
-				if inTool {
-					// Close previous tool block
-					argsBytes, _ := json.Marshal(latestToolArgs)
-					if string(argsBytes) == "null" {
-						argsBytes = []byte("{}")
-					}
-					writeSSE(w, flusher, "content_block_delta", StreamEvent{
-						Type:  "content_block_delta",
-						Index: ptrInt(blockIndex),
-						Delta: &Delta{
-							Type:        "input_json_delta",
-							PartialJson: string(argsBytes),
-						},
-					})
-					writeSSE(w, flusher, "content_block_stop", StreamEvent{
-						Type:  "content_block_stop",
-						Index: ptrInt(blockIndex),
-					})
-					inTool = false
-					blockIndex++
-				}
-
 				if !inText {
 					writeSSE(w, flusher, "content_block_start", StreamEvent{
 						Type:  "content_block_start",
@@ -170,49 +146,50 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 					blockIndex++
 				}
 
-				if !inTool {
-					name, _ := fc["name"].(string)
-					toolID = fmt.Sprintf("toolu_%s_%d", traceID, blockIndex)
-					writeSSE(w, flusher, "content_block_start", StreamEvent{
-						Type:  "content_block_start",
-						Index: ptrInt(blockIndex),
-						ContentBlock: &Content{
-							Type:  "tool_use",
-							ID:    toolID,
-							Name:  name,
-							Input: make(map[string]interface{}),
-						},
-					})
-					inTool = true
-					stopReason = "tool_use"
-				}
-
+				name, _ := fc["name"].(string)
+				toolID = fmt.Sprintf("toolu_%s_%d", traceID, blockIndex)
+				
+				writeSSE(w, flusher, "content_block_start", StreamEvent{
+					Type:  "content_block_start",
+					Index: ptrInt(blockIndex),
+					ContentBlock: &Content{
+						Type:  "tool_use",
+						ID:    toolID,
+						Name:  name,
+						Input: make(map[string]interface{}),
+					},
+				})
+				
+				var argsBytes []byte
 				if args, ok := fc["args"].(map[string]interface{}); ok {
-					latestToolArgs = args
+					argsBytes, _ = json.Marshal(args)
 				}
+				if len(argsBytes) == 0 || string(argsBytes) == "null" {
+					argsBytes = []byte("{}")
+				}
+				
+				writeSSE(w, flusher, "content_block_delta", StreamEvent{
+					Type:  "content_block_delta",
+					Index: ptrInt(blockIndex),
+					Delta: &Delta{
+						Type:        "input_json_delta",
+						PartialJson: string(argsBytes),
+					},
+				})
+				
+				writeSSE(w, flusher, "content_block_stop", StreamEvent{
+					Type:  "content_block_stop",
+					Index: ptrInt(blockIndex),
+				})
+
+				blockIndex++
+				stopReason = "tool_use"
 			}
 		}
 	}
 
 	// Close any open blocks
-	if inTool {
-		argsBytes, _ := json.Marshal(latestToolArgs)
-		if string(argsBytes) == "null" {
-			argsBytes = []byte("{}")
-		}
-		writeSSE(w, flusher, "content_block_delta", StreamEvent{
-			Type:  "content_block_delta",
-			Index: ptrInt(blockIndex),
-			Delta: &Delta{
-				Type:        "input_json_delta",
-				PartialJson: string(argsBytes),
-			},
-		})
-		writeSSE(w, flusher, "content_block_stop", StreamEvent{
-			Type:  "content_block_stop",
-			Index: ptrInt(blockIndex),
-		})
-	} else if inText {
+	if inText {
 		writeSSE(w, flusher, "content_block_stop", StreamEvent{
 			Type:  "content_block_stop",
 			Index: ptrInt(blockIndex),

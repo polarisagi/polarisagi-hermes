@@ -20,6 +20,8 @@ jobs:
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     - name: Set up Go
       uses: actions/setup-go@v5
@@ -31,13 +33,16 @@ jobs:
         GOOS: ${{ matrix.goos }}
         GOARCH: ${{ matrix.goarch }}
       run: |
+        VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
+        LDFLAGS="-s -w -X 'polaris-gateway/internal/webapi.Version=${VERSION}'"
+
         BINARY_NAME=polaris-gateway
         if [ "${{ matrix.goos }}" = "windows" ]; then
           BINARY_NAME=polaris-gateway-windows-${{ matrix.goarch }}.exe
         else
           BINARY_NAME=polaris-gateway-${{ matrix.goos }}-${{ matrix.goarch }}
         fi
-        go build -o $BINARY_NAME ./cmd/polaris
+        go build -ldflags="${LDFLAGS}" -o $BINARY_NAME ./cmd/polaris
 
     - name: Upload Release Asset
       uses: softprops/action-gh-release@v2

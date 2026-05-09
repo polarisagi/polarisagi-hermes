@@ -81,7 +81,7 @@ type StreamEvent struct {
 
 // Delta SSE 增量更新，携带文本片段或停止原因
 type Delta struct {
-	Type        string `json:"type"`
+	Type        string `json:"type,omitempty"`
 	Text        string `json:"text,omitempty"`
 	StopReason  string `json:"stop_reason,omitempty"`
 	PartialJson string `json:"partial_json,omitempty"` // for tool_use
