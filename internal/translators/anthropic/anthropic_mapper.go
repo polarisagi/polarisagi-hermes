@@ -244,59 +244,92 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 	return vertexReq, nil
 }
 
-// sanitizeSchema 递归清洗 JSON Schema，将所有字段透传，仅将 type 转换为大写并递归处理嵌套结构
+// sanitizeSchema 递归清洗 JSON Schema，将所有字段透传，并专门针对 Vertex AI 的 Type 枚举限制处理混合类型和 nullable
 func sanitizeSchema(schema map[string]interface{}) map[string]interface{} {
 	if schema == nil {
 		return nil
 	}
-	
+
 	result := make(map[string]interface{})
+	
+	// 先拷贝所有属性实现全面透传
 	for k, v := range schema {
-		switch k {
-		case "type":
-			if t, ok := v.(string); ok {
-				result[k] = strings.ToUpper(t)
+		result[k] = v
+	}
+
+	// 递归处理嵌套属性
+	if props, ok := result["properties"].(map[string]interface{}); ok {
+		cleanProps := make(map[string]interface{})
+		for pk, pv := range props {
+			if propMap, ok := pv.(map[string]interface{}); ok {
+				cleanProps[pk] = sanitizeSchema(propMap)
 			} else {
-				result[k] = v
+				cleanProps[pk] = pv
 			}
-		case "properties":
-			if props, ok := v.(map[string]interface{}); ok {
-				cleanProps := make(map[string]interface{})
-				for pk, pv := range props {
-					if propMap, ok := pv.(map[string]interface{}); ok {
-						cleanProps[pk] = sanitizeSchema(propMap)
-					} else {
-						cleanProps[pk] = pv
-					}
+		}
+		result["properties"] = cleanProps
+	}
+
+	if items, ok := result["items"].(map[string]interface{}); ok {
+		result["items"] = sanitizeSchema(items)
+	}
+
+	for _, compKey := range []string{"anyOf", "allOf", "oneOf"} {
+		if arr, ok := result[compKey].([]interface{}); ok {
+			cleanArr := make([]interface{}, 0, len(arr))
+			for _, item := range arr {
+				if itemMap, ok := item.(map[string]interface{}); ok {
+					cleanArr = append(cleanArr, sanitizeSchema(itemMap))
+				} else {
+					cleanArr = append(cleanArr, item)
 				}
-				result[k] = cleanProps
-			} else {
-				result[k] = v
 			}
-		case "items":
-			if items, ok := v.(map[string]interface{}); ok {
-				result[k] = sanitizeSchema(items)
-			} else {
-				result[k] = v
-			}
-		case "anyOf", "allOf", "oneOf":
-			if arr, ok := v.([]interface{}); ok {
-				cleanArr := make([]interface{}, 0, len(arr))
-				for _, item := range arr {
-					if itemMap, ok := item.(map[string]interface{}); ok {
-						cleanArr = append(cleanArr, sanitizeSchema(itemMap))
-					} else {
-						cleanArr = append(cleanArr, item)
-					}
-				}
-				result[k] = cleanArr
-			} else {
-				result[k] = v
-			}
-		default:
-			result[k] = v
+			result[compKey] = cleanArr
 		}
 	}
-	
+
+	// 专门处理 Vertex AI 极其严格的 Type 字段限制
+	if typeVal, ok := result["type"]; ok {
+		if tStr, ok := typeVal.(string); ok {
+			// 单一字符串类型：直接转为大写
+			result["type"] = strings.ToUpper(tStr)
+		} else if tArr, ok := typeVal.([]interface{}); ok {
+			// Anthropic 的 JSON Schema 允许 type 是数组（如 ["string", "null"] 或 ["string", "number"]）
+			// 但 Vertex AI 的 type 是一个强类型 Enum，绝对不支持数组！
+			var types []string
+			hasNull := false
+			
+			for _, item := range tArr {
+				if ts, ok := item.(string); ok {
+					if strings.ToLower(ts) == "null" {
+						hasNull = true
+					} else {
+						types = append(types, strings.ToUpper(ts))
+					}
+				}
+			}
+			
+			if hasNull {
+				result["nullable"] = true
+			}
+			
+			if len(types) == 1 {
+				result["type"] = types[0]
+			} else if len(types) > 1 {
+				// 如果移除了 null 之后还有多个类型（如 ["string", "integer"]），
+				// Vertex 只能通过 anyOf 来支持，必须删去当前级的 type 字段
+				delete(result, "type")
+				anyOfArr := make([]interface{}, 0, len(types))
+				for _, t := range types {
+					anyOfArr = append(anyOfArr, map[string]interface{}{"type": t})
+				}
+				result["anyOf"] = anyOfArr
+			} else if len(types) == 0 && hasNull {
+				// 如果原本只有 null
+				result["type"] = "NULL"
+			}
+		}
+	}
+
 	return result
 }
