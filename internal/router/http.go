@@ -13,6 +13,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -84,6 +85,19 @@ func ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if sourceProtocol == "unknown" {
 		slog.Warn("⚠️ [入口] 无法识别协议", "trace_id", traceID, "path", r.URL.Path, "body_preview", string(bodyBytes[:min(len(bodyBytes), 200)]))
 		http.Error(w, `{"error": "Unsupported protocol endpoint"}`, http.StatusBadRequest)
+		return
+	}
+
+	// 拦截处理模型列表请求 (GET /models, /v1/models, /v1/v1/models 等)
+	if r.Method == http.MethodGet && (strings.HasSuffix(r.URL.Path, "/models") || strings.HasSuffix(r.URL.Path, "/models/")) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		
+		if sourceProtocol == "anthropic" {
+			w.Write([]byte(`{"data": [{"type": "model", "id": "claude-3-7-sonnet-20250219", "display_name": "Claude 3.7 Sonnet", "created_at": "2025-02-19T00:00:00Z"}, {"type": "model", "id": "claude-3-5-sonnet-20241022", "display_name": "Claude 3.5 Sonnet", "created_at": "2024-10-22T00:00:00Z"}, {"type": "model", "id": "claude-3-5-haiku-20241022", "display_name": "Claude 3.5 Haiku", "created_at": "2024-10-22T00:00:00Z"}], "has_more": false}`))
+		} else {
+			w.Write([]byte(`{"object": "list", "data": [{"id": "gpt-4o", "object": "model", "created": 1715368132, "owned_by": "system"}, {"id": "gpt-4o-mini", "object": "model", "created": 1715368132, "owned_by": "system"}, {"id": "o1", "object": "model", "created": 1715368132, "owned_by": "system"}, {"id": "o3-mini", "object": "model", "created": 1715368132, "owned_by": "system"}, {"id": "gemini-2.5-pro", "object": "model", "created": 1715368132, "owned_by": "system"}, {"id": "gemini-2.5-flash", "object": "model", "created": 1715368132, "owned_by": "system"}]}`))
+		}
 		return
 	}
 
