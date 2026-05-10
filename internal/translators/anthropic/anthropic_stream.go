@@ -176,12 +176,12 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 					argsBytes = []byte("{}")
 				}
 				
-				argsStr := string(argsBytes)
+				argsRunes := []rune(string(argsBytes))
 				chunkSize := 40
-				for i := 0; i < len(argsStr); i += chunkSize {
+				for i := 0; i < len(argsRunes); i += chunkSize {
 					end := i + chunkSize
-					if end > len(argsStr) {
-						end = len(argsStr)
+					if end > len(argsRunes) {
+						end = len(argsRunes)
 					}
 					
 					writeSSE(w, flusher, "content_block_delta", StreamEvent{
@@ -189,7 +189,7 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 						Index: ptrInt(blockIndex),
 						Delta: &Delta{
 							Type:        "input_json_delta",
-							PartialJson: argsStr[i:end],
+							PartialJson: string(argsRunes[i:end]),
 						},
 					})
 				}
