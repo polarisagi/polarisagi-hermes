@@ -19,7 +19,8 @@ import (
 // streamAnthropicResponse 从 Vertex 后端读取流式 SSE 响应，边读边转为 Anthropic SSE 格式
 // 事件序列: message_start → content_block_start → content_block_delta* → content_block_stop → message_delta → message_stop
 // 同时在最后解析 usageMetadata 完成计费结算
-func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, req MessageRequest, traceID string, dest *router.MatchedDestination, clientType, modelName string) {
+// 返回 streamOK: false 表示流式传输中发生不可恢复错误（Vertex 返回错误、IO 断联等），调用方应标记节点失败
+func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, req MessageRequest, traceID string, dest *router.MatchedDestination, clientType, modelName string) (streamOK bool) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -48,6 +49,7 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 	inText := false
 	var toolID string
 	stopReason := "end_turn"
+	var streamError string // tracks mid-stream error for reporting
 
 	for {
 		line, err := reader.ReadBytes('\n')
@@ -55,6 +57,9 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 			if err == io.EOF {
 				break
 			}
+			// Non-EOF IO error: connection reset, timeout, etc.
+			streamError = fmt.Sprintf("stream read error: %v", err)
+			slog.Error("❌ [Stream] Vertex SSE 流读取失败，连接可能中断", "trace_id", traceID, "account", dest.Node.Name, "error", err.Error())
 			break
 		}
 
@@ -70,7 +75,19 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 
 		var vResp map[string]interface{}
 		if err := json.Unmarshal(data, &vResp); err != nil {
+			slog.Warn("⚠️ [Stream] Vertex SSE 行 JSON 解析失败", "trace_id", traceID, "account", dest.Node.Name, "data_preview", string(data[:min(len(data), 200)]))
 			continue
+		}
+
+		// Detect Vertex API error inside SSE stream (e.g., mid-stream rate limit)
+		if errData, ok := vResp["error"].(map[string]interface{}); ok {
+			errMsg := "vertex API error in stream"
+			if msg, ok := errData["message"].(string); ok {
+				errMsg = msg
+			}
+			streamError = errMsg
+			slog.Error("❌ [Stream] Vertex 在流中返回 API 错误（可能是中途触发限流）", "trace_id", traceID, "account", dest.Node.Name, "error", errMsg)
+			break
 		}
 
 		// Parse Usage
@@ -94,10 +111,20 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 		cand, _ := candidates[0].(map[string]interface{})
 		
 		if finishReason, ok := cand["finishReason"].(string); ok && finishReason != "" {
-			if finishReason == "MAX_TOKENS" {
+			switch finishReason {
+			case "MAX_TOKENS":
 				stopReason = "max_tokens"
-			} else if finishReason == "STOP" {
-				// We'll leave it as end_turn or tool_use based on whether we were in a tool
+			case "STOP":
+				// stopReason will be set to "tool_use" below if a functionCall is detected
+			case "MALFORMED_FUNCTION_CALL":
+				// Model attempted a tool call but produced malformed args; treat as tool_use
+				// so Claude Code knows to retry rather than stopping the conversation
+				stopReason = "tool_use"
+			case "SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII":
+				stopReason = "end_turn"
+				slog.Warn("⚠️ [Stream] Vertex 返回安全相关停止原因", "trace_id", traceID, "account", dest.Node.Name, "finish_reason", finishReason)
+			default:
+				stopReason = "end_turn"
 			}
 		}
 
@@ -205,6 +232,31 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 		}
 	}
 
+	// If streamError is set, send Anthropic-compatible error SSE and abort
+	if streamError != "" {
+		// Close any open block first so Claude Code can cleanly parse partial content
+		if inText {
+			writeSSE(w, flusher, "content_block_stop", StreamEvent{
+				Type:  "content_block_stop",
+				Index: ptrInt(blockIndex),
+			})
+		}
+		// Send Anthropic SSE error event
+		writeSSE(w, flusher, "error", StreamEvent{
+			Type: "error",
+			Message: &MessageResponse{
+				Type: "error",
+				Role: "assistant",
+				Content: []Content{},
+			},
+		})
+		fmt.Fprintf(w, "data: {\"type\":\"error\",\"error\":{\"type\":\"api_error\",\"message\":\"%s\"}}\n\n", streamError)
+		if flusher != nil {
+			flusher.Flush()
+		}
+		return false
+	}
+
 	// Close any open blocks
 	if inText {
 		writeSSE(w, flusher, "content_block_stop", StreamEvent{
@@ -243,6 +295,8 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 			slog.Info("💰 结算完成", "trace_id", traceID, "account", dest.Node.Name, "model", modelName, "prompt", promptTokens, "completion", completionTokens, "cost", fmt.Sprintf("%.4f", cost))
 		}
 	}
+
+	return true
 }
 
 // handleAnthropicNonStreamResponse 处理 Vertex 非流式响应，提取文本和用量，转为 Anthropic JSON 格式返回

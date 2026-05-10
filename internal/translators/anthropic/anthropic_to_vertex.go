@@ -79,7 +79,9 @@ func AnthropicToVertex(ctx context.Context, w http.ResponseWriter, r *http.Reque
 	}
 
 	if req.Stream {
-		streamAnthropicResponse(w, finalResp, req, traceID, dest, clientType, model)
+		if !streamAnthropicResponse(w, finalResp, req, traceID, dest, clientType, model) {
+			isNodeFailure = true
+		}
 	} else {
 		handleAnthropicNonStreamResponse(w, finalResp, req, traceID, dest, clientType, model)
 	}
