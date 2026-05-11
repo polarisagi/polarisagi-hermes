@@ -22,21 +22,35 @@ type ModelPrice struct {
 var modelPriceDict = map[string]ModelPrice{
 	// ── DeepSeek 系列 ──────────────────────────────────────────
 	"deepseek-chat":     {Prompt1M: 0.14, Candidate1M: 0.28},  // deepseek-v4-flash (non-thinking, alias)
-	"deepseek-reasoner": {Prompt1M: 0.14, Candidate1M: 0.28},  // deepseek-v4-flash (thinking, alias)
+	"deepseek-reasoner": {Prompt1M: 0.55, Candidate1M: 2.19},  // deepseek-r1
 	"deepseek-v4-flash": {Prompt1M: 0.14, Candidate1M: 0.28},
 	"deepseek-v4-pro":   {Prompt1M: 1.74, Candidate1M: 3.48},  // standard; 75% off til 2026/05/31 → $0.435/0.87
 
-	// ── Anthropic Claude 系列 (最新) ────────────────────────────
-	"claude-opus-4-7":     {Prompt1M: 5.0, Candidate1M: 25.0},
-	"claude-opus-4-6":     {Prompt1M: 5.0, Candidate1M: 25.0},
-	"claude-sonnet-4-6":   {Prompt1M: 3.0, Candidate1M: 15.0},
-	"claude-sonnet-4-5":   {Prompt1M: 3.0, Candidate1M: 15.0},
-	"claude-haiku-4-5":    {Prompt1M: 1.0, Candidate1M: 5.0},
+	// ── Anthropic Claude 系列 ────────────────────────────
+	"claude-opus-4-7":             {Prompt1M: 5.0, Candidate1M: 25.0},
+	"claude-opus-4-6":             {Prompt1M: 5.0, Candidate1M: 25.0},
+	"claude-sonnet-4-6":           {Prompt1M: 3.0, Candidate1M: 15.0},
+	"claude-sonnet-4-5":           {Prompt1M: 3.0, Candidate1M: 15.0},
+	"claude-haiku-4-5":            {Prompt1M: 1.0, Candidate1M: 5.0},
+	"claude-3-7-sonnet-20250219":  {Prompt1M: 3.0, Candidate1M: 15.0},
+	"claude-3-5-sonnet-20241022":  {Prompt1M: 3.0, Candidate1M: 15.0},
+	"claude-3-5-sonnet-20240620":  {Prompt1M: 3.0, Candidate1M: 15.0},
+	"claude-3-5-haiku-20241022":   {Prompt1M: 0.80, Candidate1M: 4.0},
+	"claude-3-opus-20240229":      {Prompt1M: 15.0, Candidate1M: 75.0},
+	"claude-3-sonnet-20240229":    {Prompt1M: 3.0, Candidate1M: 15.0},
+	"claude-3-haiku-20240307":     {Prompt1M: 0.25, Candidate1M: 1.25},
 
-	// ── OpenAI GPT 系列 (最新) ──────────────────────────────────
-	"gpt-5.5":      {Prompt1M: 5.0, Candidate1M: 30.0},
-	"gpt-5.4":      {Prompt1M: 2.5, Candidate1M: 15.0},
-	"gpt-5.4-mini": {Prompt1M: 0.75, Candidate1M: 4.5},
+	// ── OpenAI GPT 系列 ──────────────────────────────────
+	"gpt-5.5":             {Prompt1M: 5.0, Candidate1M: 30.0},
+	"gpt-5.4":             {Prompt1M: 2.5, Candidate1M: 15.0},
+	"gpt-5.4-mini":        {Prompt1M: 0.75, Candidate1M: 4.5},
+	"gpt-4o":              {Prompt1M: 2.5, Candidate1M: 10.0},
+	"gpt-4o-2024-05-13":   {Prompt1M: 5.0, Candidate1M: 15.0},
+	"gpt-4o-mini":         {Prompt1M: 0.15, Candidate1M: 0.60},
+	"o1":                  {Prompt1M: 15.0, Candidate1M: 60.0},
+	"o1-preview":          {Prompt1M: 15.0, Candidate1M: 60.0},
+	"o1-mini":             {Prompt1M: 1.1, Candidate1M: 4.4},
+	"o3-mini":             {Prompt1M: 1.1, Candidate1M: 4.4},
 
 	// ── Google Gemini — OpenAI 兼容协议 (google/ prefix) ────────
 	"google/gemini-3.1-pro-preview-customtools": {Prompt1M: 1.25, Candidate1M: 3.75},
@@ -47,9 +61,13 @@ var modelPriceDict = map[string]ModelPrice{
 	"google/gemini-3.0-pro":                     {Prompt1M: 1.25, Candidate1M: 3.75},
 	"google/gemini-3.0-flash":                   {Prompt1M: 0.10, Candidate1M: 0.40},
 	"google/gemini-3-flash-preview":             {Prompt1M: 0.10, Candidate1M: 0.40},
+	"google/gemini-2.5-pro":                     {Prompt1M: 2.0, Candidate1M: 8.0},
 	"google/gemini-2.5-flash":                   {Prompt1M: 0.075, Candidate1M: 0.30},
 	"google/gemini-2.0-pro-exp":                 {Prompt1M: 1.25, Candidate1M: 3.75},
 	"google/gemini-2.0-flash":                   {Prompt1M: 0.10, Candidate1M: 0.40},
+	"google/gemini-1.5-pro":                     {Prompt1M: 1.25, Candidate1M: 3.75},
+	"google/gemini-1.5-flash":                   {Prompt1M: 0.075, Candidate1M: 0.30},
+	"google/gemini-1.5-flash-8b":                {Prompt1M: 0.0375, Candidate1M: 0.15},
 
 	// ── Google Gemini — Vertex 原生协议 (无 prefix) ─────────────
 	"gemini-3.1-pro-preview-customtools": {Prompt1M: 1.25, Candidate1M: 3.75},
@@ -60,9 +78,13 @@ var modelPriceDict = map[string]ModelPrice{
 	"gemini-3.0-pro":                     {Prompt1M: 1.25, Candidate1M: 3.75},
 	"gemini-3.0-flash":                   {Prompt1M: 0.10, Candidate1M: 0.40},
 	"gemini-3-flash-preview":             {Prompt1M: 0.10, Candidate1M: 0.40},
+	"gemini-2.5-pro":                     {Prompt1M: 2.0, Candidate1M: 8.0},
 	"gemini-2.5-flash":                   {Prompt1M: 0.075, Candidate1M: 0.30},
 	"gemini-2.0-pro-exp":                 {Prompt1M: 1.25, Candidate1M: 3.75},
 	"gemini-2.0-flash":                   {Prompt1M: 0.10, Candidate1M: 0.40},
+	"gemini-1.5-pro":                     {Prompt1M: 1.25, Candidate1M: 3.75},
+	"gemini-1.5-flash":                   {Prompt1M: 0.075, Candidate1M: 0.30},
+	"gemini-1.5-flash-8b":                {Prompt1M: 0.0375, Candidate1M: 0.15},
 
 	// ── 兜底基准 ────────────────────────────────────────────────
 	"default": {Prompt1M: 1.0, Candidate1M: 2.0},
@@ -97,11 +119,21 @@ func ExtractMethodName(incomingPath string) string {
 	return sub
 }
 
+func EstimatePromptTokens(bodyBytes []byte) int64 {
+	// 简单的经验法则: 1 token ≈ 4 字节
+	return int64(len(bodyBytes)) / 4
+}
+
+func EstimateCompletionTokens(sentBytes int64) int64 {
+	// SSE JSON overhead 较大，1 个 token 往往带有 50-80 字节的结构包装
+	return sentBytes / 60
+}
+
 // CalculateCost 根据模型名和 token 用量计算费用
 // 定价策略: 从 modelPriceDict 查找模型单价 → 区分 cached/uncached prompt tokens
 // Gemini 模型超过 128K prompt tokens 时费率翻倍（长上下文定价）
 // cached tokens 折扣: Gemini 25%, DeepSeek 10%, 其他 50%
-func CalculateCost(modelName string, promptTokens, candidateTokens, cachedTokens int64) float64 {
+func CalculateCost(provider, modelName string, promptTokens, candidateTokens, cachedTokens int64, bodyBytes []byte) float64 {
 	price, exists := modelPriceDict[modelName]
 	if !exists {
 		price = modelPriceDict["default"]
@@ -109,6 +141,14 @@ func CalculateCost(modelName string, promptTokens, candidateTokens, cachedTokens
 
 	promptRate := price.Prompt1M
 	candidateRate := price.Candidate1M
+
+	// 如果是通过 Vertex AI 渠道调用 Gemini，部分模型价格更贵（覆盖 AI Studio 价格）
+	if provider == "vertex" {
+		if strings.Contains(modelName, "gemini-2.0-flash") {
+			promptRate = 0.15
+			candidateRate = 0.60
+		}
+	}
 
 	if strings.Contains(modelName, "gemini-") && promptTokens > 128000 {
 		promptRate *= 2.0
@@ -128,11 +168,27 @@ func CalculateCost(modelName string, promptTokens, candidateTokens, cachedTokens
 	} else if strings.Contains(modelName, "gemini-") {
 		// Gemini cached context discount is ~25% of standard rate
 		cachedRate = promptRate * 0.25
+	} else if strings.Contains(modelName, "claude-") {
+		// Claude cached read tokens are typically 10% of standard rate
+		cachedRate = promptRate * 0.10
 	}
 
 	cost := (float64(uncachedTokens)/1000000.0*promptRate) +
 		(float64(cachedTokens)/1000000.0*cachedRate) +
 		(float64(candidateTokens)/1000000.0*candidateRate)
+
+	// 多模态补偿逻辑 (系数 1.05)
+	if provider == "vertex" {
+		hasMultimodal := bytes.Contains(bodyBytes, []byte(`"image_url"`)) ||
+			bytes.Contains(bodyBytes, []byte(`"inlineData"`)) ||
+			bytes.Contains(bodyBytes, []byte(`"inline_data"`)) ||
+			bytes.Contains(bodyBytes, []byte(`"file_uri"`)) ||
+			bytes.Contains(bodyBytes, []byte(`"fileUri"`))
+		if hasMultimodal {
+			cost *= 1.05
+		}
+	}
+
 	return math.Ceil(cost*10000) / 10000
 }
 

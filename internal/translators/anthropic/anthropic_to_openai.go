@@ -171,16 +171,16 @@ func AnthropicToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Reque
 	isNodeFailure, isQuotaExhausted := utils.CheckResponseStatus(finalResp, dest, "openai", clientType, "anthropic_adapter", traceID, "Anthropic→OpenAI")
 
 	if oaiReq.Stream {
-		anthropicStreamOpenAI(w, finalResp, traceID, dest, clientType, oaiReq.Model)
+		anthropicStreamOpenAI(w, finalResp, traceID, dest, clientType, oaiReq.Model, bodyBytes)
 	} else {
-		anthropicNonStreamOpenAI(w, finalResp, traceID, dest, clientType, oaiReq.Model)
+		anthropicNonStreamOpenAI(w, finalResp, traceID, dest, clientType, oaiReq.Model, bodyBytes)
 	}
 
 	utils.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
 }
 
 // anthropicStreamOpenAI 读取 OpenAI 后端流式 SSE 响应，实时转为 Anthropic SSE 格式写入客户端
-func anthropicStreamOpenAI(w http.ResponseWriter, oaiResp *http.Response, traceID string, dest *router.MatchedDestination, clientType, modelName string) {
+func anthropicStreamOpenAI(w http.ResponseWriter, oaiResp *http.Response, traceID string, dest *router.MatchedDestination, clientType, modelName string, reqBody []byte) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -216,10 +216,12 @@ func anthropicStreamOpenAI(w http.ResponseWriter, oaiResp *http.Response, traceI
 	var tailBuf []byte
 	const tailWindowSize = 8192
 	var fullText string
+	var totalWritten int64
 
 	for {
 		n, readErr := oaiResp.Body.Read(buf)
 		if n > 0 {
+			totalWritten += int64(n)
 			// Parse SSE chunks from OpenAI
 			chunk := buf[:n]
 			tailBuf = append(tailBuf, chunk...)
@@ -296,8 +298,14 @@ func anthropicStreamOpenAI(w http.ResponseWriter, oaiResp *http.Response, traceI
 
 	// Parse usage from tail buffer (OpenAI format)
 	prompt, completion, cached, found := utils.ParseUsageFromStreamTail(tailBuf)
-	if found {
-		cost := utils.CalculateCost(modelName, prompt, completion, cached)
+	if !found {
+		prompt = utils.EstimatePromptTokens(reqBody)
+		completion = utils.EstimateCompletionTokens(totalWritten)
+		slog.Warn("⚠️ 响应流中断，启用 token 估算补偿", "trace_id", traceID, "node", dest.Node.Name, "prompt", prompt, "completion", completion)
+	}
+
+	if prompt > 0 || completion > 0 {
+		cost := utils.CalculateCost(dest.Node.Provider, modelName, prompt, completion, cached, reqBody)
 		db.SaveUsage("openai", dest.Node.Name, clientType, "anthropic_adapter", prompt, completion, cost, oaiResp.StatusCode)
 		dest.Node.RecordCost(cost, traceID)
 		if cached > 0 {
@@ -309,7 +317,7 @@ func anthropicStreamOpenAI(w http.ResponseWriter, oaiResp *http.Response, traceI
 }
 
 // anthropicNonStreamOpenAI 处理 OpenAI 后端的非流式响应，提取内容转为 Anthropic JSON 格式
-func anthropicNonStreamOpenAI(w http.ResponseWriter, oaiResp *http.Response, traceID string, dest *router.MatchedDestination, clientType, modelName string) {
+func anthropicNonStreamOpenAI(w http.ResponseWriter, oaiResp *http.Response, traceID string, dest *router.MatchedDestination, clientType, modelName string, reqBody []byte) {
 	defer oaiResp.Body.Close()
 
 	var oaiResponse struct {
@@ -338,7 +346,7 @@ func anthropicNonStreamOpenAI(w http.ResponseWriter, oaiResp *http.Response, tra
 	// Record billing
 	promptTokens := int64(oaiResponse.Usage.PromptTokens)
 	completionTokens := int64(oaiResponse.Usage.CompletionTokens)
-	cost := utils.CalculateCost(modelName, promptTokens, completionTokens, 0)
+	cost := utils.CalculateCost(dest.Node.Provider, modelName, promptTokens, completionTokens, 0, reqBody)
 	db.SaveUsage("openai", dest.Node.Name, clientType, "anthropic_adapter", promptTokens, completionTokens, cost, oaiResp.StatusCode)
 	dest.Node.RecordCost(cost, traceID)
 	slog.Info("💰 结算完成", "trace_id", traceID, "account", dest.Node.Name, "model", modelName, "prompt", promptTokens, "completion", completionTokens, "cost", fmt.Sprintf("%.4f", cost))

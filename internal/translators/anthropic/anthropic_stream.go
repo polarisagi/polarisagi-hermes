@@ -20,7 +20,7 @@ import (
 // 事件序列: message_start → content_block_start → content_block_delta* → content_block_stop → message_delta → message_stop
 // 同时在最后解析 usageMetadata 完成计费结算
 // 返回 streamOK: false 表示流式传输中发生不可恢复错误（Vertex 返回错误、IO 断联等），调用方应标记节点失败
-func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, req MessageRequest, traceID string, dest *router.MatchedDestination, clientType, modelName string) (streamOK bool) {
+func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, req MessageRequest, traceID string, dest *router.MatchedDestination, clientType, modelName string, reqBody []byte) (streamOK bool) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -44,6 +44,7 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 
 	reader := bufio.NewReader(vertexResp.Body)
 	var promptTokens, completionTokens, cachedTokens int
+	var totalWritten int64
 
 	blockIndex := 0
 	inText := false
@@ -53,6 +54,9 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 
 	for {
 		line, err := reader.ReadBytes('\n')
+		if len(line) > 0 {
+			totalWritten += int64(len(line))
+		}
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -283,9 +287,15 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 	}
 	writeSSE(w, flusher, "message_stop", msgStopEvent)
 
+	if promptTokens == 0 && completionTokens == 0 && !streamOK {
+		promptTokens = int(utils.EstimatePromptTokens(reqBody))
+		completionTokens = int(utils.EstimateCompletionTokens(totalWritten))
+		slog.Warn("⚠️ 响应流中断，启用 token 估算补偿", "trace_id", traceID, "node", dest.Node.Name, "prompt", promptTokens, "completion", completionTokens)
+	}
+
 	// Settle Usage
 	if promptTokens > 0 || completionTokens > 0 {
-		cost := utils.CalculateCost(modelName, int64(promptTokens), int64(completionTokens), int64(cachedTokens))
+		cost := utils.CalculateCost(dest.Node.Provider, modelName, int64(promptTokens), int64(completionTokens), int64(cachedTokens), reqBody)
 		db.SaveUsage("vertex", dest.Node.Name, clientType, "anthropic_adapter", int64(promptTokens), int64(completionTokens), cost, http.StatusOK)
 		dest.Node.RecordCost(cost, traceID)
 
@@ -300,7 +310,7 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 }
 
 // handleAnthropicNonStreamResponse 处理 Vertex 非流式响应，提取文本和用量，转为 Anthropic JSON 格式返回
-func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Response, req MessageRequest, traceID string, dest *router.MatchedDestination, clientType, modelName string) {
+func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Response, req MessageRequest, traceID string, dest *router.MatchedDestination, clientType, modelName string, reqBody []byte) {
 	defer vertexResp.Body.Close()
 	bodyBytes, err := io.ReadAll(vertexResp.Body)
 	if err != nil {
@@ -368,7 +378,7 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 	}
 
 	if promptTokens > 0 || completionTokens > 0 {
-		cost := utils.CalculateCost(modelName, int64(promptTokens), int64(completionTokens), int64(cachedTokens))
+		cost := utils.CalculateCost(dest.Node.Provider, modelName, int64(promptTokens), int64(completionTokens), int64(cachedTokens), reqBody)
 		db.SaveUsage("vertex", dest.Node.Name, clientType, "anthropic_adapter", int64(promptTokens), int64(completionTokens), cost, vertexResp.StatusCode)
 		dest.Node.RecordCost(cost, traceID)
 

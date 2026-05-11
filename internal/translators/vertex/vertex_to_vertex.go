@@ -45,19 +45,16 @@ func VertexToVertex(ctx context.Context, w http.ResponseWriter, r *http.Request,
 
 	utils.ExecuteAndStream(w, proxyReq, dest, "vertex", clientType, methodName, traceID, "Vertex",
 		func(finalResp *http.Response, startTime time.Time) {
-			streamVertexResponse(w, finalResp, dest, dest.TargetModel, clientType, methodName, traceID, startTime)
+			streamVertexResponse(w, finalResp, dest, dest.TargetModel, clientType, methodName, traceID, startTime, bodyBytes)
 		})
 }
 
 // streamVertexResponse 流式转发 Vertex 上游响应到客户端，同步从尾部提取 usageMetadata 完成计费
-func streamVertexResponse(w http.ResponseWriter, finalResp *http.Response, dest *router.MatchedDestination, modelName, clientType, methodName, traceID string, startTime time.Time) {
+func streamVertexResponse(w http.ResponseWriter, finalResp *http.Response, dest *router.MatchedDestination, modelName, clientType, methodName, traceID string, startTime time.Time, reqBody []byte) {
 	defer finalResp.Body.Close()
 
 	for k, vv := range finalResp.Header {
-		if !strings.EqualFold(k, "Content-Length") &&
-			!strings.EqualFold(k, "Content-Encoding") &&
-			!strings.EqualFold(k, "Transfer-Encoding") &&
-			!strings.EqualFold(k, "Connection") {
+		if !strings.EqualFold(k, "Content-Length") && !strings.EqualFold(k, "Content-Encoding") {
 			for _, v := range vv {
 				w.Header().Add(k, v)
 			}
@@ -66,12 +63,13 @@ func streamVertexResponse(w http.ResponseWriter, finalResp *http.Response, dest 
 	w.WriteHeader(finalResp.StatusCode)
 
 	flusher, _ := w.(http.Flusher)
-	buf := make([]byte, 32*1024)
+	buf := make([]byte, 8192)
 	var tailBuf []byte
 	const tailWindowSize = 8192
+	var totalWritten int64
 
 	for {
-		n, readErr := finalResp.Body.Read(buf)
+		n, err := finalResp.Body.Read(buf)
 		if n > 0 {
 			if _, writeErr := w.Write(buf[:n]); writeErr != nil {
 				break
@@ -79,31 +77,29 @@ func streamVertexResponse(w http.ResponseWriter, finalResp *http.Response, dest 
 			if flusher != nil {
 				flusher.Flush()
 			}
-
+			totalWritten += int64(n)
 			tailBuf = append(tailBuf, buf[:n]...)
 			if len(tailBuf) > tailWindowSize {
 				tailBuf = tailBuf[len(tailBuf)-tailWindowSize:]
 			}
 		}
-		if readErr != nil {
+		if err != nil {
 			break
 		}
 	}
 
-	if bytes.Contains(tailBuf, []byte("usageMetadata")) || bytes.Contains(tailBuf, []byte("usage")) {
-		prompt, completion, cached, found := utils.ParseUsageFromStreamTail(tailBuf)
-		if found {
-			cost := utils.CalculateCost(modelName, prompt, completion, cached)
+	prompt, completion, cached, found := utils.ParseUsageFromStreamTail(tailBuf)
+	if !found {
+		prompt = utils.EstimatePromptTokens(reqBody)
+		completion = utils.EstimateCompletionTokens(totalWritten)
+		slog.Warn("⚠️ 响应流中断，启用 token 估算补偿", "trace_id", traceID, "node", dest.Node.Name, "prompt", prompt, "completion", completion)
+	}
 
-			db.SaveUsage("vertex", dest.Node.Name, clientType, methodName, prompt, completion, cost, finalResp.StatusCode)
-			dest.Node.RecordCost(cost, traceID)
-
-			if cached > 0 {
-				slog.Info("💰 结算完成", "trace_id", traceID, "account", dest.Node.Name, "model", modelName, "prompt", prompt, "cached", cached, "completion", completion, "cost", fmt.Sprintf("%.4f", cost))
-			} else {
-				slog.Info("💰 结算完成", "trace_id", traceID, "account", dest.Node.Name, "model", modelName, "prompt", prompt, "completion", completion, "cost", fmt.Sprintf("%.4f", cost))
-			}
-		}
+	if prompt > 0 || completion > 0 {
+		cost := utils.CalculateCost(dest.Node.Provider, modelName, prompt, completion, cached, reqBody)
+		db.SaveUsage("vertex", dest.Node.Name, clientType, methodName, prompt, completion, cost, finalResp.StatusCode)
+		dest.Node.RecordCost(cost, traceID)
+		slog.Info("💰 结算成功", "trace_id", traceID, "node", dest.Node.Name, "model", modelName, "cost", fmt.Sprintf("%.4f", cost))
 	}
 }
 

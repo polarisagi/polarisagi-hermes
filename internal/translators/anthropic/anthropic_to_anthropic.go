@@ -79,9 +79,9 @@ func AnthropicToAnthropic(ctx context.Context, w http.ResponseWriter, r *http.Re
 	isNodeFailure, isQuotaExhausted := utils.CheckResponseStatus(finalResp, dest, "anthropic", clientType, "passthrough", traceID, "Anthropic Passthrough")
 
 	if req.Stream {
-		anthropicPassthroughStream(w, finalResp, traceID, dest, clientType, modelName)
+		anthropicPassthroughStream(w, finalResp, traceID, dest, clientType, modelName, bodyBytes)
 	} else {
-		anthropicPassthroughNonStream(w, finalResp, traceID, dest, clientType, modelName)
+		anthropicPassthroughNonStream(w, finalResp, traceID, dest, clientType, modelName, bodyBytes)
 	}
 
 	_ = startTime
@@ -89,7 +89,7 @@ func AnthropicToAnthropic(ctx context.Context, w http.ResponseWriter, r *http.Re
 }
 
 // anthropicPassthroughStream 直通流式响应：读取上游 Anthropic SSE 流，原样写回客户端并结算
-func anthropicPassthroughStream(w http.ResponseWriter, upstreamResp *http.Response, traceID string, dest *router.MatchedDestination, clientType, modelName string) {
+func anthropicPassthroughStream(w http.ResponseWriter, upstreamResp *http.Response, traceID string, dest *router.MatchedDestination, clientType, modelName string, reqBody []byte) {
 	defer upstreamResp.Body.Close()
 
 	for k, vv := range upstreamResp.Header {
@@ -130,12 +130,12 @@ func anthropicPassthroughStream(w http.ResponseWriter, upstreamResp *http.Respon
 	// OR non-stream Anthropic response JSON contains "usage":{"input_tokens":N,"output_tokens":N}
 	// For streaming, we look for "output_tokens" in the tail buffer
 	if bytes.Contains(tailBuf, []byte("output_tokens")) {
-		extractAndRecordAnthropicUsage(tailBuf, modelName, dest, clientType, "passthrough", traceID)
+		extractAndRecordAnthropicUsage(tailBuf, modelName, dest, clientType, "passthrough", traceID, reqBody)
 	}
 }
 
 // anthropicPassthroughNonStream 直通非流式响应：读取上游 Anthropic JSON 响应，解析 usage 并结算后原样写回
-func anthropicPassthroughNonStream(w http.ResponseWriter, upstreamResp *http.Response, traceID string, dest *router.MatchedDestination, clientType, modelName string) {
+func anthropicPassthroughNonStream(w http.ResponseWriter, upstreamResp *http.Response, traceID string, dest *router.MatchedDestination, clientType, modelName string, reqBody []byte) {
 	defer upstreamResp.Body.Close()
 	bodyBytes, err := io.ReadAll(upstreamResp.Body)
 	if err != nil {
@@ -153,7 +153,7 @@ func anthropicPassthroughNonStream(w http.ResponseWriter, upstreamResp *http.Res
 	if json.Unmarshal(bodyBytes, &resp) == nil {
 		promptTokens := int64(resp.Usage.InputTokens)
 		completionTokens := int64(resp.Usage.OutputTokens)
-		cost := utils.CalculateCost(modelName, promptTokens, completionTokens, 0)
+		cost := utils.CalculateCost(dest.Node.Provider, modelName, promptTokens, completionTokens, 0, reqBody)
 		db.SaveUsage("anthropic", dest.Node.Name, clientType, "passthrough", promptTokens, completionTokens, cost, upstreamResp.StatusCode)
 		dest.Node.RecordCost(cost, traceID)
 		slog.Info("💰 结算完成 (Anthropic)", "trace_id", traceID, "account", dest.Node.Name, "model", modelName, "prompt", promptTokens, "completion", completionTokens, "cost", fmt.Sprintf("%.4f", cost))
@@ -172,14 +172,14 @@ func anthropicPassthroughNonStream(w http.ResponseWriter, upstreamResp *http.Res
 }
 
 // extractAndRecordAnthropicUsage 从 Anthropic SSE 流的尾部 buffer 中提取 output_tokens 并完成计费
-func extractAndRecordAnthropicUsage(tailBuf []byte, modelName string, dest *router.MatchedDestination, clientType, methodName, traceID string) {
+func extractAndRecordAnthropicUsage(tailBuf []byte, modelName string, dest *router.MatchedDestination, clientType, methodName, traceID string, reqBody []byte) {
 	// Try to find output_tokens in the tail buffer (Anthropic stream format)
 	re := regexp.MustCompile(`"output_tokens"\s*:\s*(\d+)`)
 	match := re.FindSubmatch(tailBuf)
 	if len(match) > 1 {
 		var outputTokens int64
 		fmt.Sscanf(string(match[1]), "%d", &outputTokens)
-		cost := utils.CalculateCost(modelName, 0, outputTokens, 0)
+		cost := utils.CalculateCost(dest.Node.Provider, modelName, 0, outputTokens, 0, reqBody)
 		db.SaveUsage("anthropic", dest.Node.Name, clientType, methodName, 0, outputTokens, cost, http.StatusOK)
 		dest.Node.RecordCost(cost, traceID)
 		slog.Info("💰 结算完成 (Anthropic Stream)", "trace_id", traceID, "account", dest.Node.Name, "model", modelName, "output_tokens", outputTokens, "cost", fmt.Sprintf("%.4f", cost))

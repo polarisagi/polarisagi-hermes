@@ -66,7 +66,7 @@ func OpenAIToVertex(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	// Probation 探路日志由 ExecuteAndStream 统一处理
 	utils.ExecuteAndStream(w, proxyReq, dest, "vertex", clientType, methodName, traceID, "OAI→Vertex",
 		func(finalResp *http.Response, startTime time.Time) {
-			streamAndSettleUsage(w, finalResp, dest, dest.TargetModel, clientType, methodName, traceID, startTime)
+			streamAndSettleUsage(w, finalResp, dest, dest.TargetModel, clientType, methodName, traceID, startTime, currentBody)
 		})
 }
 

@@ -57,11 +57,11 @@ func VertexToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Request,
 
 	utils.ExecuteAndStream(w, proxyReq, dest, "openai", clientType, methodName, traceID, "Vertex→OpenAI",
 		func(finalResp *http.Response, startTime time.Time) {
-			streamAndSettleOpenAI(w, finalResp, dest, dest.TargetModel, clientType, methodName, traceID, startTime)
+			streamAndSettleOpenAI(w, finalResp, dest, dest.TargetModel, clientType, methodName, traceID, startTime, currentBody)
 		})
 }
 
-func streamAndSettleOpenAI(w http.ResponseWriter, finalResp *http.Response, dest *router.MatchedDestination, modelName, clientType, methodName, traceID string, startTime time.Time) {
+func streamAndSettleOpenAI(w http.ResponseWriter, finalResp *http.Response, dest *router.MatchedDestination, modelName, clientType, methodName, traceID string, startTime time.Time, reqBody []byte) {
 	defer finalResp.Body.Close()
 	for k, vv := range finalResp.Header {
 		if !strings.EqualFold(k, "Content-Length") && !strings.EqualFold(k, "Content-Encoding") {
@@ -76,6 +76,7 @@ func streamAndSettleOpenAI(w http.ResponseWriter, finalResp *http.Response, dest
 	buf := make([]byte, 8192)
 	var tailBuf []byte
 	const tailWindowSize = 8192
+	var totalWritten int64
 
 	for {
 		n, err := finalResp.Body.Read(buf)
@@ -86,6 +87,7 @@ func streamAndSettleOpenAI(w http.ResponseWriter, finalResp *http.Response, dest
 			if flusher != nil {
 				flusher.Flush()
 			}
+			totalWritten += int64(n)
 			tailBuf = append(tailBuf, buf[:n]...)
 			if len(tailBuf) > tailWindowSize {
 				tailBuf = tailBuf[len(tailBuf)-tailWindowSize:]
@@ -96,14 +98,18 @@ func streamAndSettleOpenAI(w http.ResponseWriter, finalResp *http.Response, dest
 		}
 	}
 
-	if bytes.Contains(tailBuf, []byte("usage")) || bytes.Contains(tailBuf, []byte("promptTokenCount")) {
-		prompt, completion, cached, found := utils.ParseUsageFromStreamTail(tailBuf)
-		if found {
-			cost := utils.CalculateCost(modelName, prompt, completion, cached)
-			db.SaveUsage("openai", dest.Node.Name, clientType, methodName, prompt, completion, cost, finalResp.StatusCode)
-			dest.Node.RecordCost(cost, traceID)
-			slog.Info("💰 结算成功", "trace_id", traceID, "node", dest.Node.Name, "model", modelName, "cost", fmt.Sprintf("%.4f", cost))
-		}
+	prompt, completion, cached, found := utils.ParseUsageFromStreamTail(tailBuf)
+	if !found {
+		prompt = utils.EstimatePromptTokens(reqBody)
+		completion = utils.EstimateCompletionTokens(totalWritten)
+		slog.Warn("⚠️ 响应流中断，启用 token 估算补偿", "trace_id", traceID, "node", dest.Node.Name, "prompt", prompt, "completion", completion)
+	}
+
+	if prompt > 0 || completion > 0 {
+		cost := utils.CalculateCost(dest.Node.Provider, modelName, prompt, completion, cached, reqBody)
+		db.SaveUsage("openai", dest.Node.Name, clientType, methodName, prompt, completion, cost, finalResp.StatusCode)
+		dest.Node.RecordCost(cost, traceID)
+		slog.Info("💰 结算成功", "trace_id", traceID, "node", dest.Node.Name, "model", modelName, "cost", fmt.Sprintf("%.4f", cost))
 	}
 }
 

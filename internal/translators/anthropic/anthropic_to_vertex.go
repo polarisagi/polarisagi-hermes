@@ -79,11 +79,12 @@ func AnthropicToVertex(ctx context.Context, w http.ResponseWriter, r *http.Reque
 	}
 
 	if req.Stream {
-		if !streamAnthropicResponse(w, finalResp, req, traceID, dest, clientType, model) {
+		streamOK := streamAnthropicResponse(w, finalResp, req, traceID, dest, clientType, model, bodyBytes)
+		if !streamOK {
 			isNodeFailure = true
 		}
 	} else {
-		handleAnthropicNonStreamResponse(w, finalResp, req, traceID, dest, clientType, model)
+		handleAnthropicNonStreamResponse(w, finalResp, req, traceID, dest, clientType, model, bodyBytes)
 	}
 
 	utils.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
