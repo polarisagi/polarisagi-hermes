@@ -192,11 +192,12 @@ func anthropicStreamOpenAI(w http.ResponseWriter, oaiResp *http.Response, traceI
 	startEvent := StreamEvent{
 		Type: "message_start",
 		Message: &MessageResponse{
-			ID:    fmt.Sprintf("msg_%s", traceID),
-			Type:  "message",
-			Role:  "assistant",
-			Model: modelName,
-			Usage: Usage{},
+			ID:      fmt.Sprintf("msg_%s", traceID),
+			Type:    "message",
+			Role:    "assistant",
+			Content: []Content{}, // Prevents "content": null
+			Model:   modelName,
+			Usage:   Usage{},
 		},
 	}
 	writeSSE(w, flusher, "message_start", startEvent)

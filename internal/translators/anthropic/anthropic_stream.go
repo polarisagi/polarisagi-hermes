@@ -337,7 +337,7 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 		}
 	}
 
-	var contents []Content
+	contents := []Content{}
 	stopReason := "end_turn"
 
 	if candidates, ok := vResp["candidates"].([]interface{}); ok && len(candidates) > 0 {
