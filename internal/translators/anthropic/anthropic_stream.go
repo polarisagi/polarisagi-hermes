@@ -11,7 +11,6 @@ import (
 	"log/slog"
 	"net/http"
 
-	"polaris-gateway/internal/db"
 	"polaris-gateway/internal/router"
 	"polaris-gateway/internal/translators/utils"
 )
@@ -28,19 +27,7 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 
 	flusher, _ := w.(http.Flusher)
 
-	// Send message_start
-	startEvent := StreamEvent{
-		Type: "message_start",
-		Message: &MessageResponse{
-			ID:      fmt.Sprintf("msg_%s", traceID),
-			Type:    "message",
-			Role:    "assistant",
-			Content: []Content{}, // Prevents "content": null
-			Model:   modelName,
-			Usage:   Usage{},
-		},
-	}
-	writeSSE(w, flusher, "message_start", startEvent)
+	writeSSEMessageStart(w, flusher, traceID, modelName)
 
 	reader := bufio.NewReader(vertexResp.Body)
 	var promptTokens, completionTokens, cachedTokens int
@@ -225,10 +212,7 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 					})
 				}
 				
-				writeSSE(w, flusher, "content_block_stop", StreamEvent{
-					Type:  "content_block_stop",
-					Index: ptrInt(blockIndex),
-				})
+				writeSSEContentBlockStop(w, flusher, blockIndex)
 
 				blockIndex++
 				stopReason = "tool_use"
@@ -240,10 +224,7 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 	if streamError != "" {
 		// Close any open block first so Claude Code can cleanly parse partial content
 		if inText {
-			writeSSE(w, flusher, "content_block_stop", StreamEvent{
-				Type:  "content_block_stop",
-				Index: ptrInt(blockIndex),
-			})
+			writeSSEContentBlockStop(w, flusher, blockIndex)
 		}
 		// Send Anthropic SSE error event
 		writeSSE(w, flusher, "error", StreamEvent{
@@ -263,10 +244,7 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 
 	// Close any open blocks
 	if inText {
-		writeSSE(w, flusher, "content_block_stop", StreamEvent{
-			Type:  "content_block_stop",
-			Index: ptrInt(blockIndex),
-		})
+		writeSSEContentBlockStop(w, flusher, blockIndex)
 	}
 
 	// Send message_delta (stop reason + usage)
@@ -276,16 +254,13 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 			StopReason: stopReason,
 		},
 		Usage: &Usage{
+			InputTokens:  promptTokens,
 			OutputTokens: completionTokens,
 		},
 	}
 	writeSSE(w, flusher, "message_delta", msgDeltaEvent)
 
-	// Send message_stop
-	msgStopEvent := StreamEvent{
-		Type: "message_stop",
-	}
-	writeSSE(w, flusher, "message_stop", msgStopEvent)
+	writeSSEMessageStop(w, flusher)
 
 	if promptTokens == 0 && completionTokens == 0 && !streamOK {
 		promptTokens = int(utils.EstimatePromptTokens(reqBody))
@@ -293,18 +268,7 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 		slog.Warn("⚠️ 响应流中断，启用 token 估算补偿", "trace_id", traceID, "node", dest.Node.Name, "prompt", promptTokens, "completion", completionTokens)
 	}
 
-	// Settle Usage
-	if promptTokens > 0 || completionTokens > 0 {
-		cost := utils.CalculateCost(dest.Node.Provider, modelName, int64(promptTokens), int64(completionTokens), int64(cachedTokens), reqBody)
-		db.SaveUsage("vertex", dest.Node.Name, clientType, "anthropic_adapter", int64(promptTokens), int64(completionTokens), cost, http.StatusOK)
-		dest.Node.RecordCost(cost, traceID)
-
-		if cachedTokens > 0 {
-			slog.Info("💰 结算完成", "trace_id", traceID, "account", dest.Node.Name, "model", modelName, "prompt", promptTokens, "cached", cachedTokens, "completion", completionTokens, "cost", fmt.Sprintf("%.4f", cost))
-		} else {
-			slog.Info("💰 结算完成", "trace_id", traceID, "account", dest.Node.Name, "model", modelName, "prompt", promptTokens, "completion", completionTokens, "cost", fmt.Sprintf("%.4f", cost))
-		}
-	}
+	settleBilling("vertex", dest.Node.Name, clientType, "anthropic_adapter", modelName, int64(promptTokens), int64(completionTokens), int64(cachedTokens), http.StatusOK, dest, reqBody, traceID)
 
 	return true
 }
@@ -377,17 +341,7 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 		}
 	}
 
-	if promptTokens > 0 || completionTokens > 0 {
-		cost := utils.CalculateCost(dest.Node.Provider, modelName, int64(promptTokens), int64(completionTokens), int64(cachedTokens), reqBody)
-		db.SaveUsage("vertex", dest.Node.Name, clientType, "anthropic_adapter", int64(promptTokens), int64(completionTokens), cost, vertexResp.StatusCode)
-		dest.Node.RecordCost(cost, traceID)
-
-		if cachedTokens > 0 {
-			slog.Info("💰 结算完成", "trace_id", traceID, "account", dest.Node.Name, "model", modelName, "prompt", promptTokens, "cached", cachedTokens, "completion", completionTokens, "cost", fmt.Sprintf("%.4f", cost))
-		} else {
-			slog.Info("💰 结算完成", "trace_id", traceID, "account", dest.Node.Name, "model", modelName, "prompt", promptTokens, "completion", completionTokens, "cost", fmt.Sprintf("%.4f", cost))
-		}
-	}
+	settleBilling("vertex", dest.Node.Name, clientType, "anthropic_adapter", modelName, int64(promptTokens), int64(completionTokens), int64(cachedTokens), vertexResp.StatusCode, dest, reqBody, traceID)
 
 	anthropicResp := MessageResponse{
 		ID:           fmt.Sprintf("msg_%s", traceID),

@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"polaris-gateway/internal/db"
 	"polaris-gateway/internal/router"
 	"polaris-gateway/internal/translators/utils"
 )
@@ -151,12 +150,7 @@ func anthropicPassthroughNonStream(w http.ResponseWriter, upstreamResp *http.Res
 		} `json:"usage"`
 	}
 	if json.Unmarshal(bodyBytes, &resp) == nil {
-		promptTokens := int64(resp.Usage.InputTokens)
-		completionTokens := int64(resp.Usage.OutputTokens)
-		cost := utils.CalculateCost(dest.Node.Provider, modelName, promptTokens, completionTokens, 0, reqBody)
-		db.SaveUsage("anthropic", dest.Node.Name, clientType, "passthrough", promptTokens, completionTokens, cost, upstreamResp.StatusCode)
-		dest.Node.RecordCost(cost, traceID)
-		slog.Info("💰 结算完成 (Anthropic)", "trace_id", traceID, "account", dest.Node.Name, "model", modelName, "prompt", promptTokens, "completion", completionTokens, "cost", fmt.Sprintf("%.4f", cost))
+		settleBilling("anthropic", dest.Node.Name, clientType, "passthrough", modelName, int64(resp.Usage.InputTokens), int64(resp.Usage.OutputTokens), 0, upstreamResp.StatusCode, dest, reqBody, traceID)
 	}
 
 	// Pass through headers and body
@@ -179,10 +173,7 @@ func extractAndRecordAnthropicUsage(tailBuf []byte, modelName string, dest *rout
 	if len(match) > 1 {
 		var outputTokens int64
 		fmt.Sscanf(string(match[1]), "%d", &outputTokens)
-		cost := utils.CalculateCost(dest.Node.Provider, modelName, 0, outputTokens, 0, reqBody)
-		db.SaveUsage("anthropic", dest.Node.Name, clientType, methodName, 0, outputTokens, cost, http.StatusOK)
-		dest.Node.RecordCost(cost, traceID)
-		slog.Info("💰 结算完成 (Anthropic Stream)", "trace_id", traceID, "account", dest.Node.Name, "model", modelName, "output_tokens", outputTokens, "cost", fmt.Sprintf("%.4f", cost))
+		settleBilling("anthropic", dest.Node.Name, clientType, methodName, modelName, 0, outputTokens, 0, http.StatusOK, dest, reqBody, traceID)
 	}
 }
 

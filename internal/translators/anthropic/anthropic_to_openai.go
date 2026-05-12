@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"polaris-gateway/internal/db"
 	"polaris-gateway/internal/router"
 	"polaris-gateway/internal/translators/utils"
 )
@@ -189,18 +188,7 @@ func anthropicStreamOpenAI(w http.ResponseWriter, oaiResp *http.Response, traceI
 	flusher, _ := w.(http.Flusher)
 
 	// Send message_start
-	startEvent := StreamEvent{
-		Type: "message_start",
-		Message: &MessageResponse{
-			ID:      fmt.Sprintf("msg_%s", traceID),
-			Type:    "message",
-			Role:    "assistant",
-			Content: []Content{}, // Prevents "content": null
-			Model:   modelName,
-			Usage:   Usage{},
-		},
-	}
-	writeSSE(w, flusher, "message_start", startEvent)
+	writeSSEMessageStart(w, flusher, traceID, modelName)
 
 	// Send content_block_start
 	cbStartEvent := StreamEvent{
@@ -277,27 +265,9 @@ func anthropicStreamOpenAI(w http.ResponseWriter, oaiResp *http.Response, traceI
 	}
 
 	// Send content_block_stop
-	cbStopEvent := StreamEvent{
-		Type:  "content_block_stop",
-		Index: ptrInt(0),
-	}
-	writeSSE(w, flusher, "content_block_stop", cbStopEvent)
+	writeSSEContentBlockStop(w, flusher, 0)
 
-	// Send message_delta + message_stop
-	msgDeltaEvent := StreamEvent{
-		Type: "message_delta",
-		Delta: &Delta{
-			StopReason: "end_turn",
-		},
-	}
-	writeSSE(w, flusher, "message_delta", msgDeltaEvent)
-
-	msgStopEvent := StreamEvent{
-		Type: "message_stop",
-	}
-	writeSSE(w, flusher, "message_stop", msgStopEvent)
-
-	// Parse usage from tail buffer (OpenAI format)
+	// Parse usage from tail buffer BEFORE message_delta so we can include it
 	prompt, completion, cached, found := utils.ParseUsageFromStreamTail(tailBuf)
 	if !found {
 		prompt = utils.EstimatePromptTokens(reqBody)
@@ -305,16 +275,22 @@ func anthropicStreamOpenAI(w http.ResponseWriter, oaiResp *http.Response, traceI
 		slog.Warn("⚠️ 响应流中断，启用 token 估算补偿", "trace_id", traceID, "node", dest.Node.Name, "prompt", prompt, "completion", completion)
 	}
 
-	if prompt > 0 || completion > 0 {
-		cost := utils.CalculateCost(dest.Node.Provider, modelName, prompt, completion, cached, reqBody)
-		db.SaveUsage("openai", dest.Node.Name, clientType, "anthropic_adapter", prompt, completion, cost, oaiResp.StatusCode)
-		dest.Node.RecordCost(cost, traceID)
-		if cached > 0 {
-			slog.Info("💰 结算完成", "trace_id", traceID, "account", dest.Node.Name, "model", modelName, "prompt", prompt, "cached", cached, "completion", completion, "cost", fmt.Sprintf("%.4f", cost))
-		} else {
-			slog.Info("💰 结算完成", "trace_id", traceID, "account", dest.Node.Name, "model", modelName, "prompt", prompt, "completion", completion, "cost", fmt.Sprintf("%.4f", cost))
-		}
+	// Send message_delta with usage so Claude Code tracks token counts accurately
+	msgDeltaEvent := StreamEvent{
+		Type: "message_delta",
+		Delta: &Delta{
+			StopReason: "end_turn",
+		},
+		Usage: &Usage{
+			InputTokens:  int(prompt),
+			OutputTokens: int(completion),
+		},
 	}
+	writeSSE(w, flusher, "message_delta", msgDeltaEvent)
+
+	writeSSEMessageStop(w, flusher)
+
+	settleBilling("openai", dest.Node.Name, clientType, "anthropic_adapter", modelName, prompt, completion, cached, oaiResp.StatusCode, dest, reqBody, traceID)
 }
 
 // anthropicNonStreamOpenAI 处理 OpenAI 后端的非流式响应，提取内容转为 Anthropic JSON 格式
@@ -347,10 +323,7 @@ func anthropicNonStreamOpenAI(w http.ResponseWriter, oaiResp *http.Response, tra
 	// Record billing
 	promptTokens := int64(oaiResponse.Usage.PromptTokens)
 	completionTokens := int64(oaiResponse.Usage.CompletionTokens)
-	cost := utils.CalculateCost(dest.Node.Provider, modelName, promptTokens, completionTokens, 0, reqBody)
-	db.SaveUsage("openai", dest.Node.Name, clientType, "anthropic_adapter", promptTokens, completionTokens, cost, oaiResp.StatusCode)
-	dest.Node.RecordCost(cost, traceID)
-	slog.Info("💰 结算完成", "trace_id", traceID, "account", dest.Node.Name, "model", modelName, "prompt", promptTokens, "completion", completionTokens, "cost", fmt.Sprintf("%.4f", cost))
+	settleBilling("openai", dest.Node.Name, clientType, "anthropic_adapter", modelName, promptTokens, completionTokens, 0, oaiResp.StatusCode, dest, reqBody, traceID)
 
 	// Return in Anthropic format
 	anthropicResp := MessageResponse{
