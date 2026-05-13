@@ -384,7 +384,8 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 						if isThought, _ := part["thought"].(bool); isThought {
 							continue
 						}
-						if t, ok := part["text"].(string); ok && t != "" {
+						if t, ok := part["text"].(string); ok {
+							// 允许空字符串，避免 contents 为空导致 Claude Code /compact 报错 "empty response"
 							contents = append(contents, Content{
 								Type: "text",
 								Text: t,
@@ -410,10 +411,14 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 		}
 	}
 
-	if len(contents) == 0 {
-		slog.Warn("⚠️ [NonStream] Vertex 返回响应但无文本内容（可能被安全过滤器屏蔽或返回空候选项）",
+	if len(contents) == 0 || (len(contents) == 1 && contents[0].Text == "") {
+		slog.Warn("⚠️ [NonStream] Vertex 返回响应但无有效文本内容（可能被安全过滤器屏蔽或返回空候选项），填充默认占位符防止客户端崩溃",
 			"trace_id", traceID, "account", dest.Node.Name,
 			"stop_reason", stopReason, "vertex_resp_preview", string(bodyBytes[:min(len(bodyBytes), 500)]))
+
+		contents = []Content{
+			{Type: "text", Text: "[Summary skipped: Vertex API returned an empty response]"},
+		}
 	}
 
 	settleBilling("vertex", dest.Node.Name, clientType, "anthropic_adapter", modelName, int64(promptTokens), int64(completionTokens), int64(cachedTokens), vertexResp.StatusCode, dest, reqBody, traceID)
