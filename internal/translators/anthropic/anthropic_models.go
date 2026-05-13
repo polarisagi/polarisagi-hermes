@@ -37,7 +37,10 @@ type RequestMetadata struct {
 type Tool struct {
 	Name        string                 `json:"name"`
 	Description string                 `json:"description,omitempty"`
-	InputSchema map[string]interface{} `json:"input_schema"`
+	InputSchema map[string]interface{} `json:"input_schema,omitempty"`
+	// Type 标识 Anthropic 内置工具类型，如 "bash_20250124"、"computer_20250124"、"text_editor_20250124"
+	// Gemini 无对等内置工具，处理时需跳过这类工具避免无效的 functionDeclaration
+	Type        string                 `json:"type,omitempty"`
 }
 
 type ToolChoice struct {

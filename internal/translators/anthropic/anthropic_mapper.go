@@ -303,6 +303,11 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 	if len(req.Tools) > 0 {
 		var functionDeclarations []map[string]interface{}
 		for _, t := range req.Tools {
+			// 跳过 Anthropic 内置工具类型（computer use / bash / text_editor / web_search）
+			// 这些工具在 Gemini 侧无对等 functionDeclaration，强行透传会导致 400
+			if t.Type != "" {
+				continue
+			}
 			var params map[string]interface{}
 			if t.InputSchema != nil {
 				params = sanitizeSchema(t.InputSchema)
@@ -345,7 +350,12 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 		if len(allowedNames) > 0 {
 			funcConfig["allowedFunctionNames"] = allowedNames
 		}
-		
+		// disable_parallel_tool_use → Gemini disableParallelFunctionCalls
+		// 用于强制模型串行执行工具调用，避免并行调用导致副作用竞争
+		if req.ToolChoice.DisableParallelToolUse {
+			funcConfig["disableParallelFunctionCalls"] = true
+		}
+
 		vertexReq["toolConfig"] = map[string]interface{}{
 			"functionCallingConfig": funcConfig,
 		}
