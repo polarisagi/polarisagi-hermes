@@ -1,5 +1,5 @@
 // Anthropic 响应流式/非流式处理 + SSE 写入工具
-// 从 Vertex 后端读取 GenerateContentResponse，实时转换为 Anthropic SSE 格式并推送给客户端
+// 从 Google Agent Platform 后端读取 GenerateContentResponse，实时转换为 Anthropic SSE 格式并推送给客户端
 package anthropic
 
 import (
@@ -43,12 +43,13 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 	inText := false
 	var toolID string
 	stopReason := "end_turn"
-	var streamError string // tracks mid-stream error for reporting
+	var matchedStopSeq string  // 触发停止的序列（Gemini 不直接返回，通过文本尾部推断）
+	var streamError string     // tracks mid-stream error for reporting
 
 	for {
 		// 客户端断开时 r.Context() 被取消，提前退出避免继续消耗上游连接
 		if ctx.Err() != nil {
-			slog.Debug("🔌 [Stream] 客户端已断开，终止 Vertex 流式响应", "trace_id", traceID, "account", dest.Node.Name)
+			slog.Debug("🔌 [Stream] 客户端已断开，终止 GEAP 流式响应", "trace_id", traceID, "account", dest.Node.Name)
 			return true
 		}
 
@@ -62,7 +63,7 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 			}
 			// Non-EOF IO error: connection reset, timeout, etc.
 			streamError = fmt.Sprintf("stream read error: %v", err)
-			slog.Error("❌ [Stream] Vertex SSE 流读取失败，连接可能中断", "trace_id", traceID, "account", dest.Node.Name, "error", err.Error())
+			slog.Error("❌ [Stream] GEAP SSE 流读取失败，连接可能中断", "trace_id", traceID, "account", dest.Node.Name, "error", err.Error())
 			break
 		}
 
@@ -78,26 +79,26 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 
 		var vResp map[string]interface{}
 		if err := json.Unmarshal(data, &vResp); err != nil {
-			slog.Warn("⚠️ [Stream] Vertex SSE 行 JSON 解析失败", "trace_id", traceID, "account", dest.Node.Name, "data_preview", string(data[:min(len(data), 200)]))
+			slog.Warn("⚠️ [Stream] GEAP SSE 行 JSON 解析失败", "trace_id", traceID, "account", dest.Node.Name, "data_preview", string(data[:min(len(data), 200)]))
 			continue
 		}
 
-		// Detect Vertex API error inside SSE stream (e.g., mid-stream rate limit)
+		// Detect GEAP API error inside SSE stream (e.g., mid-stream rate limit)
 		if errData, ok := vResp["error"].(map[string]interface{}); ok {
-			errMsg := "vertex API error in stream"
+			errMsg := "GEAP API error in stream"
 			if msg, ok := errData["message"].(string); ok {
 				errMsg = msg
 			}
 			streamError = errMsg
-			slog.Error("❌ [Stream] Vertex 在流中返回 API 错误（可能是中途触发限流）", "trace_id", traceID, "account", dest.Node.Name, "error", errMsg)
+			slog.Error("❌ [Stream] GEAP 在流中返回 API 错误（可能是中途触发限流）", "trace_id", traceID, "account", dest.Node.Name, "error", errMsg)
 			break
 		}
 
 		// Detect promptFeedback block (content policy refusal)
 		if pf, ok := vResp["promptFeedback"].(map[string]interface{}); ok {
 			if blockReason, ok := pf["blockReason"].(string); ok && blockReason != "" {
-				streamError = fmt.Sprintf("request blocked by Vertex safety filter: %s", blockReason)
-				slog.Error("❌ [Stream] Vertex promptFeedback 阻断请求", "trace_id", traceID, "account", dest.Node.Name, "block_reason", blockReason)
+				streamError = fmt.Sprintf("request blocked by GEAP safety filter: %s", blockReason)
+				slog.Error("❌ [Stream] GEAP promptFeedback 阻断请求", "trace_id", traceID, "account", dest.Node.Name, "block_reason", blockReason)
 				break
 			}
 		}
@@ -127,14 +128,19 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 			case "MAX_TOKENS":
 				stopReason = "max_tokens"
 			case "STOP":
-				// 若下方循环检测到 functionCall，会覆盖为 "tool_use"
-				// 此处保持 stopReason 不变（默认 "end_turn"）
+				// Gemini STOP 可能是自然结束或命中 stopSequences
+				// 尝试推断：若请求有 stopSequences，则标记为 stop_sequence 类型
+				if len(req.StopSequences) > 0 {
+					stopReason = "stop_sequence"
+					// Gemini 不在响应中返回具体命中的序列，仅标记类型
+					// matchedStopSeq 保持空字符串（与 Anthropic 行为一致：不确定时不填）
+					_ = matchedStopSeq
+				}
 			case "MALFORMED_FUNCTION_CALL", "UNEXPECTED_TOOL_CALL":
-				// 工具调用相关的非致命错误：映射为 tool_use 让客户端重试
 				stopReason = "tool_use"
 			case "SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "IMAGE_SAFETY":
 				stopReason = "end_turn"
-				slog.Warn("⚠️ [Stream] Vertex 返回安全相关停止原因", "trace_id", traceID, "account", dest.Node.Name, "finish_reason", finishReason)
+				slog.Warn("⚠️ [Stream] Google Agent Platform 返回安全相关停止原因", "trace_id", traceID, "account", dest.Node.Name, "finish_reason", finishReason)
 			default:
 				stopReason = "end_turn"
 			}
@@ -153,9 +159,37 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 		for _, partIntf := range parts {
 			part, _ := partIntf.(map[string]interface{})
 
-			// Gemini 在启用 thinkingConfig 时会以 thought=true 的 part 返回内部推理过程
-			// 不应作为正式答案输出给客户端（否则思考内容会前置到最终答案前）
+			// Gemini 在启用 thinkingConfig.includeThoughts 时，以 thought=true 的 part 返回推理过程
+			// 若客户端请求了 thinking（req.Thinking.Type=="enabled"），则转为 Anthropic thinking 块；
+			// 否则静默丢弃，避免思考内容混入正式答案
 			if isThought, _ := part["thought"].(bool); isThought {
+				if req.Thinking != nil && req.Thinking.Type == "enabled" {
+					if thinkText, ok := part["text"].(string); ok && thinkText != "" {
+						if inText {
+							writeSSEContentBlockStop(w, flusher, blockIndex)
+							inText = false
+							blockIndex++
+						}
+						writeSSE(w, flusher, "content_block_start", StreamEvent{
+							Type:  "content_block_start",
+							Index: ptrInt(blockIndex),
+							ContentBlock: &Content{
+								Type:     "thinking",
+								Thinking: "",
+							},
+						})
+						writeSSE(w, flusher, "content_block_delta", StreamEvent{
+							Type:  "content_block_delta",
+							Index: ptrInt(blockIndex),
+							Delta: &Delta{
+								Type:     "thinking_delta",
+								Thinking: thinkText,
+							},
+						})
+						writeSSEContentBlockStop(w, flusher, blockIndex)
+						blockIndex++
+					}
+				}
 				continue
 			}
 
@@ -251,7 +285,7 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 	// This surfaces the "no assistant message" failure as a proper error rather than silently
 	// returning an empty assistant message that confuses Claude Code's /compact.
 	if streamError == "" && blockIndex == 0 && !inText {
-		streamError = "Vertex returned empty response with no text content (possible safety filter or empty candidates)"
+		streamError = "Google Agent Platform returned empty response with no text content (possible safety filter or empty candidates)"
 		slog.Warn("⚠️ [Stream] Vertex 流式响应未包含任何文本内容，将返回错误供客户端重试",
 			"trace_id", traceID, "account", dest.Node.Name,
 			"stop_reason", stopReason, "prompt_tokens", promptTokens)
@@ -313,7 +347,7 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 	return true
 }
 
-// handleAnthropicNonStreamResponse 处理 Vertex 非流式响应，提取文本和用量，转为 Anthropic JSON 格式返回
+// handleAnthropicNonStreamResponse 处理 Google Agent Platform 非流式响应，提取文本和用量，转为 Anthropic JSON 格式返回
 func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Response, req MessageRequest, traceID string, dest *router.MatchedDestination, clientType, modelName string, reqBody []byte) {
 	defer vertexResp.Body.Close()
 	bodyBytes, err := io.ReadAll(vertexResp.Body)
@@ -344,14 +378,14 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 	// Detect promptFeedback block (safety refusal before any candidates)
 	if pf, ok := vResp["promptFeedback"].(map[string]interface{}); ok {
 		if blockReason, ok := pf["blockReason"].(string); ok && blockReason != "" {
-			slog.Error("❌ [NonStream] Vertex promptFeedback 阻断请求", "trace_id", traceID, "account", dest.Node.Name, "block_reason", blockReason)
+			slog.Error("❌ [NonStream] GEAP promptFeedback 阻断请求", "trace_id", traceID, "account", dest.Node.Name, "block_reason", blockReason)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadGateway)
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"type": "error",
 				"error": map[string]interface{}{
 					"type":    "api_error",
-					"message": fmt.Sprintf("request blocked by Vertex safety filter: %s", blockReason),
+					"message": fmt.Sprintf("request blocked by GEAP safety filter: %s", blockReason),
 				},
 			})
 			return
@@ -368,20 +402,35 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 				switch finishReason {
 				case "MAX_TOKENS":
 					stopReason = "max_tokens"
+				case "STOP":
+					if len(req.StopSequences) > 0 {
+						stopReason = "stop_sequence"
+					}
 				case "MALFORMED_FUNCTION_CALL", "UNEXPECTED_TOOL_CALL":
 					stopReason = "tool_use"
 				case "SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "IMAGE_SAFETY":
 					stopReason = "end_turn"
-					slog.Warn("⚠️ [NonStream] Vertex 返回安全相关停止原因",
+					slog.Warn("⚠️ [NonStream] Google Agent Platform 返回安全相关停止原因",
 						"trace_id", traceID, "account", dest.Node.Name, "finish_reason", finishReason)
 				}
 			}
 			if content, ok := cand["content"].(map[string]interface{}); ok {
 				if parts, ok := content["parts"].([]interface{}); ok && len(parts) > 0 {
-					for i, partIntf := range parts {
+					toolIdx := 0
+					for _, partIntf := range parts {
 						part, _ := partIntf.(map[string]interface{})
-						// 跳过 Gemini 思考过程 part，避免混入最终答案
+						// Gemini thought 部分：若客户端启用了 thinking，转为 thinking 内容块
 						if isThought, _ := part["thought"].(bool); isThought {
+							if req.Thinking != nil && req.Thinking.Type == "enabled" {
+								if thinkText, ok := part["text"].(string); ok && thinkText != "" {
+									contents = append(contents, Content{
+										Type:     "thinking",
+										Thinking: thinkText,
+										// Gemini 不返回 signature，填空字符串满足 Anthropic schema
+										Signature: "",
+									})
+								}
+							}
 							continue
 						}
 						if t, ok := part["text"].(string); ok {
@@ -399,11 +448,12 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 							}
 							contents = append(contents, Content{
 								Type:  "tool_use",
-								ID:    fmt.Sprintf("toolu_%s_%d", traceID, i),
+								ID:    fmt.Sprintf("toolu_%s_%d", traceID, toolIdx),
 								Name:  name,
 								Input: args,
 							})
 							stopReason = "tool_use"
+							toolIdx++
 						}
 					}
 				}

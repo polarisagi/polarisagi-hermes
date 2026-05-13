@@ -6,26 +6,32 @@ package anthropic
 // MessageRequest Anthropic Messages API 请求结构
 // 对应 POST https://api.anthropic.com/v1/messages
 type MessageRequest struct {
-	Model       string      `json:"model"`                 // 模型名，如 "claude-sonnet-4-6"
-	Messages    []Message   `json:"messages"`              // 对话消息列表
-	System      interface{} `json:"system,omitempty"`      // 系统提示词 (string 或 []Content)
-	MaxTokens   int         `json:"max_tokens"`            // 最大生成 token 数
-	Temperature *float64    `json:"temperature,omitempty"` // 温度参数
-	TopP        *float64    `json:"top_p,omitempty"`       // Top-P 采样
-	TopK        *int        `json:"top_k,omitempty"`       // Top-K 采样
+	Model         string          `json:"model"`                    // 模型名，如 "claude-sonnet-4-6"
+	Messages      []Message       `json:"messages"`                 // 对话消息列表
+	System        interface{}     `json:"system,omitempty"`         // 系统提示词 (string 或 []Content)
+	MaxTokens     int             `json:"max_tokens"`               // 最大生成 token 数
+	Temperature   *float64        `json:"temperature,omitempty"`    // 温度参数 [0,1]
+	TopP          *float64        `json:"top_p,omitempty"`          // Top-P 采样
+	TopK          *int            `json:"top_k,omitempty"`          // Top-K 采样
 	Stream        bool            `json:"stream,omitempty"`         // 是否流式响应
 	Tools         []Tool          `json:"tools,omitempty"`          // 可用工具列表
 	ToolChoice    *ToolChoice     `json:"tool_choice,omitempty"`    // 工具选择策略
 	StopSequences []string        `json:"stop_sequences,omitempty"` // 自定义停止序列
 	Thinking      *ThinkingConfig `json:"thinking,omitempty"`       // 扩展思考配置（Claude Code /effort 命令使用）
+	Metadata      *RequestMetadata `json:"metadata,omitempty"`      // 请求元数据（用户标识等）
 }
 
 // ThinkingConfig Anthropic 扩展思考配置
 // type="enabled" 时启用思考，budget_tokens 给出思考可用的 token 预算
-// 映射到 Gemini 的 generationConfig.thinkingConfig.thinkingBudget
+// 映射到 Gemini 的 generationConfig.thinkingConfig.thinkingBudget + includeThoughts:true
 type ThinkingConfig struct {
 	Type         string `json:"type,omitempty"`          // "enabled" / "disabled"
 	BudgetTokens int    `json:"budget_tokens,omitempty"` // 思考阶段可用的 token 数
+}
+
+// RequestMetadata Anthropic 请求元数据
+type RequestMetadata struct {
+	UserID string `json:"user_id,omitempty"` // 终端用户标识，用于滥用防控
 }
 
 type Tool struct {
@@ -60,14 +66,16 @@ type MessageResponse struct {
 
 // Content 内容块，Anthropic 使用 content blocks 而非纯文本
 type Content struct {
-	Type      string                 `json:"type"`                  // "text" / "image" / "tool_use" / "tool_result" 等
+	Type      string                 `json:"type"`                  // "text" / "image" / "tool_use" / "tool_result" / "thinking"
 	Text      string                 `json:"text,omitempty"`        // for text
+	Thinking  string                 `json:"thinking,omitempty"`    // for thinking
+	Signature string                 `json:"signature,omitempty"`   // for thinking（Anthropic 要求携带，用于验证）
 	ID        string                 `json:"id,omitempty"`          // for tool_use
 	Name      string                 `json:"name,omitempty"`        // for tool_use
-	Input     interface{}            `json:"input,omitempty"`       // for tool_use (using interface{} to allow struct{}{} for empty {})
+	Input     interface{}            `json:"input,omitempty"`       // for tool_use
 	ToolUseID string                 `json:"tool_use_id,omitempty"` // for tool_result
 	Content   interface{}            `json:"content,omitempty"`     // for tool_result
-	Source    map[string]interface{} `json:"source,omitempty"`      // for image
+	Source    map[string]interface{} `json:"source,omitempty"`      // for image/document
 }
 
 // Usage Anthropic 用量统计
@@ -96,8 +104,10 @@ type StreamEvent struct {
 
 // Delta SSE 增量更新，携带文本片段或停止原因
 type Delta struct {
-	Type        string `json:"type,omitempty"`
-	Text        string `json:"text,omitempty"`
-	StopReason  string `json:"stop_reason,omitempty"`
-	PartialJson string `json:"partial_json,omitempty"` // for tool_use
+	Type         string `json:"type,omitempty"`
+	Text         string `json:"text,omitempty"`
+	Thinking     string `json:"thinking,omitempty"`      // for thinking_delta
+	StopReason   string `json:"stop_reason,omitempty"`
+	StopSequence string `json:"stop_sequence,omitempty"` // 触发停止的序列
+	PartialJson  string `json:"partial_json,omitempty"`  // for input_json_delta (tool_use)
 }

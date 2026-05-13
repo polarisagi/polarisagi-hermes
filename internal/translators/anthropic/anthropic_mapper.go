@@ -81,7 +81,7 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 						// Claude 扩展思考块：Vertex 无对等概念，直接丢弃
 						// 不丢弃会导致 model 角色出现空 part，触发 Vertex 校验失败
 						continue
-					case "image", "document", "audio", "video", "media":
+					case "image", "audio", "video", "media":
 						if source, ok := m["source"].(map[string]interface{}); ok {
 							if source["type"] == "base64" {
 								parts = append(parts, map[string]interface{}{
@@ -94,6 +94,30 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 								parts = append(parts, map[string]interface{}{
 									"fileData": map[string]interface{}{
 										"mimeType": source["media_type"],
+										"fileUri":  source["url"],
+									},
+								})
+							}
+						}
+					case "document":
+						// Anthropic document 类型主要用于 PDF（media_type: application/pdf）
+						// Gemini 通过 inlineData（base64）或 fileData（URI）接收
+						if source, ok := m["source"].(map[string]interface{}); ok {
+							mediaType, _ := source["media_type"].(string)
+							if mediaType == "" {
+								mediaType = "application/pdf"
+							}
+							if source["type"] == "base64" {
+								parts = append(parts, map[string]interface{}{
+									"inlineData": map[string]interface{}{
+										"mimeType": mediaType,
+										"data":     source["data"],
+									},
+								})
+							} else if source["type"] == "url" {
+								parts = append(parts, map[string]interface{}{
+									"fileData": map[string]interface{}{
+										"mimeType": mediaType,
 										"fileUri":  source["url"],
 									},
 								})
@@ -204,12 +228,17 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 	if len(req.StopSequences) > 0 {
 		genConfig["stopSequences"] = req.StopSequences
 	}
-	// 扩展思考映射：Anthropic thinking.budget_tokens → Gemini thinkingConfig.thinkingBudget
-	// Claude Code 的 /effort 命令通过此字段调整模型推理深度
-	if req.Thinking != nil && req.Thinking.Type == "enabled" && req.Thinking.BudgetTokens > 0 {
-		genConfig["thinkingConfig"] = map[string]interface{}{
-			"thinkingBudget": req.Thinking.BudgetTokens,
+	// 扩展思考映射：Anthropic thinking.budget_tokens → Gemini thinkingConfig
+	// includeThoughts:true 让 Gemini 在响应中返回 thought 标记的 parts，
+	// 流式处理器会将其转换为 Anthropic thinking 内容块
+	if req.Thinking != nil && req.Thinking.Type == "enabled" {
+		thinkingCfg := map[string]interface{}{
+			"includeThoughts": true,
 		}
+		if req.Thinking.BudgetTokens > 0 {
+			thinkingCfg["thinkingBudget"] = req.Thinking.BudgetTokens
+		}
+		genConfig["thinkingConfig"] = thinkingCfg
 	}
 	if len(genConfig) > 0 {
 		vertexReq["generationConfig"] = genConfig
@@ -273,18 +302,22 @@ func sanitizeSchema(schema map[string]interface{}) map[string]interface{} {
 
 	result := make(map[string]interface{})
 	
-	// 先拷贝所有属性实现全面透传，但要过滤掉 Vertex API 明确不支持的 JSON Schema 字段
+	// 先拷贝所有属性实现全面透传，过滤 Gemini API 明确不支持的 JSON Schema 字段
+	// 参考：https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest
 	for k, v := range schema {
-		if k == "$schema" || k == "propertyNames" || k == "exclusiveMinimum" {
+		switch k {
+		case "$schema", "$ref", "$defs", "$id",
+			"propertyNames", "exclusiveMinimum", "exclusiveMaximum",
+			"additionalProperties", // Gemini 不支持，传入会导致 400
+			"unevaluatedProperties", "unevaluatedItems",
+			"if", "then", "else", "not",      // 条件 schema 不支持
+			"contentEncoding", "contentMediaType": // 内容编码不支持
 			continue
-		}
-		
-		// 将 const 转换为 enum，因为 Vertex 支持 enum 但不支持 const
-		if k == "const" {
+		case "const":
+			// const 转为 enum 单值
 			result["enum"] = []interface{}{v}
 			continue
 		}
-		
 		result[k] = v
 	}
 
