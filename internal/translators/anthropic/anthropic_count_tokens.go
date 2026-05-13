@@ -211,8 +211,9 @@ func handleVertexCountTokens(ctx context.Context, w http.ResponseWriter, bodyByt
 	}
 
 	vReq, _ := mapToVertexRequest(req)
-	// countTokens 端点只接受 contents/systemInstruction/tools，剥离 generationConfig
+	// countTokens 端点只接受 contents/systemInstruction/tools，其余字段均不支持
 	delete(vReq, "generationConfig")
+	delete(vReq, "safetySettings")
 	vReqBytes, _ := json.Marshal(vReq)
 
 	targetURL := buildGEAPURL(dest.Node, "google", fmt.Sprintf("models/%s:countTokens", model), "global")
