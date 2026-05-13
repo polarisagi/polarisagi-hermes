@@ -319,10 +319,14 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 			}
 			functionDeclarations = append(functionDeclarations, decl)
 		}
-		vertexReq["tools"] = []map[string]interface{}{
-			{
-				"functionDeclarations": functionDeclarations,
-			},
+		// 仅在有有效的 functionDeclarations 时才设置 tools 字段
+		// 若所有 tool 都是内置类型（Type != ""）被跳过，不发送空的 tools 数组
+		if len(functionDeclarations) > 0 {
+			vertexReq["tools"] = []map[string]interface{}{
+				{
+					"functionDeclarations": functionDeclarations,
+				},
+			}
 		}
 	}
 
