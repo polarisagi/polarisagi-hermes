@@ -505,11 +505,11 @@
                                 </div>
                                 <div>
                                     <label class="block text-sm font-medium text-slate-300 mb-1">起始有效时间</label>
-                                    <input v-model="nodeForm.valid_from" type="text" placeholder="2000-01-01 00:00:00" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none">
+                                    <input v-model="nodeForm.valid_from" type="datetime-local" step="1" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none">
                                 </div>
                                 <div class="col-span-3">
                                     <label class="block text-sm font-medium text-slate-300 mb-1">截止有效时间 (到期自动停用)</label>
-                                    <input v-model="nodeForm.valid_to" type="text" placeholder="2099-12-31 23:59:59" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none">
+                                    <input v-model="nodeForm.valid_to" type="datetime-local" step="1" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none">
                                 </div>
                             </div>
                         </div>

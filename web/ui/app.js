@@ -81,14 +81,24 @@ createApp({
         };
 
         const nodeModal = ref({ show: false, isEdit: false });
+        // datetime-local 控件格式 "YYYY-MM-DDTHH:MM:SS" ↔ 数据库格式 "YYYY-MM-DD HH:MM:SS"
+        const toDatetimeLocal = (dt) => dt ? dt.trim().replace(' ', 'T') : '';
+        const fromDatetimeLocal = (dt) => dt ? dt.trim().replace('T', ' ') : '';
+        const todayPrefix = () => {
+            const d = new Date();
+            const pad = n => String(n).padStart(2, '0');
+            return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+        };
+
         const nodeForm = ref({
             id: 0, provider: 'openai', name: '', credentials: '', project_id: '', location: 'global', base_url: '',
-            priority: 0, limit_percent: 90.0, balance: 0.0, valid_from: '2000-01-01 00:00:00', valid_to: '2099-12-31 23:59:59', status: 1
+            priority: 0, limit_percent: 90.0, balance: 0.0,
+            valid_from: `${todayPrefix()}T00:00:00`, valid_to: `${todayPrefix()}T23:59:59`, status: 1
         });
 
         const formatNum = (num) => Number(num).toFixed(4);
         const formatToken = (num) => new Intl.NumberFormat().format(num);
-        const formatShortDate = (dt) => dt ? dt.split(' ')[0] : '-';
+        const formatShortDate = (dt) => dt ? dt.split('T')[0].split(' ')[0] : '-';
         const successRateColor = (rate) => rate > 95 ? 'border-emerald-500' : (rate > 80 ? 'border-yellow-500' : 'border-red-500');
 
         // Protocol display helpers
@@ -282,12 +292,19 @@ createApp({
 
         const openNodeModal = (node = null) => {
             if (node) {
-                nodeForm.value = { ...node, credentials: '' };
+                nodeForm.value = {
+                    ...node,
+                    credentials: '',
+                    valid_from: toDatetimeLocal(node.valid_from),
+                    valid_to: toDatetimeLocal(node.valid_to),
+                };
                 nodeModal.value = { show: true, isEdit: true };
             } else {
+                const today = todayPrefix();
                 nodeForm.value = {
                     id: 0, provider: 'openai', name: '', credentials: '', project_id: '', location: 'global', base_url: '',
-                    priority: 0, limit_percent: 90.0, balance: 0.0, valid_from: '2000-01-01 00:00:00', valid_to: '2099-12-31 23:59:59', status: 1
+                    priority: 0, limit_percent: 90.0, balance: 0.0,
+                    valid_from: `${today}T00:00:00`, valid_to: `${today}T23:59:59`, status: 1
                 };
                 nodeModal.value = { show: true, isEdit: false };
             }
@@ -310,19 +327,18 @@ createApp({
                 showToast('阻断水位线不能超过100', 'error');
                 return;
             }
-            
-            const dateRegex = /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}:\d{2})?$/;
-            if (nodeForm.value.valid_from && !dateRegex.test(nodeForm.value.valid_from)) {
-                showToast('起止日期格式有误', 'error');
-                return;
-            }
 
             try {
                 const method = nodeModal.value.isEdit ? 'PUT' : 'POST';
+                const payload = {
+                    ...nodeForm.value,
+                    valid_from: fromDatetimeLocal(nodeForm.value.valid_from),
+                    valid_to: fromDatetimeLocal(nodeForm.value.valid_to),
+                };
                 const res = await fetch('/api/admin/nodes', {
                     method,
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(nodeForm.value)
+                    body: JSON.stringify(payload)
                 });
                 if (res.ok) {
                     showToast(nodeModal.value.isEdit ? '节点已更新' : '节点已添加');
