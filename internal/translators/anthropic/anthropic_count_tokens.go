@@ -6,7 +6,9 @@
 //
 // 本网关实现策略：
 //   - anthropic→anthropic 透传：转发到上游真实的 count_tokens 端点，最高精度
-//   - anthropic→vertex/openai：本地估算（上游协议不同，无对等端点）
+//   - anthropic→google (GEAP Claude)：转发到 GEAP rawPredict count-tokens 端点，精确计数
+//   - anthropic→google (Gemini)：调用 Gemini countTokens 端点，精确计数
+//   - anthropic→openai：本地估算（OpenAI 无对等端点）
 package anthropic
 
 import (
@@ -168,7 +170,7 @@ func handleCountTokensPassthrough(ctx context.Context, w http.ResponseWriter, r 
 	proxyReq.Header.Set("anthropic-version", "2023-06-01")
 	proxyReq.Header.Set("Content-Type", "application/json")
 
-	resp, err := passthroughHTTPClient.Do(proxyReq)
+	resp, err := httpClient.Do(proxyReq)
 	if err != nil {
 		slog.Warn("⚠️ [CountTokens] 上游请求失败，降级本地估算", "trace_id", traceID, "error", err)
 		handleCountTokensLocal(w, bodyBytes, traceID)
@@ -213,19 +215,7 @@ func handleVertexCountTokens(ctx context.Context, w http.ResponseWriter, bodyByt
 	delete(vReq, "generationConfig")
 	vReqBytes, _ := json.Marshal(vReq)
 
-	// 构造 Vertex countTokens 端点 URL
-	template := dest.Node.BaseURL
-	if template == "" {
-		template = "https://aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/google/{subpath}"
-	}
-	location := dest.Node.Location
-	if location == "" {
-		location = "global"
-	}
-	subpath := fmt.Sprintf("models/%s:countTokens", model)
-	targetURL := strings.ReplaceAll(template, "{project_id}", dest.Node.ProjectID)
-	targetURL = strings.ReplaceAll(targetURL, "{location}", location)
-	targetURL = strings.ReplaceAll(targetURL, "{subpath}", subpath)
+	targetURL := buildGEAPURL(dest.Node, "google", fmt.Sprintf("models/%s:countTokens", model), "global")
 
 	proxyReq, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(vReqBytes))
 	if err != nil {

@@ -1,3 +1,20 @@
+// Anthropic → Google Agent Platform 转换处理器
+//
+// AnthropicToGoogle 作为统一入口，根据最终目标模型名自动分流到两条路径：
+//
+//	claude-* 前缀 → GEAP Claude 直通（rawPredict 端点，保持 Anthropic 原生协议）
+//	其他模型名   → Gemini 转换（GenerateContent 端点，完整协议格式转换）
+//
+// 两条路径共用相同的 GEAP 平台（aiplatform.googleapis.com）和 API Key 认证，
+// 区别在于 URL 中的 publisher 段（anthropic / google）以及请求/响应体的协议格式。
+//
+// GEAP Claude 端点参考：
+//
+//	https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/partner-models/claude/use-claude
+//
+// Gemini GenerateContent 端点参考：
+//
+//	https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest
 package anthropic
 
 import (
@@ -14,36 +31,55 @@ import (
 	"polaris-gateway/internal/translators/utils"
 )
 
-// httpClient 复用 utils.SharedHTTPClient 共享 TCP 连接池
-// 取本地别名以保留原有调用语法；如需修改超时/Transport 请改 utils.SharedHTTPClient
-var httpClient = utils.SharedHTTPClient
+// anthropicVersionGEAP GEAP 平台要求的 Claude 请求体版本字段，Google 官方文档中写死
+const anthropicVersionGEAP = "vertex-2023-10-16"
 
-// AnthropicToGoogle 将 Anthropic Messages API 请求转换为 Google Agent Platform GenerateContent API 格式
-// 官方 REST API 参考：https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest
-// 转换流程: 解析 Anthropic 消息 → mapToVertexRequest 转换格式 → 发送到 GEAP 端点 → 流式/非流式回写 Anthropic 格式
+// isClaudeModel 判断目标模型是否为 GEAP Claude 合作伙伴模型（claude-* 前缀）
+func isClaudeModel(model string) bool {
+	return strings.HasPrefix(strings.ToLower(model), "claude-")
+}
+
+// buildGEAPURL 构建 Google Agent Platform 端点 URL
+//
+//   - publisher:       "google"（Gemini 路径）或 "anthropic"（Claude 合作伙伴模型路径）
+//   - subpath:         如 "models/gemini-2.5-pro:generateContent"、"models/claude-sonnet-4-6:rawPredict"
+//   - defaultLocation: Gemini 建议 "global"；Claude 仅在 us-east5/europe-west1/asia-southeast1 可用
+//
+// 支持自定义 base_url 模板变量 {project_id}, {location}, {subpath}（已含 publisher 时 publisher 参数仅用于默认 URL）
+func buildGEAPURL(node *router.NodeState, publisher, subpath, defaultLocation string) string {
+	tmpl := node.BaseURL
+	if tmpl == "" {
+		tmpl = "https://aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/" + publisher + "/{subpath}"
+	}
+	location := node.Location
+	if location == "" {
+		location = defaultLocation
+	}
+	url := strings.ReplaceAll(tmpl, "{project_id}", node.ProjectID)
+	url = strings.ReplaceAll(url, "{location}", location)
+	url = strings.ReplaceAll(url, "{subpath}", subpath)
+	return url
+}
+
+// AnthropicToGoogle 解析请求后按目标模型名分流：
+//
+//	match=claude-*, target=claude-sonnet-4-6  → GEAP Claude 直通（Google 官方 Claude）
+//	match=claude-*, target=gemini-2.5-pro     → Gemini 格式转换
+//	match=*, target=""                        → 按客户端 req.Model 前缀自动分流
 func AnthropicToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) {
-	// 解析请求体以获取 Stream/Model 等字段
 	var req MessageRequest
 	if err := json.Unmarshal(bodyBytes, &req); err != nil {
 		http.Error(w, `{"type": "error", "error": {"type": "invalid_request_error", "message": "invalid json"}}`, 400)
 		return
 	}
 
-	// 路由解析后的最终模型 = TargetModel（路由 target 字段，非空时覆盖）|| req.Model（透传客户端）
-	// 路由 match 字段对客户端模型名支持通配（*、prefix-*），target 字段为空时表示透传 req.Model
-	// 分流策略：最终模型以 claude- 开头 → 走 GEAP Claude 直通；其他 → 走 Gemini 转换
-	// 覆盖场景：
-	//   match=claude-*, target=claude-sonnet-4-6  → 强制走 GEAP（Google 官方 Claude）
-	//   match=claude-*, target=gemini-2.5-pro     → 强制走 Gemini 转换
-	//   match=claude-*, target=""                 → 透传 req.Model 到 GEAP Claude（同名 Google 官方模型）
-	//   match=*, target=""                        → 透传客户端模型名，按是否 claude- 自动分流
+	// TargetModel（路由映射 target 字段）非空时覆盖客户端模型名
 	finalModel := dest.TargetModel
 	if finalModel == "" {
 		finalModel = req.Model
 	}
 	useGEAPClaude := isClaudeModel(finalModel)
 
-	// count_tokens 端点分流：Claude Code 的 /context 命令与自动 compact 触发依赖此端点
 	if isCountTokensPath(r.URL.Path) {
 		if useGEAPClaude {
 			handleGEAPClaudeCountTokens(ctx, w, bodyBytes, dest, traceID, finalModel)
@@ -54,31 +90,205 @@ func AnthropicToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Reque
 	}
 
 	if useGEAPClaude {
-		passthroughToGEAPClaude(ctx, w, r, bodyBytes, dest, traceID, finalModel)
+		handleGEAPClaude(ctx, w, bodyBytes, dest, traceID, finalModel, req.Stream)
+	} else {
+		handleGemini(ctx, w, bodyBytes, dest, traceID, finalModel, req)
+	}
+}
+
+// ─── GEAP Claude 直通路径 ────────────────────────────────────────────────────
+// 请求体：Anthropic 原生（添加 anthropic_version，移除 model 字段）
+// 端点路径：publishers/anthropic/models/{model}:rawPredict / :streamRawPredict
+// 响应体：Anthropic 原生 SSE，透传无转换
+
+// handleGEAPClaude 将 Anthropic 请求直通到 GEAP Claude 端点
+func handleGEAPClaude(ctx context.Context, w http.ResponseWriter, bodyBytes []byte, dest *router.MatchedDestination, traceID, model string, stream bool) {
+	const clientType = "Anthropic-GEAP-Claude"
+
+	geapBody, err := rewriteBodyForGEAPClaude(bodyBytes, false, "")
+	if err != nil {
+		http.Error(w, `{"type":"error","error":{"type":"invalid_request_error","message":"failed to rewrite body"}}`, http.StatusBadRequest)
 		return
 	}
 
-	clientType := "Anthropic-Adapter"
+	var subpath string
+	if stream {
+		subpath = fmt.Sprintf("models/%s:streamRawPredict", model)
+	} else {
+		subpath = fmt.Sprintf("models/%s:rawPredict", model)
+	}
+	targetURL := buildGEAPURL(dest.Node, "anthropic", subpath, "us-east5")
 
-	// Gemini 路径：把 Anthropic 请求体映射为 Google Agent Platform GenerateContent 格式
+	if dest.IsProbationRun {
+		slog.Warn("⚠️ 启用 🟠 Probation 账号执行流量探路 (GEAP-Claude)", "trace_id", traceID, "account", dest.Node.Name)
+	}
+
+	proxyReq, _ := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(geapBody))
+	proxyReq.Header.Set("Content-Type", "application/json")
+	q := proxyReq.URL.Query()
+	q.Set("key", dest.Node.Credentials)
+	proxyReq.URL.RawQuery = q.Encode()
+
+	finalResp, err := httpClient.Do(proxyReq)
+	if err != nil {
+		utils.HandleNetworkError(w, err, dest, "google", clientType, "anthropic_geap_claude", traceID, "Anthropic(GEAP-Claude)")
+		return
+	}
+
+	isNodeFailure, isQuotaExhausted := utils.CheckResponseStatus(finalResp, dest, "google", clientType, "anthropic_geap_claude", traceID, "Anthropic(GEAP-Claude)")
+
+	if finalResp.StatusCode != http.StatusOK {
+		errBody, _ := io.ReadAll(finalResp.Body)
+		finalResp.Body.Close()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(finalResp.StatusCode)
+		w.Write(errBody)
+		utils.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
+		return
+	}
+
+	if stream {
+		streamGEAPClaude(w, finalResp, dest, clientType, model, traceID, bodyBytes)
+	} else {
+		nonStreamGEAPClaude(w, finalResp, dest, clientType, model, traceID, bodyBytes)
+	}
+	utils.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
+}
+
+// rewriteBodyForGEAPClaude 注入 anthropic_version，删除 model 字段（model 在 URL 中指定）
+// countTokens 场景保留 model 字段且删除推理参数（count-tokens 端点的额外限制）
+func rewriteBodyForGEAPClaude(bodyBytes []byte, isCountTokens bool, targetModel string) ([]byte, error) {
+	var m map[string]interface{}
+	if err := json.Unmarshal(bodyBytes, &m); err != nil {
+		return nil, err
+	}
+	m["anthropic_version"] = anthropicVersionGEAP
+	if isCountTokens {
+		if targetModel != "" {
+			m["model"] = targetModel
+		}
+		delete(m, "stream")
+		delete(m, "max_tokens")
+		delete(m, "temperature")
+		delete(m, "top_p")
+		delete(m, "top_k")
+		delete(m, "stop_sequences")
+	} else {
+		delete(m, "model")
+	}
+	return json.Marshal(m)
+}
+
+// streamGEAPClaude 透传 GEAP Claude SSE 流（Anthropic 原生事件格式，无需转换）
+func streamGEAPClaude(w http.ResponseWriter, upstreamResp *http.Response, dest *router.MatchedDestination, clientType, modelName, traceID string, reqBody []byte) {
+	defer upstreamResp.Body.Close()
+
+	for k, vv := range upstreamResp.Header {
+		if !strings.EqualFold(k, "Content-Length") && !strings.EqualFold(k, "Transfer-Encoding") {
+			for _, v := range vv {
+				w.Header().Add(k, v)
+			}
+		}
+	}
+	w.WriteHeader(upstreamResp.StatusCode)
+
+	tailBuf, _ := utils.ForwardStreamBody(w, upstreamResp.Body)
+
+	if bytes.Contains(tailBuf, []byte("output_tokens")) {
+		extractAndRecordAnthropicUsage(tailBuf, modelName, dest, clientType, "anthropic_geap_claude", traceID, reqBody)
+	}
+}
+
+// nonStreamGEAPClaude 透传 GEAP Claude 非流式响应并提取 usage 完成计费
+func nonStreamGEAPClaude(w http.ResponseWriter, upstreamResp *http.Response, dest *router.MatchedDestination, clientType, modelName, traceID string, reqBody []byte) {
+	defer upstreamResp.Body.Close()
+	bodyBytes, err := io.ReadAll(upstreamResp.Body)
+	if err != nil {
+		http.Error(w, "Failed to read response", http.StatusInternalServerError)
+		return
+	}
+	parseAndSettleAnthropicResponse("google", bodyBytes, dest, clientType, "anthropic_geap_claude", modelName, traceID, upstreamResp.StatusCode, reqBody)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(upstreamResp.StatusCode)
+	w.Write(bodyBytes)
+}
+
+// handleGEAPClaudeCountTokens 调用 GEAP Claude count-tokens 端点获取精确计数，失败时降级本地估算
+// 端点：publishers/anthropic/models/count-tokens:rawPredict
+func handleGEAPClaudeCountTokens(ctx context.Context, w http.ResponseWriter, bodyBytes []byte, dest *router.MatchedDestination, traceID string, model string) {
+	geapBody, err := rewriteBodyForGEAPClaude(bodyBytes, true, model)
+	if err != nil {
+		slog.Warn("⚠️ [CountTokens-GEAP-Claude] body 重写失败，降级本地估算", "trace_id", traceID, "error", err)
+		handleCountTokensLocal(w, bodyBytes, traceID)
+		return
+	}
+
+	targetURL := buildGEAPURL(dest.Node, "anthropic", "models/count-tokens:rawPredict", "us-east5")
+
+	proxyReq, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(geapBody))
+	if err != nil {
+		slog.Warn("⚠️ [CountTokens-GEAP-Claude] 请求构建失败，降级本地估算", "trace_id", traceID, "error", err)
+		handleCountTokensLocal(w, bodyBytes, traceID)
+		return
+	}
+	proxyReq.Header.Set("Content-Type", "application/json")
+	q := proxyReq.URL.Query()
+	q.Set("key", dest.Node.Credentials)
+	proxyReq.URL.RawQuery = q.Encode()
+
+	resp, err := httpClient.Do(proxyReq)
+	if err != nil {
+		slog.Warn("⚠️ [CountTokens-GEAP-Claude] 调用失败，降级本地估算", "trace_id", traceID, "error", err)
+		handleCountTokensLocal(w, bodyBytes, traceID)
+		return
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		slog.Warn("⚠️ [CountTokens-GEAP-Claude] 上游非 200，降级本地估算",
+			"trace_id", traceID, "status", resp.StatusCode,
+			"body_preview", string(respBody[:min(len(respBody), 200)]))
+		handleCountTokensLocal(w, bodyBytes, traceID)
+		return
+	}
+
+	slog.Debug("📏 [CountTokens-GEAP-Claude] 上游精确计数", "trace_id", traceID, "model", model)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(respBody)
+}
+
+// ─── Gemini 转换路径 ─────────────────────────────────────────────────────────
+// 请求体：Anthropic 格式 → Gemini GenerateContent 格式（mapToVertexRequest）
+// 端点路径：publishers/google/models/{model}:generateContent / :streamGenerateContent
+// 响应体：Gemini 格式 → Anthropic 格式（streamAnthropicResponse / handleAnthropicNonStreamResponse）
+
+// handleGemini 将 Anthropic 请求转换为 Gemini GenerateContent 格式后转发
+func handleGemini(ctx context.Context, w http.ResponseWriter, bodyBytes []byte, dest *router.MatchedDestination, traceID, model string, req MessageRequest) {
+	const clientType = "Anthropic-Adapter"
+
 	vReq, _ := mapToVertexRequest(req)
 	vReqBytes, _ := json.Marshal(vReq)
 
-	// 此处 finalModel 必然不是 claude-*（已被上方分流截获）
-	model := finalModel
 	if model == "" {
-		model = "gemini-1.5-pro" // 兜底：路由透传但客户端也未指定模型
+		model = "gemini-1.5-pro"
 	}
 
-	targetURL := buildAnthropicGoogleTargetURL(dest.Node, model, req.Stream)
+	var subpath string
+	if req.Stream {
+		subpath = fmt.Sprintf("models/%s:streamGenerateContent", model)
+	} else {
+		subpath = fmt.Sprintf("models/%s:generateContent", model)
+	}
+	targetURL := buildGEAPURL(dest.Node, "google", subpath, "global")
 
 	if dest.IsProbationRun {
-		slog.Warn("⚠️ 启用 🟠 Probation 账号执行流量探路 (Anthropic Adapter)", "trace_id", traceID, "account", dest.Node.Name)
+		slog.Warn("⚠️ 启用 🟠 Probation 账号执行流量探路 (Gemini)", "trace_id", traceID, "account", dest.Node.Name)
 	}
 
 	proxyReq, _ := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(vReqBytes))
 	proxyReq.Header.Set("Content-Type", "application/json")
-
 	q := proxyReq.URL.Query()
 	q.Set("key", dest.Node.Credentials)
 	if req.Stream {
@@ -88,11 +298,11 @@ func AnthropicToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Reque
 
 	finalResp, err := httpClient.Do(proxyReq)
 	if err != nil {
-		utils.HandleNetworkError(w, err, dest, "google", clientType, "anthropic_adapter", traceID, "Anthropic(Google Agent Platform)")
+		utils.HandleNetworkError(w, err, dest, "google", clientType, "anthropic_adapter", traceID, "Anthropic(Gemini)")
 		return
 	}
 
-	isNodeFailure, isQuotaExhausted := utils.CheckResponseStatus(finalResp, dest, "google", clientType, "anthropic_adapter", traceID, "Anthropic(Google Agent Platform)")
+	isNodeFailure, isQuotaExhausted := utils.CheckResponseStatus(finalResp, dest, "google", clientType, "anthropic_adapter", traceID, "Anthropic(Gemini)")
 
 	if finalResp.StatusCode != http.StatusOK {
 		errBody, _ := io.ReadAll(finalResp.Body)
@@ -119,46 +329,7 @@ func AnthropicToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Reque
 	} else {
 		handleAnthropicNonStreamResponse(w, finalResp, req, traceID, dest, clientType, model, bodyBytes)
 	}
-
 	utils.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
-}
-
-// buildAnthropicGoogleTargetURL 构建 Anthropic→Google 转发的目标 URL
-// 参考：https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest
-//
-// 双模式自动检测：
-//   - 有 project_id → GEAP 端点（aiplatform.googleapis.com，需 API Key 或服务账号）
-//   - 无 project_id + 无自定义 base_url → AI Studio 端点（generativelanguage.googleapis.com，仅 API Key）
-//
-// 支持自定义 base_url 模板变量 {project_id}, {location}, {subpath}
-func buildAnthropicGoogleTargetURL(node *router.NodeState, model string, stream bool) string {
-	endpoint := "generateContent"
-	if stream {
-		endpoint = "streamGenerateContent"
-	}
-
-	// AI Studio 模式：无 project_id 且未配置自定义 base_url，直接走 generativelanguage 端点
-	if node.ProjectID == "" && node.BaseURL == "" {
-		return fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:%s", model, endpoint)
-	}
-
-	template := node.BaseURL
-	if template == "" {
-		template = "https://aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/google/{subpath}"
-	}
-
-	location := node.Location
-	if location == "" {
-		location = "global"
-	}
-
-	subpath := fmt.Sprintf("models/%s:%s", model, endpoint)
-
-	resURL := strings.ReplaceAll(template, "{project_id}", node.ProjectID)
-	resURL = strings.ReplaceAll(resURL, "{location}", location)
-	resURL = strings.ReplaceAll(resURL, "{subpath}", subpath)
-
-	return resURL
 }
 
 func init() {

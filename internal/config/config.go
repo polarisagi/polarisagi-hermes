@@ -11,11 +11,13 @@ import (
 )
 
 // AccountDetail 上游节点配置，对应数据库 sys_nodes 表中的一条记录
-// 每个节点代表一个可用的 API 账号（如 OpenAI Key、Vertex Service Account 等）
+// 每个节点代表一个可用的上游 API 账号
 type AccountDetail struct {
 	ID           int     `json:"id"`             // 节点唯一 ID
-	Name         string  `json:"name"`           // 节点名称/账号邮箱（唯一标识）
-	Provider     string  `json:"provider"`        // 协议类型: openai/google/anthropic/gemini（google 对应 Google Agent Platform）
+	Name         string  `json:"name"`           // 节点名称/账号标识（唯一）
+	Provider     string  `json:"provider"`        // 上游协议类型: anthropic | openai | google
+	// Provider 与路由 target_protocol 必须一致，路由引擎依此选节点
+	// google 节点对应 Google Agent Platform (GEAP)，需要 ProjectID + Location + Credentials(API Key)
 	BaseURL      string  `json:"base_url"`       // 自定义 API 端点（空则使用官方默认地址）
 	Credentials  string  `json:"-"`              // API Key / JSON 凭证（JSON 序列化时隐藏）
 	ProjectID    string  `json:"project_id"`     // GCP 项目 ID（仅 Google Agent Platform 节点使用）
@@ -38,10 +40,15 @@ type ModelMapping struct {
 
 // RouteDetail 路由规则配置，定义协议间的转换规则和模型映射
 // 每条路由 = 源协议 + 目标协议 + 模型映射表
+// 合法组合（与已注册的 translator 严格对应）:
+//
+//	anthropic → anthropic | google | openai
+//	openai    → openai | google
+//	google    → google
 type RouteDetail struct {
 	ID                 int            `json:"id"`                   // 路由唯一 ID
-	SourceProtocol     string         `json:"source_protocol"`     // 源协议: openai/anthropic/vertex
-	TargetProtocol     string         `json:"target_protocol"`     // 目标协议: openai/google/gemini（google 对应 Google Agent Platform）
+	SourceProtocol     string         `json:"source_protocol"`     // 源协议: anthropic | openai | google
+	TargetProtocol     string         `json:"target_protocol"`     // 目标协议: anthropic | openai | google（必须与节点 provider 一致）
 	ModelMappings      string         `json:"-"`                   // 模型映射 JSON 原始字符串（数据库存储）
 	ModelMappingsParsed []ModelMapping `json:"model_mappings"`     // 解析后的模型映射列表（API 输出）
 	Status             int            `json:"status"`              // 1=正常, 0=禁用
@@ -189,14 +196,8 @@ func ReloadFromDB() error {
 		slog.Info("🛤️ 路由表装载完成", "active_routes", len(AppConfig.Routes))
 	}
 
-	// google 指 Google Agent Platform (GEAP) 节点
-	if len(AppConfig.Providers["google"]) == 0 && len(AppConfig.Providers["openai"]) == 0 {
+	if len(AppConfig.Providers) == 0 {
 		slog.Warn("无可用物理节点，网关将返回 503 直到添加新节点")
-	}
-
-	// 通知路由引擎热重载（避免 admin CRUD 后 routesBySource/nodesMap 停滞）
-	if OnConfigReloaded != nil {
-		OnConfigReloaded()
 	}
 
 	return nil

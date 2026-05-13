@@ -293,10 +293,18 @@
                         <tbody>
                             <tr v-for="route in routes" :key="route.id" class="border-b border-slate-700 hover:bg-slate-700/50">
                                 <td class="px-6 py-4">
-                                    <span :class="protocolBadge(route.source_protocol)" class="text-white text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">{{ protocolLabel(route.source_protocol) }}</span>
+                                    <span :class="protocolBadge(route.source_protocol)" class="text-white text-[10px] px-2 py-0.5 rounded-full font-bold uppercase border">{{ protocolLabel(route.source_protocol) }}</span>
                                 </td>
                                 <td class="px-6 py-4">
-                                    <span :class="'text-sm font-medium ' + protocolClass(route.target_protocol)">{{ protocolLabel(route.target_protocol) }}</span>
+                                    <div :class="'text-sm font-medium ' + protocolClass(route.target_protocol)">{{ protocolLabel(route.target_protocol) }}</div>
+                                    <div class="text-xs text-slate-500 mt-0.5">{{ {
+                                        'anthropic_anthropic': '透传直通',
+                                        'anthropic_google':    'Anthropic→Gemini/GEAP',
+                                        'anthropic_openai':    'Anthropic→OpenAI',
+                                        'openai_openai':       '透传直通',
+                                        'openai_google':       'OpenAI→Vertex',
+                                        'google_google':       '透传直通',
+                                    }[route.source_protocol + '_' + route.target_protocol] || '' }}</div>
                                 </td>
                                 <td class="px-6 py-4">
                                     <div class="flex flex-wrap gap-1.5">
@@ -440,7 +448,12 @@
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-slate-300 mb-1">API Key / JSON Credentials *</label>
+                            <label class="block text-sm font-medium text-slate-300 mb-1">
+                                API Key <span class="text-red-400">*</span>
+                                <span v-if="nodeForm.provider === 'google'" class="text-slate-500 font-normal text-xs ml-1">（GCP API Key，用于 key= 参数认证）</span>
+                                <span v-else-if="nodeForm.provider === 'anthropic'" class="text-slate-500 font-normal text-xs ml-1">（sk-ant-... 格式）</span>
+                                <span v-else class="text-slate-500 font-normal text-xs ml-1">（sk-... 或 Bearer Token）</span>
+                            </label>
                             <input v-model="nodeForm.credentials" type="password" placeholder="填写后将覆盖旧值，留空则保持原样" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
                         </div>
 
@@ -461,15 +474,16 @@
 
                         <div v-if="nodeForm.provider === 'google'" class="grid grid-cols-2 gap-4 p-4 bg-slate-900/50 rounded-lg border border-slate-700">
                             <div class="col-span-2 text-xs text-slate-400 mb-1">
-                                GEAP 模式：填写 GCP Project ID 后使用服务账号/API Key 调用 <code>aiplatform.googleapis.com</code>；留空则自动切换为 AI Studio API Key 模式（<code>generativelanguage.googleapis.com</code>）。
+                                使用 GCP 项目凭证访问 <code>aiplatform.googleapis.com</code>，支持 Gemini 原生协议及 Claude 合作伙伴模型（GEAP）。
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-slate-300 mb-1">GCP Project ID (GEAP 模式必填)</label>
-                                <input v-model="nodeForm.project_id" type="text" placeholder="留空使用 AI Studio API Key 模式" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none">
+                                <label class="block text-sm font-medium text-slate-300 mb-1">GCP Project ID <span class="text-red-400">*</span></label>
+                                <input v-model="nodeForm.project_id" type="text" placeholder="your-gcp-project-id" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none focus:ring-1 focus:ring-blue-500">
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-slate-300 mb-1">Location (默认 global)</label>
-                                <input v-model="nodeForm.location" type="text" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none">
+                                <label class="block text-sm font-medium text-slate-300 mb-1">Location</label>
+                                <input v-model="nodeForm.location" type="text" placeholder="global" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none focus:ring-1 focus:ring-blue-500">
+                                <p class="text-xs text-slate-500 mt-1">留空默认 global；Claude 模型可选 us-east5</p>
                             </div>
                         </div>
 
@@ -521,20 +535,19 @@
                             <div>
                                 <label class="block text-sm font-medium text-slate-300 mb-1">源协议 (接收端) *</label>
                                 <select v-model="routeForm.source_protocol" @change="onSourceProtocolChange()" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
-                                    <option value="openai">OpenAI (chat/completions)</option>
-                                    <option value="anthropic">Anthropic (messages)</option>
-                                    <option value="google">Google (原生协议)</option>
+                                    <option value="anthropic">Anthropic — Messages API</option>
+                                    <option value="openai">OpenAI — Chat Completions API</option>
+                                    <option value="google">Google — 原生 GEAP 协议</option>
                                 </select>
                                 <p class="text-xs text-slate-500 mt-1">客户端通过哪个协议接入网关</p>
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-slate-300 mb-1">目标协议 (转发端) *</label>
                                 <select v-model="routeForm.target_protocol" @change="onTargetProtocolChange()" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
-                                    <option value="openai">OpenAI (标准 API)</option>
-                                    <option value="google">Google Agent Platform</option>
-                                    <option value="anthropic">Anthropic (直通)</option>
+                                    <option v-for="tp in availableTargetProtocols" :key="tp.value" :value="tp.value">{{ tp.label }}</option>
                                 </select>
-                                <p class="text-xs text-slate-500 mt-1">发给上游时的协议，系统自动选目标协议的节点</p>
+                                <p class="text-xs text-emerald-400/80 mt-1" v-if="routeTypeDesc">{{ routeTypeDesc }}</p>
+                                <p class="text-xs text-slate-500 mt-1" v-else>发给上游时的协议，系统自动选目标协议的节点</p>
                             </div>
                         </div>
 

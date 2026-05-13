@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"regexp"
@@ -264,6 +265,36 @@ func BuildTargetURL(acc config.AccountDetail, incomingPath string) string {
 	// 3. 标准 OpenAI 节点处理 (如 DeepSeek)
 	baseURL := strings.TrimSuffix(acc.BaseURL, "/")
 	return baseURL + "/v1" + subPath
+}
+
+// ForwardStreamBody 将 body 流式转发到 w，同时维护尾部 8KB 缓冲窗口
+// 返回尾部缓冲（用于从流末提取 usage 字段）和累计写入字节数（用于 token 估算兜底）
+// 调用方负责在调用前后进行 header 复制、w.WriteHeader 和 body.Close
+func ForwardStreamBody(w http.ResponseWriter, body io.Reader) (tailBuf []byte, totalWritten int64) {
+	flusher, _ := w.(http.Flusher)
+	buf := make([]byte, 8192)
+	const tailWindowSize = 8192
+
+	for {
+		n, readErr := body.Read(buf)
+		if n > 0 {
+			if _, writeErr := w.Write(buf[:n]); writeErr != nil {
+				break
+			}
+			if flusher != nil {
+				flusher.Flush()
+			}
+			totalWritten += int64(n)
+			tailBuf = append(tailBuf, buf[:n]...)
+			if len(tailBuf) > tailWindowSize {
+				tailBuf = tailBuf[len(tailBuf)-tailWindowSize:]
+			}
+		}
+		if readErr != nil {
+			break
+		}
+	}
+	return tailBuf, totalWritten
 }
 
 func ParseToInt(b []byte) int64 {

@@ -41,14 +41,8 @@ func GoogleToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Request,
 			q.Add(k, v)
 		}
 	}
-	// 认证策略：
-	//   - GEAP 合作伙伴模型 (publishers/anthropic/...) 强制 OAuth Bearer Token
-	//   - Gemini 短路径或 publishers/google 兼容 API Key 查询参数（向后兼容）
-	if strings.Contains(targetURL, "publishers/anthropic/") {
-		proxyReq.Header.Set("Authorization", "Bearer "+dest.Node.Credentials)
-	} else {
-		q.Set("key", dest.Node.Credentials)
-	}
+	// 统一使用 API Key 查询参数认证（Gemini 和 GEAP Claude 均支持 ?key= 方式）
+	q.Set("key", dest.Node.Credentials)
 	proxyReq.URL.RawQuery = q.Encode()
 
 	utils.ExecuteAndStream(w, proxyReq, dest, "google", clientType, methodName, traceID, "Google Agent Platform",
@@ -70,31 +64,7 @@ func streamGoogleResponse(w http.ResponseWriter, finalResp *http.Response, dest 
 	}
 	w.WriteHeader(finalResp.StatusCode)
 
-	flusher, _ := w.(http.Flusher)
-	buf := make([]byte, 8192)
-	var tailBuf []byte
-	const tailWindowSize = 8192
-	var totalWritten int64
-
-	for {
-		n, err := finalResp.Body.Read(buf)
-		if n > 0 {
-			if _, writeErr := w.Write(buf[:n]); writeErr != nil {
-				break
-			}
-			if flusher != nil {
-				flusher.Flush()
-			}
-			totalWritten += int64(n)
-			tailBuf = append(tailBuf, buf[:n]...)
-			if len(tailBuf) > tailWindowSize {
-				tailBuf = tailBuf[len(tailBuf)-tailWindowSize:]
-			}
-		}
-		if err != nil {
-			break
-		}
-	}
+	tailBuf, totalWritten := utils.ForwardStreamBody(w, finalResp.Body)
 
 	prompt, completion, cached, found := utils.ParseUsageFromStreamTail(tailBuf)
 	if !found {

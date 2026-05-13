@@ -28,33 +28,7 @@ func streamAndSettleUsage(w http.ResponseWriter, finalResp *http.Response, dest 
 	}
 	w.WriteHeader(finalResp.StatusCode)
 
-	flusher, _ := w.(http.Flusher)
-	buf := make([]byte, 8192)
-	var tailBuf []byte
-	const tailWindowSize = 8192
-	var totalWritten int64
-
-	for {
-		n, err := finalResp.Body.Read(buf)
-		if n > 0 {
-			if _, writeErr := w.Write(buf[:n]); writeErr != nil {
-				break
-			}
-			if flusher != nil {
-				flusher.Flush()
-			}
-
-			totalWritten += int64(n)
-
-			tailBuf = append(tailBuf, buf[:n]...)
-			if len(tailBuf) > tailWindowSize {
-				tailBuf = tailBuf[len(tailBuf)-tailWindowSize:]
-			}
-		}
-		if err != nil {
-			break
-		}
-	}
+	tailBuf, totalWritten := utils.ForwardStreamBody(w, finalResp.Body)
 
 	prompt, completion, cached, found := utils.ParseUsageFromStreamTail(tailBuf)
 	if !found {

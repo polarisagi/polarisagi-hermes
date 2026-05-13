@@ -15,9 +15,6 @@ import (
 	"polaris-gateway/internal/translators/utils"
 )
 
-// passthroughHTTPClient 复用 utils.SharedHTTPClient 共享 TCP 连接池
-var passthroughHTTPClient = utils.SharedHTTPClient
-
 // AnthropicToAnthropic is a pure passthrough: no protocol conversion, just load balancing + billing.
 // It proxies the Anthropic request body as-is to the target upstream and streams the response back.
 func AnthropicToAnthropic(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) {
@@ -75,7 +72,7 @@ func AnthropicToAnthropic(ctx context.Context, w http.ResponseWriter, r *http.Re
 	proxyReq.Header.Set("anthropic-version", "2023-06-01")
 	proxyReq.Header.Set("Content-Type", "application/json")
 
-	finalResp, err := passthroughHTTPClient.Do(proxyReq)
+	finalResp, err := httpClient.Do(proxyReq)
 	if err != nil {
 		utils.HandleNetworkError(w, err, dest, "anthropic", clientType, "passthrough", traceID, "Anthropic Passthrough")
 		return
@@ -105,34 +102,8 @@ func anthropicPassthroughStream(w http.ResponseWriter, upstreamResp *http.Respon
 	}
 	w.WriteHeader(upstreamResp.StatusCode)
 
-	flusher, _ := w.(http.Flusher)
-	buf := make([]byte, 32*1024)
-	var tailBuf []byte
-	const tailWindowSize = 8192
+	tailBuf, _ := utils.ForwardStreamBody(w, upstreamResp.Body)
 
-	for {
-		n, readErr := upstreamResp.Body.Read(buf)
-		if n > 0 {
-			if _, writeErr := w.Write(buf[:n]); writeErr != nil {
-				break
-			}
-			if flusher != nil {
-				flusher.Flush()
-			}
-			tailBuf = append(tailBuf, buf[:n]...)
-			if len(tailBuf) > tailWindowSize {
-				tailBuf = tailBuf[len(tailBuf)-tailWindowSize:]
-			}
-		}
-		if readErr != nil {
-			break
-		}
-	}
-
-	// Parse Anthropic SSE message_delta for usage
-	// Anthropic stream format: event: message_delta\n data: {"usage":{"output_tokens": 123}}
-	// OR non-stream Anthropic response JSON contains "usage":{"input_tokens":N,"output_tokens":N}
-	// For streaming, we look for "output_tokens" in the tail buffer
 	if bytes.Contains(tailBuf, []byte("output_tokens")) {
 		extractAndRecordAnthropicUsage(tailBuf, modelName, dest, clientType, "passthrough", traceID, reqBody)
 	}
@@ -147,18 +118,8 @@ func anthropicPassthroughNonStream(w http.ResponseWriter, upstreamResp *http.Res
 		return
 	}
 
-	// Extract usage from Anthropic response JSON
-	var resp struct {
-		Usage struct {
-			InputTokens  int `json:"input_tokens"`
-			OutputTokens int `json:"output_tokens"`
-		} `json:"usage"`
-	}
-	if json.Unmarshal(bodyBytes, &resp) == nil {
-		settleBilling("anthropic", dest.Node.Name, clientType, "passthrough", modelName, int64(resp.Usage.InputTokens), int64(resp.Usage.OutputTokens), 0, upstreamResp.StatusCode, dest, reqBody, traceID)
-	}
+	parseAndSettleAnthropicResponse("anthropic", bodyBytes, dest, clientType, "passthrough", modelName, traceID, upstreamResp.StatusCode, reqBody)
 
-	// Pass through headers and body
 	for k, vv := range upstreamResp.Header {
 		if !strings.EqualFold(k, "Content-Length") {
 			for _, v := range vv {

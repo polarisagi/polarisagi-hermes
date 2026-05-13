@@ -30,12 +30,12 @@ import (
 type TranslatorFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *MatchedDestination, traceID string)
 
 // Translators 全局协议转换器注册表
-// key 格式: "{源协议}_to_{目标协议}", 例如 "vertex_to_openai"
+// key 格式: "{源协议}_to_{目标协议}", 例如 "anthropic_to_google"
 var Translators = make(map[string]TranslatorFunc)
 
 // RegisterTranslator 注册一个协议转换器
-// incomingProtocol: 客户端使用的协议 (openai/anthropic/vertex)
-// targetProvider: 上游节点的协议类型 (openai/vertex/gemini)
+// incomingProtocol: 客户端使用的协议 (openai/anthropic/google)
+// targetProvider: 上游节点的协议类型 (openai/anthropic/google)
 func RegisterTranslator(incomingProtocol, targetProvider string, f TranslatorFunc) {
 	key := fmt.Sprintf("%s_to_%s", incomingProtocol, targetProvider)
 	Translators[key] = f
@@ -153,7 +153,7 @@ func ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer atomic.AddInt32(&webapi.ActiveCount, -1)
 	defer ReleaseNode(dest.Node.ID)
 
-	// 步骤8：查找协议转换器 (如 "vertex_to_openai")
+	// 步骤8：查找协议转换器 (如 "anthropic_to_google")
 	translatorKey := fmt.Sprintf("%s_to_%s", sourceProtocol, dest.TargetProtocol)
 	translator, exists := Translators[translatorKey]
 

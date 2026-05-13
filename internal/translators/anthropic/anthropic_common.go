@@ -1,6 +1,7 @@
 package anthropic
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -9,6 +10,9 @@ import (
 	"polaris-gateway/internal/router"
 	"polaris-gateway/internal/translators/utils"
 )
+
+// httpClient 包级共享 HTTP 客户端，所有 Anthropic 包内的转换器均通过此实例发出上游请求
+var httpClient = utils.SharedHTTPClient
 
 // writeSSEMessageStart 发送 message_start 事件
 // estimatedInputTokens > 0 时填入 Usage.InputTokens，让 Claude Code 的 /context 命令
@@ -40,6 +44,22 @@ func writeSSEMessageStop(w http.ResponseWriter, flusher http.Flusher) {
 	writeSSE(w, flusher, "message_stop", StreamEvent{
 		Type: "message_stop",
 	})
+}
+
+// parseAndSettleAnthropicResponse 从 Anthropic 格式的非流式响应体中提取 usage 并完成计费
+// 两个直通处理器（anthropic→anthropic 和 anthropic→geap-claude）均走此路径，仅 provider 不同
+func parseAndSettleAnthropicResponse(provider string, bodyBytes []byte, dest *router.MatchedDestination, clientType, methodName, modelName, traceID string, statusCode int, reqBody []byte) {
+	var resp struct {
+		Usage struct {
+			InputTokens  int `json:"input_tokens"`
+			OutputTokens int `json:"output_tokens"`
+		} `json:"usage"`
+	}
+	if json.Unmarshal(bodyBytes, &resp) == nil {
+		settleBilling(provider, dest.Node.Name, clientType, methodName, modelName,
+			int64(resp.Usage.InputTokens), int64(resp.Usage.OutputTokens), 0,
+			statusCode, dest, reqBody, traceID)
+	}
 }
 
 // settleBilling records usage and cost for a completed API request

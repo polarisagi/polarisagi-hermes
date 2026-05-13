@@ -11,8 +11,8 @@ type ModelInfo struct {
 }
 
 // GetModelsByProtocol 根据协议返回可用的模型列表
-// 支持: openai, anthropic, google（Google Agent Platform，含 Gemini 直连 API Key 节点）
-// "gemini" 作为 "google" 的别名保持向后兼容
+// 支持: openai, anthropic, google（Google Agent Platform）
+// "gemini" 作为 "google" 的别名保持向后兼容（旧客户端/数据库迁移前的兼容层）
 func GetModelsByProtocol(protocol string) []ModelInfo {
 	if protocol == "gemini" {
 		protocol = "google"
@@ -93,8 +93,9 @@ var modelCatalog = map[string][]ModelInfo{
 		{Name: "claude-3-haiku-20240307", DisplayName: "Claude 3 Haiku", Protocol: "anthropic", Category: "legacy"},
 	},
 
-	// google 键对应 Google Agent Platform (GEAP) 协议及 Gemini AI Studio API Key 节点
-	// 两类节点统一使用 "google" provider，区分方式：有 project_id → GEAP 端点；无 → AI Studio 端点
+	// google 键对应 Google Agent Platform (GEAP) 协议
+	// 所有节点均需配置 project_id + location + API Key，统一走 aiplatform.googleapis.com 端点
+	// 模型分两类：claude-* 前缀走 GEAP rawPredict（Claude 直通）；gemini-* 走 GenerateContent（协议转换）
 	"google": {
 		// 通配符
 		{Name: "*", DisplayName: "全部 Google/Gemini 模型 (通配符)", Protocol: "google", Category: "wildcard"},

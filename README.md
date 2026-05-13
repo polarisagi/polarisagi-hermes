@@ -25,6 +25,19 @@ Latest version is purely **Zero-Config**, driven by an embedded **SQLite** datab
 4. **Billing & Quota Management**: Tracks token usage via SQLite. Supports setting maximum spend limits (`limit_percent`) to auto-disable accounts near exhaustion.
 5. **Zero Dependency**: Single binary, built-in Web UI, embedded DB migrations. Just run it!
 
+### 🔀 Protocol Route Matrix
+
+The gateway supports 6 routing paths. Each route is configured via the Admin Dashboard (source protocol → target protocol):
+
+| Source | Target | Description |
+|--------|--------|-------------|
+| anthropic | anthropic | Pure passthrough — multi-account round-robin with billing |
+| anthropic | google | Gemini format conversion; Claude models use GEAP `rawPredict` passthrough |
+| anthropic | openai | Anthropic → OpenAI format conversion |
+| openai | openai | Pure passthrough — multi-account round-robin with billing |
+| openai | google | OpenAI → Vertex AI OpenAI-compatible endpoint conversion |
+| google | google | Pure passthrough — multi-account round-robin with billing |
+
 ### 📂 Default Directory
 All configurations, database files (`polaris_gateway.db`), and local state are safely stored in:
 `~/.polaris-gateway/`
@@ -87,6 +100,19 @@ MIT License. *(If you use this code, please retain the original author credit: `
 3. **四态状态机与动态熔断**：🟢 Idle | 🟡 Busy | 🔴 Cooldown | 🟠 Probation。支持自定义失败阈值和退避时间。
 4. **精细化计费与拦截**：内置 SQLite 高效追踪 Tokens 消费。可设置消费最高比例，防资金烧穿。
 5. **极简部署**：单文件无依赖，自带 Web UI 及嵌入式数据迁移，直接运行。
+
+### 🔀 协议路由矩阵
+
+网关支持 6 条路由路径，在管理后台中按"源协议 → 目标协议"配置：
+
+| 源协议 | 目标协议 | 说明 |
+|--------|----------|------|
+| anthropic | anthropic | 透传直通 — 多账号轮询 + 计费 |
+| anthropic | google | Gemini 协议转换；`claude-*` 模型走 GEAP `rawPredict` 原生直通 |
+| anthropic | openai | Anthropic → OpenAI 格式转换 |
+| openai | openai | 透传直通 — 多账号轮询 + 计费 |
+| openai | google | OpenAI → Vertex AI OpenAI 兼容端点转换 |
+| google | google | 透传直通 — 多账号轮询 + 计费 |
 
 ### 📂 默认数据目录
 程序的所有配置、账单记录和 SQLite 数据库 (`polaris_gateway.db`) 均安全保存在用户主目录的隐藏文件夹中：

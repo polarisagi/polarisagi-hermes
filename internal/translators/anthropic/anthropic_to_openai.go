@@ -38,9 +38,6 @@ type oaiRequest struct {
 	ToolChoice  interface{}              `json:"tool_choice,omitempty"`
 }
 
-// oaiHTTPClient 复用 utils.SharedHTTPClient 共享 TCP 连接池
-var oaiHTTPClient = utils.SharedHTTPClient
-
 // AnthropicToOpenAI 主入口：解析 Anthropic 请求 → 构造 OpenAI 请求 → 发送 → 流式/非流式回写 Anthropic 格式
 func AnthropicToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) {
 	// count_tokens 端点：OpenAI 协议无对等接口，本地估算返回
@@ -74,7 +71,7 @@ func AnthropicToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Reque
 	proxyReq.Header.Set("Content-Type", "application/json")
 	proxyReq.Header.Set("Authorization", "Bearer "+dest.Node.Credentials)
 
-	finalResp, err := oaiHTTPClient.Do(proxyReq)
+	finalResp, err := httpClient.Do(proxyReq)
 	if err != nil {
 		utils.HandleNetworkError(w, err, dest, "openai", clientType, "anthropic_adapter", traceID, "Anthropic→OpenAI")
 		return
@@ -680,5 +677,4 @@ func anthropicNonStreamOpenAI(w http.ResponseWriter, oaiResp *http.Response, tra
 
 func init() {
 	router.RegisterTranslator("anthropic", "openai", AnthropicToOpenAI)
-	router.RegisterTranslator("anthropic", "gemini", AnthropicToOpenAI)
 }

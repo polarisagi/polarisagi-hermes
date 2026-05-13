@@ -250,7 +250,8 @@ func tryAcquire(sourceProtocol, reqModel string) (dest *MatchedDestination, reas
 
 		modelMatchedAnyRoute = true
 
-		// Find all available nodes for the target protocol
+		// 节点选择：node.Provider == route.TargetProtocol 是绑定关系
+		// 节点配置时 provider 字段必须与路由目标协议保持一致才能被分配
 		for _, state := range nodesMap {
 			if state.Provider != route.TargetProtocol {
 				continue

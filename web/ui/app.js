@@ -20,6 +20,38 @@ createApp({
         const allModels = ref([]); // 所有模型（用于 datalist 建议）
         const sourceModels = ref([]); // 当前源协议对应的模型列表
         const targetModels = ref([]); // 当前目标协议对应的模型列表
+
+        // 各源协议合法的目标协议列表（只展示后端已实现的 6 条路由）
+        const VALID_ROUTES = {
+            anthropic: [
+                { value: 'anthropic', label: 'Anthropic — 透传直通' },
+                { value: 'google',    label: 'Google Agent Platform — Gemini / GEAP Claude' },
+                { value: 'openai',    label: 'OpenAI — 协议转换' },
+            ],
+            openai: [
+                { value: 'openai',  label: 'OpenAI — 透传直通' },
+                { value: 'google',  label: 'Google Agent Platform — Vertex OAI 兼容端点' },
+            ],
+            google: [
+                { value: 'google', label: 'Google Agent Platform — 透传直通' },
+            ],
+        };
+
+        const availableTargetProtocols = computed(() =>
+            VALID_ROUTES[routeForm.value.source_protocol] || []
+        );
+
+        const routeTypeDesc = computed(() => {
+            const descs = {
+                'anthropic_anthropic': '透传直通 · Anthropic 账号多节点轮询，请求格式不变',
+                'anthropic_google':    'Anthropic 格式转 Gemini 原生协议；claude-* 模型走 GEAP rawPredict 直通',
+                'anthropic_openai':    'Anthropic Messages 格式转 OpenAI Chat Completions 格式',
+                'openai_openai':       '透传直通 · OpenAI 账号多节点轮询，请求格式不变',
+                'openai_google':       'OpenAI 格式转 Vertex AI OpenAI 兼容端点 (endpoints/openapi)',
+                'google_google':       '透传直通 · Google 账号多节点轮询，请求格式不变',
+            };
+            return descs[`${routeForm.value.source_protocol}_${routeForm.value.target_protocol}`] || '';
+        });
         const routeModal = ref({ show: false, isEdit: false });
         const routeForm = ref({
             id: 0,
@@ -61,15 +93,15 @@ createApp({
 
         // Protocol display helpers
         const protocolLabel = (p) => {
-            const labels = { openai: 'OpenAI', google: 'Google Agent Platform', anthropic: 'Anthropic', gemini: 'Gemini (AI Studio)' };
+            const labels = { openai: 'OpenAI', google: 'Google Agent Platform', anthropic: 'Anthropic' };
             return labels[p] || p;
         };
         const protocolClass = (p) => {
-            const classes = { openai: 'text-indigo-400', google: 'text-emerald-400', anthropic: 'text-orange-400', gemini: 'text-teal-400' };
+            const classes = { openai: 'text-indigo-400', google: 'text-emerald-400', anthropic: 'text-orange-400' };
             return classes[p] || 'text-slate-400';
         };
         const protocolBadge = (p) => {
-            const badges = { openai: 'bg-indigo-600 border-indigo-500/50', google: 'bg-emerald-600 border-emerald-500/50', anthropic: 'bg-orange-600 border-orange-500/50', gemini: 'bg-teal-600 border-teal-500/50' };
+            const badges = { openai: 'bg-indigo-600 border-indigo-500/50', google: 'bg-emerald-600 border-emerald-500/50', anthropic: 'bg-orange-600 border-orange-500/50' };
             return badges[p] || 'bg-slate-600 border-slate-500/50';
         };
 
@@ -188,9 +220,14 @@ createApp({
             return allModels.value.filter(m => m.protocol === protocol);
         };
 
-        // 当源协议改变时，更新源模型建议列表
+        // 当源协议改变时，更新源模型建议列表，并把目标协议重置为该源的第一个合法选项
         const onSourceProtocolChange = () => {
             sourceModels.value = getModelsForProtocol(routeForm.value.source_protocol);
+            const validTargets = VALID_ROUTES[routeForm.value.source_protocol] || [];
+            if (validTargets.length > 0 && !validTargets.find(t => t.value === routeForm.value.target_protocol)) {
+                routeForm.value.target_protocol = validTargets[0].value;
+            }
+            onTargetProtocolChange();
         };
 
         // 当目标协议改变时，更新目标模型建议列表
@@ -258,7 +295,11 @@ createApp({
 
         const saveNode = async () => {
             if (!nodeForm.value.name || (!nodeModal.value.isEdit && !nodeForm.value.credentials)) {
-                showToast('节点名称和API Key不能为空', 'error');
+                showToast('节点名称和 API Key 不能为空', 'error');
+                return;
+            }
+            if (nodeForm.value.provider === 'google' && !nodeForm.value.project_id) {
+                showToast('Google Agent Platform 节点必须填写 GCP Project ID', 'error');
                 return;
             }
             if (nodeForm.value.priority < 0 || nodeForm.value.balance < 0 || nodeForm.value.limit_percent < 0) {
@@ -537,7 +578,8 @@ createApp({
             routeModal, routeForm, openRouteModal, saveRoute, deleteRoute, toast,
             addMapping, removeMapping, protocolLabel, protocolClass, protocolBadge,
             logsText, isAutoScroll, logLevelFilter, debugEnabled, toggleDebug, fetchLogs, version,
-            allModels, sourceModels, targetModels, fetchAllModels, onSourceProtocolChange, onTargetProtocolChange
+            allModels, sourceModels, targetModels, fetchAllModels, onSourceProtocolChange, onTargetProtocolChange,
+            availableTargetProtocols, routeTypeDesc
         };
     }
 }).mount('#app');

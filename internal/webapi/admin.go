@@ -194,6 +194,10 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if req.Provider == "google" && strings.TrimSpace(req.ProjectID) == "" {
+			http.Error(w, `{"error":"project_id is required for Google Agent Platform nodes"}`, http.StatusBadRequest)
+			return
+		}
 		if req.LimitPercent == 0 {
 			req.LimitPercent = 90.0
 		}
@@ -242,6 +246,10 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if req.Provider == "google" && strings.TrimSpace(req.ProjectID) == "" {
+			http.Error(w, `{"error":"project_id is required for Google Agent Platform nodes"}`, http.StatusBadRequest)
+			return
+		}
 		if !strings.Contains(req.Credentials, "......") && req.Credentials != "***" && req.Credentials != "" {
 			_, err := db.DB().Exec(`
 				UPDATE sys_nodes SET name=?, provider=?, base_url=?, credentials=?, project_id=?, location=?, priority=?, balance=?, limit_percent=?, valid_from=?, valid_to=?, status=?
