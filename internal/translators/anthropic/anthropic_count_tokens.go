@@ -246,27 +246,36 @@ func handleVertexCountTokens(ctx context.Context, w http.ResponseWriter, bodyByt
 	}
 	defer resp.Body.Close()
 
+	respBody, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		slog.Warn("⚠️ [CountTokens] Vertex 返回非 200，降级本地估算", "trace_id", traceID, "status", resp.StatusCode)
+		slog.Warn("⚠️ [CountTokens] Vertex 返回非 200，降级本地估算", "trace_id", traceID, "status", resp.StatusCode, "resp_body", string(respBody))
 		handleCountTokensLocal(w, bodyBytes, traceID)
 		return
 	}
 
-	var vertexResp struct {
-		TotalTokens int `json:"totalTokens"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&vertexResp); err != nil {
+	// 打印 Vertex 原始响应以便排查
+	slog.Debug("📏 [CountTokens] Vertex 原生响应内容", "trace_id", traceID, "body", string(respBody))
+
+	var vertexResp map[string]interface{}
+	if err := json.Unmarshal(respBody, &vertexResp); err != nil {
 		slog.Warn("⚠️ [CountTokens] Vertex 响应解析失败，降级本地估算", "trace_id", traceID, "error", err)
 		handleCountTokensLocal(w, bodyBytes, traceID)
 		return
 	}
 
-	slog.Debug("📏 [CountTokens] Vertex 精确计数",
-		"trace_id", traceID, "input_tokens", vertexResp.TotalTokens, "model", model)
+	var totalTokens int
+	if val, ok := vertexResp["totalTokens"].(float64); ok {
+		totalTokens = int(val)
+	} else if val, ok := vertexResp["totalTokenCount"].(float64); ok {
+		totalTokens = int(val)
+	}
+
+	slog.Debug("📏 [CountTokens] Vertex 精确计数提取",
+		"trace_id", traceID, "input_tokens", totalTokens, "model", model)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]int{
-		"input_tokens": vertexResp.TotalTokens,
+		"input_tokens": totalTokens,
 	})
 }
