@@ -1,5 +1,5 @@
-// Anthropic → Vertex 请求映射器
-// 将 Anthropic Messages API 格式转换为 Vertex GenerateContent API 格式
+// Anthropic → Google Agent Platform 请求映射器
+// 将 Anthropic Messages API 格式转换为 GEAP GenerateContent API 格式
 package anthropic
 
 import (
@@ -223,6 +223,35 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 			"parts": parts,
 		})
 	}
+	// GEAP 要求 contents 中 user/model 严格交替。
+	// Anthropic 客户端偶尔会连续发出同 role 的消息（如批量 tool_result、重试注入等），
+	// 直接转发会触发 GEAP 400 "roles must alternate"。
+	// 解决方案：将连续同 role 的消息合并为一条（parts 拼接）。
+	if len(contents) > 1 {
+		merged := []map[string]interface{}{contents[0]}
+		for i := 1; i < len(contents); i++ {
+			last := merged[len(merged)-1]
+			curr := contents[i]
+			if last["role"] == curr["role"] {
+				lastParts, _ := last["parts"].([]map[string]interface{})
+				currParts, _ := curr["parts"].([]map[string]interface{})
+				last["parts"] = append(lastParts, currParts...)
+			} else {
+				merged = append(merged, curr)
+			}
+		}
+		contents = merged
+	}
+	// GEAP 的第一条消息必须是 user 角色；若客户端发送了以 assistant 开头的历史，
+	// 在前面插入一条空占位，避免 400 错误
+	if len(contents) > 0 {
+		if contents[0]["role"] == "model" {
+			contents = append([]map[string]interface{}{
+				{"role": "user", "parts": []map[string]interface{}{{"text": ""}}},
+			}, contents...)
+		}
+	}
+
 	vertexReq["contents"] = contents
 
 	genConfig := make(map[string]interface{})
@@ -283,6 +312,10 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 		var allowedNames []string
 		
 		switch req.ToolChoice.Type {
+		case "none":
+			// Anthropic "none" = 不允许模型调用任何工具
+			// 对应 GEAP functionCallingConfig.mode=NONE
+			mode = "NONE"
 		case "any":
 			mode = "ANY"
 		case "tool":

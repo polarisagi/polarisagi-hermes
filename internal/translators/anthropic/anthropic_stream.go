@@ -41,10 +41,11 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 
 	blockIndex := 0
 	inText := false
+	inThinking := false       // 追踪是否有开放中的 thinking 内容块（用于合并多个 thought 分片）
 	var toolID string
 	stopReason := "end_turn"
-	var matchedStopSeq string  // 触发停止的序列（Gemini 不直接返回，通过文本尾部推断）
-	var streamError string     // tracks mid-stream error for reporting
+	var matchedStopSeq string // 触发停止的序列（Gemini 不直接返回，通过文本尾部推断）
+	var streamError string    // 流中途出错信息
 
 	for {
 		// 客户端断开时 r.Context() 被取消，提前退出避免继续消耗上游连接
@@ -103,13 +104,21 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 			}
 		}
 
-		// Parse Usage
+		// 解析 usageMetadata（最终 chunk 才有完整数值，每次更新覆盖旧值）
+		// thoughtsTokenCount：思考 token 计入 output_tokens（Anthropic 将 thinking 并入 output 计费）
+		// toolUsePromptTokenCount：工具定义 token 计入 input_tokens（属于 prompt 端消耗）
 		if usage, ok := vResp["usageMetadata"].(map[string]interface{}); ok {
 			if p, ok := usage["promptTokenCount"].(float64); ok {
 				promptTokens = int(p)
 			}
+			if tool, ok := usage["toolUsePromptTokenCount"].(float64); ok {
+				promptTokens += int(tool)
+			}
 			if c, ok := usage["candidatesTokenCount"].(float64); ok {
 				completionTokens = int(c)
+			}
+			if thoughts, ok := usage["thoughtsTokenCount"].(float64); ok {
+				completionTokens += int(thoughts)
 			}
 			if cache, ok := usage["cachedContentTokenCount"].(float64); ok {
 				cachedTokens = int(cache)
@@ -163,25 +172,31 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 		for _, partIntf := range parts {
 			part, _ := partIntf.(map[string]interface{})
 
-			// Gemini 在启用 thinkingConfig.includeThoughts 时，以 thought=true 的 part 返回推理过程
-			// 若客户端请求了 thinking（req.Thinking.Type=="enabled"），则转为 Anthropic thinking 块；
-			// 否则静默丢弃，避免思考内容混入正式答案
+			// Gemini 在启用 thinkingConfig.includeThoughts 时，以 thought=true 的 part 返回推理过程。
+			// Gemini 流式可能把同一次思考分成多个 chunk 推送，全部合并到同一个 Anthropic thinking 块
+			// 以符合 Anthropic SSE 协议（一次完整思考对应一个 thinking block，内含多个 thinking_delta）。
 			if isThought, _ := part["thought"].(bool); isThought {
 				if req.Thinking != nil && req.Thinking.Type == "enabled" {
 					if thinkText, ok := part["text"].(string); ok && thinkText != "" {
+						// 有正文块打开时先关闭（thinking 必须排在 text 之前）
 						if inText {
 							writeSSEContentBlockStop(w, flusher, blockIndex)
 							inText = false
 							blockIndex++
 						}
-						writeSSE(w, flusher, "content_block_start", StreamEvent{
-							Type:  "content_block_start",
-							Index: ptrInt(blockIndex),
-							ContentBlock: &Content{
-								Type:     "thinking",
-								Thinking: "",
-							},
-						})
+						// 首个 thought chunk：开启 thinking 块
+						if !inThinking {
+							writeSSE(w, flusher, "content_block_start", StreamEvent{
+								Type:  "content_block_start",
+								Index: ptrInt(blockIndex),
+								ContentBlock: &Content{
+									Type:     "thinking",
+									Thinking: "",
+								},
+							})
+							inThinking = true
+						}
+						// 追加 thinking_delta（多 chunk 持续写入同一块）
 						writeSSE(w, flusher, "content_block_delta", StreamEvent{
 							Type:  "content_block_delta",
 							Index: ptrInt(blockIndex),
@@ -190,11 +205,16 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 								Thinking: thinkText,
 							},
 						})
-						writeSSEContentBlockStop(w, flusher, blockIndex)
-						blockIndex++
 					}
 				}
 				continue
+			}
+
+			// 遇到非 thought part 时，关闭尚未关闭的 thinking 块
+			if inThinking {
+				writeSSEContentBlockStop(w, flusher, blockIndex)
+				inThinking = false
+				blockIndex++
 			}
 
 			if text, ok := part["text"].(string); ok && text != "" {
@@ -285,23 +305,22 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 		}
 	}
 
-	// If the stream completed normally but Vertex generated no content, report as error
-	// This surfaces the "no assistant message" failure as a proper error rather than silently
-	// returning an empty assistant message that confuses Claude Code's /compact.
-	if streamError == "" && blockIndex == 0 && !inText {
+	// 流式正常结束但无任何内容块 → 表面化为错误，让调用方重试而非返回空消息
+	if streamError == "" && blockIndex == 0 && !inText && !inThinking {
 		streamError = "Google Agent Platform returned empty response with no text content (possible safety filter or empty candidates)"
-		slog.Warn("⚠️ [Stream] GEAP 流式响应未包含任何文本内容，将返回错误供客户端重试",
+		slog.Warn("⚠️ [Stream] GEAP 流式响应未包含任何内容块",
 			"trace_id", traceID, "account", dest.Node.Name,
 			"stop_reason", stopReason, "prompt_tokens", promptTokens)
 	}
 
-	// If streamError is set, send Anthropic-compatible error SSE and abort
 	if streamError != "" {
-		// Close any open block first so Claude Code can cleanly parse partial content
+		// 先关闭所有开放中的内容块，让客户端能干净解析已收到的部分
+		if inThinking {
+			writeSSEContentBlockStop(w, flusher, blockIndex)
+		}
 		if inText {
 			writeSSEContentBlockStop(w, flusher, blockIndex)
 		}
-		// Send Anthropic SSE error event
 		writeSSE(w, flusher, "error", StreamEvent{
 			Type: "error",
 			Message: &MessageResponse{
@@ -317,7 +336,11 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 		return false
 	}
 
-	// Close any open blocks
+	// 关闭所有尚未关闭的内容块
+	if inThinking {
+		writeSSEContentBlockStop(w, flusher, blockIndex)
+		blockIndex++
+	}
 	if inText {
 		writeSSEContentBlockStop(w, flusher, blockIndex)
 	}
@@ -340,10 +363,12 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 
 	writeSSEMessageStop(w, flusher)
 
-	if promptTokens == 0 && completionTokens == 0 && !streamOK {
+	// GEAP 偶发不返回 usageMetadata（极少见），此时用字节估算兜底保证计费不丢失
+	// 注：!streamOK 在此处永远为 false（命名返回值尚未赋值），去掉该条件让逻辑更清晰
+	if promptTokens == 0 && completionTokens == 0 {
 		promptTokens = int(utils.EstimatePromptTokens(reqBody))
 		completionTokens = int(utils.EstimateCompletionTokens(totalWritten))
-		slog.Warn("⚠️ 响应流中断，启用 token 估算补偿", "trace_id", traceID, "node", dest.Node.Name, "prompt", promptTokens, "completion", completionTokens)
+		slog.Warn("⚠️ GEAP 未返回 usageMetadata，启用 token 估算兜底", "trace_id", traceID, "node", dest.Node.Name, "prompt", promptTokens, "completion", completionTokens)
 	}
 
 	settleBilling("google", dest.Node.Name, clientType, "anthropic_adapter", modelName, int64(promptTokens), int64(completionTokens), int64(cachedTokens), http.StatusOK, dest, reqBody, traceID)
@@ -371,8 +396,14 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 		if p, ok := usage["promptTokenCount"].(float64); ok {
 			promptTokens = int(p)
 		}
+		if tool, ok := usage["toolUsePromptTokenCount"].(float64); ok {
+			promptTokens += int(tool) // 工具定义 token 属于 prompt 端消耗
+		}
 		if c, ok := usage["candidatesTokenCount"].(float64); ok {
 			completionTokens = int(c)
+		}
+		if thoughts, ok := usage["thoughtsTokenCount"].(float64); ok {
+			completionTokens += int(thoughts) // 思考 token 并入 output_tokens
 		}
 		if cache, ok := usage["cachedContentTokenCount"].(float64); ok {
 			cachedTokens = int(cache)
@@ -469,11 +500,19 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 		}
 	}
 
-	if len(contents) == 0 || (len(contents) == 1 && contents[0].Text == "") {
-		slog.Warn("⚠️ [NonStream] Google Agent Platform 返回响应但无有效文本内容（可能被安全过滤器屏蔽或返回空候选项），填充默认占位符防止客户端崩溃",
+	// 判断是否存在真正有意义的内容块：
+	// tool_use / thinking 不属于"空"，只有 contents 为空或仅含空文本才需要占位符
+	hasRealContent := false
+	for _, c := range contents {
+		if c.Type == "tool_use" || c.Type == "thinking" || (c.Type == "text" && c.Text != "") {
+			hasRealContent = true
+			break
+		}
+	}
+	if !hasRealContent {
+		slog.Warn("⚠️ [NonStream] GEAP 返回无有效文本内容（安全过滤或空候选），填充占位符防止客户端崩溃",
 			"trace_id", traceID, "account", dest.Node.Name,
 			"stop_reason", stopReason, "geap_resp_preview", string(bodyBytes[:min(len(bodyBytes), 500)]))
-
 		contents = []Content{
 			{Type: "text", Text: "[Summary skipped: Google Agent Platform returned an empty response]"},
 		}
