@@ -82,7 +82,13 @@ createApp({
 
         const nodeModal = ref({ show: false, isEdit: false });
         // datetime-local 控件格式 "YYYY-MM-DDTHH:MM:SS" ↔ 数据库格式 "YYYY-MM-DD HH:MM:SS"
-        const toDatetimeLocal = (dt) => dt ? dt.trim().replace(' ', 'T') : '';
+        // 兼容旧数据：仅含日期（10字符）时自动补时间，确保控件不显示空白
+        const toDatetimeLocal = (dt) => {
+            if (!dt) return '';
+            dt = dt.trim();
+            if (dt.length === 10) return dt + 'T00:00:00'; // 旧格式日期-only，补时间
+            return dt.replace(' ', 'T');
+        };
         const fromDatetimeLocal = (dt) => dt ? dt.trim().replace('T', ' ') : '';
         const todayPrefix = () => {
             const d = new Date();

@@ -56,7 +56,10 @@
         <div class="flex-1 overflow-auto p-8 relative">
             
             <!-- Toast Notification -->
-            <div v-if="toast.show" class="fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-xl text-white font-medium transition-all" :class="toast.type === 'success' ? 'bg-emerald-500' : 'bg-red-500'">
+            <div v-if="toast.show" class="fixed top-5 right-5 z-[200] flex items-center gap-3 px-5 py-3 rounded-xl shadow-2xl text-white text-sm font-medium pointer-events-none select-none"
+                :class="toast.type === 'success' ? 'bg-emerald-500/95 ring-1 ring-emerald-400/50' : 'bg-red-500/95 ring-1 ring-red-400/50'">
+                <span v-if="toast.type === 'success'">✓</span>
+                <span v-else>✕</span>
                 {{ toast.message }}
             </div>
 
@@ -505,11 +508,13 @@
                                 </div>
                                 <div>
                                     <label class="block text-sm font-medium text-slate-300 mb-1">起始有效时间</label>
-                                    <input v-model="nodeForm.valid_from" type="datetime-local" step="1" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none">
+                                    <input v-model="nodeForm.valid_from" type="datetime-local" step="1" style="color-scheme:dark"
+                                        class="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
                                 </div>
                                 <div class="col-span-3">
-                                    <label class="block text-sm font-medium text-slate-300 mb-1">截止有效时间 (到期自动停用)</label>
-                                    <input v-model="nodeForm.valid_to" type="datetime-local" step="1" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none">
+                                    <label class="block text-sm font-medium text-slate-300 mb-1">截止有效时间 <span class="text-slate-500 font-normal text-xs ml-1">（到期自动停用）</span></label>
+                                    <input v-model="nodeForm.valid_to" type="datetime-local" step="1" style="color-scheme:dark"
+                                        class="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
                                 </div>
                             </div>
                         </div>
