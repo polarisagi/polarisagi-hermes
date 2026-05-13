@@ -133,11 +133,11 @@ func passthroughToGEAPClaude(ctx context.Context, w http.ResponseWriter, r *http
 
 	finalResp, err := httpClient.Do(proxyReq)
 	if err != nil {
-		utils.HandleNetworkError(w, err, dest, "vertex", clientType, "anthropic_geap_claude", traceID, "Anthropic(GEAP-Claude)")
+		utils.HandleNetworkError(w, err, dest, "google", clientType, "anthropic_geap_claude", traceID, "Anthropic(GEAP-Claude)")
 		return
 	}
 
-	isNodeFailure, isQuotaExhausted := utils.CheckResponseStatus(finalResp, dest, "vertex", clientType, "anthropic_geap_claude", traceID, "Anthropic(GEAP-Claude)")
+	isNodeFailure, isQuotaExhausted := utils.CheckResponseStatus(finalResp, dest, "google", clientType, "anthropic_geap_claude", traceID, "Anthropic(GEAP-Claude)")
 
 	if finalResp.StatusCode != http.StatusOK {
 		errBody, _ := io.ReadAll(finalResp.Body)
@@ -219,7 +219,7 @@ func nonStreamGEAPClaude(w http.ResponseWriter, upstreamResp *http.Response, des
 		} `json:"usage"`
 	}
 	if json.Unmarshal(bodyBytes, &resp) == nil {
-		settleBilling("vertex", dest.Node.Name, clientType, "anthropic_geap_claude", modelName,
+		settleBilling("google", dest.Node.Name, clientType, "anthropic_geap_claude", modelName,
 			int64(resp.Usage.InputTokens), int64(resp.Usage.OutputTokens), 0,
 			upstreamResp.StatusCode, dest, reqBody, traceID)
 	}

@@ -1,7 +1,7 @@
 // 路由引擎核心：节点池管理 + 路由匹配 + 负载均衡
 //
 // 架构说明：
-//   routesBySource: 按源协议索引的路由表，key 为 "openai"/"vertex"/"anthropic"
+//   routesBySource: 按源协议索引的路由表，key 为 "openai"/"google"/"anthropic"
 //   nodesMap:       全局节点池，按节点 ID 索引，每个节点有状态机 (Idle/Busy/Cooldown/Probation/Exhausted)
 //
 // 请求分发流程：

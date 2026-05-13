@@ -15,11 +15,11 @@ import (
 type AccountDetail struct {
 	ID           int     `json:"id"`             // 节点唯一 ID
 	Name         string  `json:"name"`           // 节点名称/账号邮箱（唯一标识）
-	Provider     string  `json:"provider"`        // 协议类型: openai/vertex/anthropic/gemini
+	Provider     string  `json:"provider"`        // 协议类型: openai/google/anthropic/gemini（google 对应 Google Agent Platform）
 	BaseURL      string  `json:"base_url"`       // 自定义 API 端点（空则使用官方默认地址）
 	Credentials  string  `json:"-"`              // API Key / JSON 凭证（JSON 序列化时隐藏）
-	ProjectID    string  `json:"project_id"`     // GCP 项目 ID（仅 Vertex 节点使用）
-	Location     string  `json:"location"`       // GCP 区域（仅 Vertex 节点使用，默认 global）
+	ProjectID    string  `json:"project_id"`     // GCP 项目 ID（仅 Google Agent Platform 节点使用）
+	Location     string  `json:"location"`       // GCP 区域（仅 Google Agent Platform 节点使用，默认 global）
 	Priority     int     `json:"priority"`       // 优先级，数字越大越优先被选中
 	Balance      float64 `json:"balance"`        // 总额度上限（美元）
 	UsedAmount   float64 `json:"used_amount"`    // 已使用金额
@@ -41,7 +41,7 @@ type ModelMapping struct {
 type RouteDetail struct {
 	ID                 int            `json:"id"`                   // 路由唯一 ID
 	SourceProtocol     string         `json:"source_protocol"`     // 源协议: openai/anthropic/vertex
-	TargetProtocol     string         `json:"target_protocol"`     // 目标协议: openai/vertex/gemini
+	TargetProtocol     string         `json:"target_protocol"`     // 目标协议: openai/google/gemini（google 对应 Google Agent Platform）
 	ModelMappings      string         `json:"-"`                   // 模型映射 JSON 原始字符串（数据库存储）
 	ModelMappingsParsed []ModelMapping `json:"model_mappings"`     // 解析后的模型映射列表（API 输出）
 	Status             int            `json:"status"`              // 1=正常, 0=禁用
@@ -189,7 +189,8 @@ func ReloadFromDB() error {
 		slog.Info("🛤️ 路由表装载完成", "active_routes", len(AppConfig.Routes))
 	}
 
-	if len(AppConfig.Providers["vertex"]) == 0 && len(AppConfig.Providers["openai"]) == 0 {
+	// google 指 Google Agent Platform (GEAP) 节点
+	if len(AppConfig.Providers["google"]) == 0 && len(AppConfig.Providers["openai"]) == 0 {
 		slog.Warn("无可用物理节点，网关将返回 503 直到添加新节点")
 	}
 

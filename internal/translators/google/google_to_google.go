@@ -1,7 +1,8 @@
-// Vertex 原生直通处理器
-// 支持 Vertex → Vertex（同协议直通），使用 Vertex 原生的 generateContent/streamGenerateContent 端点
-// 自动构建包含 project_id/location/model 的 GCP 端点 URL，并注入 API Key 认证
-package vertex
+// Google Agent Platform 原生直通处理器
+// 支持 GEAP → GEAP（同协议直通），使用 generateContent/streamGenerateContent 端点
+// 官方 REST API 参考：https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest
+// 自动构建包含 project_id/location/model 的 GEAP 端点 URL，并注入 API Key 认证
+package google
 
 import (
 	"bytes"
@@ -17,12 +18,12 @@ import (
 	"polaris-gateway/internal/translators/utils"
 )
 
-// VertexToVertex 将 Vertex 原生请求转发到 Vertex 后端协议直通：不做协议转换，仅替换端点 URL 和认证方式
-func VertexToVertex(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) {
+// GoogleToGoogle 将 Google Agent Platform 原生请求协议直通到 GEAP 后端：不做协议转换，仅替换端点 URL 和认证方式
+func GoogleToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) {
 	clientType := utils.IdentifyClient(r)
 	methodName := utils.ExtractMethodName(r.URL.Path)
 
-	targetURL := buildVertexTargetURL(dest.Node, r.URL.Path)
+	targetURL := buildGoogleTargetURL(dest.Node, r.URL.Path)
 
 	proxyReq, _ := http.NewRequestWithContext(ctx, r.Method, targetURL, bytes.NewReader(bodyBytes))
 	for k, vv := range r.Header {
@@ -50,14 +51,14 @@ func VertexToVertex(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	}
 	proxyReq.URL.RawQuery = q.Encode()
 
-	utils.ExecuteAndStream(w, proxyReq, dest, "vertex", clientType, methodName, traceID, "Vertex",
+	utils.ExecuteAndStream(w, proxyReq, dest, "google", clientType, methodName, traceID, "Google Agent Platform",
 		func(finalResp *http.Response, startTime time.Time) {
-			streamVertexResponse(w, finalResp, dest, dest.TargetModel, clientType, methodName, traceID, startTime, bodyBytes)
+			streamGoogleResponse(w, finalResp, dest, dest.TargetModel, clientType, methodName, traceID, startTime, bodyBytes)
 		})
 }
 
-// streamVertexResponse 流式转发 Vertex 上游响应到客户端，同步从尾部提取 usageMetadata 完成计费
-func streamVertexResponse(w http.ResponseWriter, finalResp *http.Response, dest *router.MatchedDestination, modelName, clientType, methodName, traceID string, startTime time.Time, reqBody []byte) {
+// streamGoogleResponse 流式转发 Google Agent Platform 上游响应到客户端，同步从尾部提取 usageMetadata 完成计费
+func streamGoogleResponse(w http.ResponseWriter, finalResp *http.Response, dest *router.MatchedDestination, modelName, clientType, methodName, traceID string, startTime time.Time, reqBody []byte) {
 	defer finalResp.Body.Close()
 
 	for k, vv := range finalResp.Header {
@@ -104,20 +105,21 @@ func streamVertexResponse(w http.ResponseWriter, finalResp *http.Response, dest 
 
 	if prompt > 0 || completion > 0 {
 		cost := utils.CalculateCost(dest.Node.Provider, modelName, prompt, completion, cached, reqBody)
-		db.SaveUsage("vertex", dest.Node.Name, clientType, methodName, prompt, completion, cost, finalResp.StatusCode)
+		db.SaveUsage("google", dest.Node.Name, clientType, methodName, prompt, completion, cost, finalResp.StatusCode)
 		dest.Node.RecordCost(cost, traceID)
 		slog.Info("💰 结算成功", "trace_id", traceID, "node", dest.Node.Name, "model", modelName, "cost", fmt.Sprintf("%.4f", cost))
 	}
 }
 
-// buildVertexTargetURL 构建 Gemini Enterprise Agent Platform (原 Vertex AI) 端点 URL
+// buildGoogleTargetURL 构建 Google Agent Platform (GEAP) 端点 URL
+// 官方文档：https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest
 // 支持三种入站路径：
 //  1. 短路径 `/models/X:method`              → 自动套用 publishers/google 前缀（向后兼容）
 //  2. 完整路径 `/publishers/{pub}/models/X:method` → 保留客户端指定的发布者（google/anthropic 等）
 //  3. 完整路径 `/projects/.../locations/.../publishers/...` → 视为绝对 GEAP 路径，直接拼接到 host
 //
 // 当 ProjectID 为空时退化为旧式 BaseURL + /v1 + path 拼接（用于非 GEAP 的 Gemini API 兼容端点）
-func buildVertexTargetURL(node *router.NodeState, incomingPath string) string {
+func buildGoogleTargetURL(node *router.NodeState, incomingPath string) string {
 	subPath := strings.TrimPrefix(incomingPath, "/v1")
 	if !strings.HasPrefix(subPath, "/") {
 		subPath = "/" + subPath
@@ -169,7 +171,8 @@ func buildVertexTargetURL(node *router.NodeState, incomingPath string) string {
 	return baseURL + "/v1" + subPath
 }
 
-// inferGEAPHost 根据 location 推断 GEAP API host
+// inferGEAPHost 根据 location 推断 Google Agent Platform API host
+// 参考：https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest
 // global 端点用 aiplatform.googleapis.com，区域端点用 {region}-aiplatform.googleapis.com
 func inferGEAPHost(location string) string {
 	if location == "" || location == "global" {
@@ -193,5 +196,5 @@ func stripTemplatePath(template string) string {
 }
 
 func init() {
-	router.RegisterTranslator("vertex", "vertex", VertexToVertex)
+	router.RegisterTranslator("google", "google", GoogleToGoogle)
 }

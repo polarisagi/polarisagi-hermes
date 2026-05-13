@@ -1,6 +1,6 @@
 // Package router 提供多协议路由分发引擎
 // 核心职责：
-// 1. 接收客户端请求，检测源协议类型（OpenAI/Anthropic/Vertex）
+// 1. 接收客户端请求，检测源协议类型（OpenAI/Anthropic/Google Agent Platform）
 // 2. 提取请求中的模型名，匹配路由表中的映射规则
 // 3. 从节点池中选择可用的目标节点（负载均衡）
 // 4. 调用协议转换器将请求转发到上游
@@ -102,18 +102,18 @@ func ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 步骤4：从请求体或 URL 路径提取模型名
-	// Vertex 原生协议：先从 body JSON 的 model 字段提取，失败则从 URL 路径提取
+	// Google Agent Platform 原生协议：先从 body JSON 的 model 字段提取，失败则从 URL 路径提取
 	modelName := extractModelName(bodyBytes, sourceProtocol)
 
-	// Vertex 原生协议的特殊处理：body 中可能没有 model 字段，需要从 URL 路径提取
-	if sourceProtocol == "vertex" && (modelName == "" || modelName == "_vertex_native_") {
-		modelName = extractModelFromVertexPath(r.URL.Path)
-		slog.Debug("🔍 [入口] Vertex 从 URL 路径提取模型名", "trace_id", traceID, "model", modelName, "path", r.URL.Path)
+	// Google Agent Platform 原生协议的特殊处理：body 中可能没有 model 字段，需要从 URL 路径提取
+	if sourceProtocol == "google" && (modelName == "" || modelName == "_google_native_") {
+		modelName = extractModelFromGooglePath(r.URL.Path)
+		slog.Debug("🔍 [入口] Google Agent Platform 从 URL 路径提取模型名", "trace_id", traceID, "model", modelName, "path", r.URL.Path)
 	}
 
 	slog.Debug("📥 [入口] 模型提取结果", "trace_id", traceID, "source_protocol", sourceProtocol, "model", modelName)
 
-	if modelName == "" || modelName == "_vertex_native_" {
+	if modelName == "" || modelName == "_google_native_" {
 		slog.Warn("⚠️ [入口] 无法提取模型名", "trace_id", traceID, "source_protocol", sourceProtocol, "path", r.URL.Path, "body_preview", string(bodyBytes[:min(len(bodyBytes), 200)]))
 		http.Error(w, `{"error": "Missing model field in request"}`, http.StatusBadRequest)
 		return

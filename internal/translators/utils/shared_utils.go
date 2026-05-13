@@ -164,7 +164,7 @@ func CalculateCost(provider, modelName string, promptTokens, candidateTokens, ca
 	candidateRate := price.Candidate1M
 
 	// 如果是通过 Vertex AI 渠道调用 Gemini，部分模型价格更贵（覆盖 AI Studio 价格）
-	if provider == "vertex" {
+	if provider == "google" {
 		if strings.Contains(modelName, "gemini-2.0-flash") {
 			promptRate = 0.15
 			candidateRate = 0.60
@@ -199,7 +199,7 @@ func CalculateCost(provider, modelName string, promptTokens, candidateTokens, ca
 		(float64(candidateTokens)/1000000.0*candidateRate)
 
 	// 多模态补偿逻辑 (系数 1.05)
-	if provider == "vertex" {
+	if provider == "google" {
 		hasMultimodal := bytes.Contains(bodyBytes, []byte(`"image_url"`)) ||
 			bytes.Contains(bodyBytes, []byte(`"inlineData"`)) ||
 			bytes.Contains(bodyBytes, []byte(`"inline_data"`)) ||

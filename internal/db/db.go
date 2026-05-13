@@ -39,7 +39,7 @@ func DB() *sql.DB {
 // UsageLog 请求用量记录，通过 channel 异步写入数据库
 // 避免同步 I/O 阻塞 API 请求路径，以 1024 缓冲区缓解写入峰值
 type UsageLog struct {
-	Platform    string  // 所属平台标识: "openai"/"vertex"/"anthropic"
+	Platform    string  // 所属平台标识: "openai"/"google"/"anthropic"（google 对应 Google Agent Platform）
 	NodeName   string   // 节点名称
 	ClientID   string   // 客户端识别标识（从 User-Agent 推导）
 	MethodName string   // 调用方法名，如 "chat/completions"

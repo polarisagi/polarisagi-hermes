@@ -1,6 +1,7 @@
-// Vertex 原生协议 → OpenAI/Chat Completions 转换器
-// 接收 Vertex 原生格式请求，去除 google/ 模型名前缀后转发到 OpenAI 兼容后端
-package vertex
+// Google Agent Platform 原生协议 → OpenAI/Chat Completions 转换器
+// 接收 GEAP 原生格式请求，去除 google/ 模型名前缀后转发到 OpenAI 兼容后端
+// 官方 REST API 参考：https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest
+package google
 
 import (
 	"bytes"
@@ -16,9 +17,9 @@ import (
 	"polaris-gateway/internal/translators/utils"
 )
 
-// VertexToOpenAI 将 Vertex 原生请求转发到 OpenAI 兼容后端
-// 自动去除模型名中的 "google/" 前缀，支持 Ge mini API Key 和标准 OpenAI 端点
-func VertexToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) {
+// GoogleToOpenAI 将 Google Agent Platform 原生请求转发到 OpenAI 兼容后端
+// 自动去除模型名中的 "google/" 前缀，支持 Gemini API Key 和标准 OpenAI 端点
+func GoogleToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) {
 	clientType := utils.IdentifyClient(r)
 	methodName := utils.ExtractMethodName(r.URL.Path)
 
@@ -32,7 +33,7 @@ func VertexToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	}
 	targetURL = targetURL + subPath
 
-	// 剥离 google/ 前缀：客户端发 vertex 协议但路由到 OpenAI 后端时模型名不该带前缀
+	// 剥离 google/ 前缀：客户端发 GEAP 协议但路由到 OpenAI 后端时模型名不该带前缀
 	// 同时覆盖 `"model":"google/` 与 `"model": "google/`（带空格）两种 JSON 编码方式
 	currentBody := bodyBytes
 	currentBody = bytes.ReplaceAll(currentBody, []byte(`"model":"google/`), []byte(`"model":"`))
@@ -57,7 +58,7 @@ func VertexToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	}
 	proxyReq.Header.Set("Authorization", "Bearer "+dest.Node.Credentials)
 
-	utils.ExecuteAndStream(w, proxyReq, dest, "openai", clientType, methodName, traceID, "Vertex→OpenAI",
+	utils.ExecuteAndStream(w, proxyReq, dest, "openai", clientType, methodName, traceID, "Google Agent Platform→OpenAI",
 		func(finalResp *http.Response, startTime time.Time) {
 			streamAndSettleOpenAI(w, finalResp, dest, dest.TargetModel, clientType, methodName, traceID, startTime, currentBody)
 		})
@@ -116,6 +117,6 @@ func streamAndSettleOpenAI(w http.ResponseWriter, finalResp *http.Response, dest
 }
 
 func init() {
-	router.RegisterTranslator("vertex", "openai", VertexToOpenAI)
-	router.RegisterTranslator("vertex", "gemini", VertexToOpenAI)
+	router.RegisterTranslator("google", "openai", GoogleToOpenAI)
+	router.RegisterTranslator("google", "gemini", GoogleToOpenAI)
 }

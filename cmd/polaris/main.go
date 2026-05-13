@@ -1,5 +1,5 @@
 // Polaris Gateway — 多协议 LLM API 网关入口
-// 支持 OpenAI、Anthropic、Vertex 三大协议之间的任意转换路由
+// 支持 OpenAI、Anthropic、Google Agent Platform 三大协议之间的任意转换路由
 // 核心功能: 协议转换 + 路由分发 + 负载均衡 + 熔断保护 + 用量计费
 package main
 
@@ -14,7 +14,7 @@ import (
 	"polaris-gateway/internal/router"
 	_ "polaris-gateway/internal/translators/anthropic" // 通过 init() 自动注册协议转换器
 	_ "polaris-gateway/internal/translators/openai"
-	_ "polaris-gateway/internal/translators/vertex"
+	_ "polaris-gateway/internal/translators/google"
 	"polaris-gateway/internal/webapi"
 )
 
@@ -78,7 +78,8 @@ func main() {
 	slog.Info("🚦 IO 并发排队槽位 (仅统计 Enabled: true 的物理节点)", "totalActive", totalActive)
 	slog.Info("🌐 OpenAI 接入", "url", "http://"+config.AppConfig.ListenAddr+"/v1/openai/")
 	slog.Info("🌐 Anthropic 接入", "url", "http://"+config.AppConfig.ListenAddr+"/v1/anthropic/")
-	slog.Info("🌐 Vertex/Gemini 接入", "url", "http://"+config.AppConfig.ListenAddr+"/v1/vertex/")
+	slog.Info("🌐 Google Agent Platform 接入", "url", "http://"+config.AppConfig.ListenAddr+"/v1/google/")
+	slog.Info("   (旧路径向后兼容)", "url", "http://"+config.AppConfig.ListenAddr+"/v1/vertex/")
 	slog.Info("==================================================")
 
 	if err := http.ListenAndServe(config.AppConfig.ListenAddr, mux); err != nil {

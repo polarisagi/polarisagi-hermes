@@ -308,7 +308,7 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 		slog.Warn("⚠️ 响应流中断，启用 token 估算补偿", "trace_id", traceID, "node", dest.Node.Name, "prompt", promptTokens, "completion", completionTokens)
 	}
 
-	settleBilling("vertex", dest.Node.Name, clientType, "anthropic_adapter", modelName, int64(promptTokens), int64(completionTokens), int64(cachedTokens), http.StatusOK, dest, reqBody, traceID)
+	settleBilling("google", dest.Node.Name, clientType, "anthropic_adapter", modelName, int64(promptTokens), int64(completionTokens), int64(cachedTokens), http.StatusOK, dest, reqBody, traceID)
 
 	return true
 }
@@ -412,16 +412,16 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 	}
 
 	if len(contents) == 0 || (len(contents) == 1 && contents[0].Text == "") {
-		slog.Warn("⚠️ [NonStream] Vertex 返回响应但无有效文本内容（可能被安全过滤器屏蔽或返回空候选项），填充默认占位符防止客户端崩溃",
+		slog.Warn("⚠️ [NonStream] Google Agent Platform 返回响应但无有效文本内容（可能被安全过滤器屏蔽或返回空候选项），填充默认占位符防止客户端崩溃",
 			"trace_id", traceID, "account", dest.Node.Name,
-			"stop_reason", stopReason, "vertex_resp_preview", string(bodyBytes[:min(len(bodyBytes), 500)]))
+			"stop_reason", stopReason, "geap_resp_preview", string(bodyBytes[:min(len(bodyBytes), 500)]))
 
 		contents = []Content{
-			{Type: "text", Text: "[Summary skipped: Vertex API returned an empty response]"},
+			{Type: "text", Text: "[Summary skipped: Google Agent Platform returned an empty response]"},
 		}
 	}
 
-	settleBilling("vertex", dest.Node.Name, clientType, "anthropic_adapter", modelName, int64(promptTokens), int64(completionTokens), int64(cachedTokens), vertexResp.StatusCode, dest, reqBody, traceID)
+	settleBilling("google", dest.Node.Name, clientType, "anthropic_adapter", modelName, int64(promptTokens), int64(completionTokens), int64(cachedTokens), vertexResp.StatusCode, dest, reqBody, traceID)
 
 	anthropicResp := MessageResponse{
 		ID:           fmt.Sprintf("msg_%s", traceID),

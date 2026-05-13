@@ -6,12 +6,12 @@ package models
 type ModelInfo struct {
 	Name        string `json:"name"`        // 模型标识名（用于路由匹配）
 	DisplayName string `json:"display_name"` // 展示名称
-	Protocol    string `json:"protocol"`    // 所属协议: openai, anthropic, vertex, gemini
+	Protocol    string `json:"protocol"`    // 所属协议: openai, anthropic, google, gemini
 	Category    string `json:"category"`    // 分类: flagship, reasoning, cost-efficient, vision, legacy
 }
 
 // GetModelsByProtocol 根据协议返回可用的模型列表
-// 支持: openai, anthropic, vertex, gemini
+// 支持: openai, anthropic, google（Google Agent Platform）, gemini
 func GetModelsByProtocol(protocol string) []ModelInfo {
 	models, ok := modelCatalog[protocol]
 	if !ok {
@@ -89,47 +89,48 @@ var modelCatalog = map[string][]ModelInfo{
 		{Name: "claude-3-haiku-20240307", DisplayName: "Claude 3 Haiku", Protocol: "anthropic", Category: "legacy"},
 	},
 
-	"vertex": {
+	// google 键对应 Google Agent Platform (GEAP) 协议
+	"google": {
 		// 通配符
-		{Name: "*", DisplayName: "全部 Vertex/Gemini 模型 (通配符)", Protocol: "vertex", Category: "wildcard"},
+		{Name: "*", DisplayName: "全部 Google Agent Platform/Gemini 模型 (通配符)", Protocol: "google", Category: "wildcard"},
 
 		// Gemini 3.1 系列
-		{Name: "gemini-3.1-pro-preview-customtools", DisplayName: "Gemini 3.1 Pro CustomTools", Protocol: "vertex", Category: "flagship"},
-		{Name: "gemini-3.1-pro-preview", DisplayName: "Gemini 3.1 Pro Preview", Protocol: "vertex", Category: "flagship"},
-		{Name: "gemini-3.1-pro", DisplayName: "Gemini 3.1 Pro — 旗舰", Protocol: "vertex", Category: "flagship"},
-		{Name: "gemini-3.1-flash", DisplayName: "Gemini 3.1 Flash — 快速版", Protocol: "vertex", Category: "cost-efficient"},
-		{Name: "gemini-3.1-ultra", DisplayName: "Gemini 3.1 Ultra — 最强版", Protocol: "vertex", Category: "flagship"},
+		{Name: "gemini-3.1-pro-preview-customtools", DisplayName: "Gemini 3.1 Pro CustomTools", Protocol: "google", Category: "flagship"},
+		{Name: "gemini-3.1-pro-preview", DisplayName: "Gemini 3.1 Pro Preview", Protocol: "google", Category: "flagship"},
+		{Name: "gemini-3.1-pro", DisplayName: "Gemini 3.1 Pro — 旗舰", Protocol: "google", Category: "flagship"},
+		{Name: "gemini-3.1-flash", DisplayName: "Gemini 3.1 Flash — 快速版", Protocol: "google", Category: "cost-efficient"},
+		{Name: "gemini-3.1-ultra", DisplayName: "Gemini 3.1 Ultra — 最强版", Protocol: "google", Category: "flagship"},
 
 		// Gemini 3.0 系列
-		{Name: "gemini-3.0-pro", DisplayName: "Gemini 3.0 Pro", Protocol: "vertex", Category: "flagship"},
-		{Name: "gemini-3.0-flash", DisplayName: "Gemini 3.0 Flash", Protocol: "vertex", Category: "cost-efficient"},
-		{Name: "gemini-3-flash-preview", DisplayName: "Gemini 3 Flash Preview", Protocol: "vertex", Category: "cost-efficient"},
+		{Name: "gemini-3.0-pro", DisplayName: "Gemini 3.0 Pro", Protocol: "google", Category: "flagship"},
+		{Name: "gemini-3.0-flash", DisplayName: "Gemini 3.0 Flash", Protocol: "google", Category: "cost-efficient"},
+		{Name: "gemini-3-flash-preview", DisplayName: "Gemini 3 Flash Preview", Protocol: "google", Category: "cost-efficient"},
 
 		// Gemini 2.5 系列
-		{Name: "gemini-2.5-pro", DisplayName: "Gemini 2.5 Pro", Protocol: "vertex", Category: "flagship"},
-		{Name: "gemini-2.5-flash", DisplayName: "Gemini 2.5 Flash", Protocol: "vertex", Category: "cost-efficient"},
+		{Name: "gemini-2.5-pro", DisplayName: "Gemini 2.5 Pro", Protocol: "google", Category: "flagship"},
+		{Name: "gemini-2.5-flash", DisplayName: "Gemini 2.5 Flash", Protocol: "google", Category: "cost-efficient"},
 
 		// Gemini 2.0 系列
-		{Name: "gemini-2.0-pro-exp", DisplayName: "Gemini 2.0 Pro Exp", Protocol: "vertex", Category: "flagship"},
-		{Name: "gemini-2.0-flash", DisplayName: "Gemini 2.0 Flash", Protocol: "vertex", Category: "cost-efficient"},
-		{Name: "gemini-2.0-flash-lite", DisplayName: "Gemini 2.0 Flash Lite", Protocol: "vertex", Category: "cost-efficient"},
+		{Name: "gemini-2.0-pro-exp", DisplayName: "Gemini 2.0 Pro Exp", Protocol: "google", Category: "flagship"},
+		{Name: "gemini-2.0-flash", DisplayName: "Gemini 2.0 Flash", Protocol: "google", Category: "cost-efficient"},
+		{Name: "gemini-2.0-flash-lite", DisplayName: "Gemini 2.0 Flash Lite", Protocol: "google", Category: "cost-efficient"},
 
 		// Gemini 1.5 系列
-		{Name: "gemini-1.5-pro", DisplayName: "Gemini 1.5 Pro", Protocol: "vertex", Category: "legacy"},
-		{Name: "gemini-1.5-flash", DisplayName: "Gemini 1.5 Flash", Protocol: "vertex", Category: "legacy"},
+		{Name: "gemini-1.5-pro", DisplayName: "Gemini 1.5 Pro", Protocol: "google", Category: "legacy"},
+		{Name: "gemini-1.5-flash", DisplayName: "Gemini 1.5 Flash", Protocol: "google", Category: "legacy"},
 
 		// 带 google/ 前缀的 Gemini 模型（用于 OpenAI 兼容端点）
-		{Name: "google/gemini-3.1-pro-preview-customtools", DisplayName: "Gemini 3.1 Pro CT (OpenAI兼容)", Protocol: "vertex", Category: "flagship"},
-		{Name: "google/gemini-3.1-pro-preview", DisplayName: "Gemini 3.1 Pro Preview (OpenAI兼容)", Protocol: "vertex", Category: "flagship"},
-		{Name: "google/gemini-3.1-pro", DisplayName: "Gemini 3.1 Pro (OpenAI兼容)", Protocol: "vertex", Category: "flagship"},
-		{Name: "google/gemini-3.1-flash", DisplayName: "Gemini 3.1 Flash (OpenAI兼容)", Protocol: "vertex", Category: "cost-efficient"},
-		{Name: "google/gemini-3.0-pro", DisplayName: "Gemini 3.0 Pro (OpenAI兼容)", Protocol: "vertex", Category: "flagship"},
-		{Name: "google/gemini-3.0-flash", DisplayName: "Gemini 3.0 Flash (OpenAI兼容)", Protocol: "vertex", Category: "cost-efficient"},
-		{Name: "google/gemini-2.5-flash", DisplayName: "Gemini 2.5 Flash (OpenAI兼容)", Protocol: "vertex", Category: "cost-efficient"},
-		{Name: "google/gemini-2.0-pro-exp", DisplayName: "Gemini 2.0 Pro Exp (OpenAI兼容)", Protocol: "vertex", Category: "flagship"},
-		{Name: "google/gemini-2.0-flash", DisplayName: "Gemini 2.0 Flash (OpenAI兼容)", Protocol: "vertex", Category: "cost-efficient"},
-		{Name: "google/gemini-1.5-pro", DisplayName: "Gemini 1.5 Pro (OpenAI兼容)", Protocol: "vertex", Category: "legacy"},
-		{Name: "google/gemini-1.5-flash", DisplayName: "Gemini 1.5 Flash (OpenAI兼容)", Protocol: "vertex", Category: "legacy"},
+		{Name: "google/gemini-3.1-pro-preview-customtools", DisplayName: "Gemini 3.1 Pro CT (OpenAI兼容)", Protocol: "google", Category: "flagship"},
+		{Name: "google/gemini-3.1-pro-preview", DisplayName: "Gemini 3.1 Pro Preview (OpenAI兼容)", Protocol: "google", Category: "flagship"},
+		{Name: "google/gemini-3.1-pro", DisplayName: "Gemini 3.1 Pro (OpenAI兼容)", Protocol: "google", Category: "flagship"},
+		{Name: "google/gemini-3.1-flash", DisplayName: "Gemini 3.1 Flash (OpenAI兼容)", Protocol: "google", Category: "cost-efficient"},
+		{Name: "google/gemini-3.0-pro", DisplayName: "Gemini 3.0 Pro (OpenAI兼容)", Protocol: "google", Category: "flagship"},
+		{Name: "google/gemini-3.0-flash", DisplayName: "Gemini 3.0 Flash (OpenAI兼容)", Protocol: "google", Category: "cost-efficient"},
+		{Name: "google/gemini-2.5-flash", DisplayName: "Gemini 2.5 Flash (OpenAI兼容)", Protocol: "google", Category: "cost-efficient"},
+		{Name: "google/gemini-2.0-pro-exp", DisplayName: "Gemini 2.0 Pro Exp (OpenAI兼容)", Protocol: "google", Category: "flagship"},
+		{Name: "google/gemini-2.0-flash", DisplayName: "Gemini 2.0 Flash (OpenAI兼容)", Protocol: "google", Category: "cost-efficient"},
+		{Name: "google/gemini-1.5-pro", DisplayName: "Gemini 1.5 Pro (OpenAI兼容)", Protocol: "google", Category: "legacy"},
+		{Name: "google/gemini-1.5-flash", DisplayName: "Gemini 1.5 Flash (OpenAI兼容)", Protocol: "google", Category: "legacy"},
 	},
 
 	"gemini": {

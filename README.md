@@ -49,8 +49,11 @@ By default, the gateway listens on `127.0.0.1:28888`.
 2. **API Endpoints**: Point your AI clients (Cursor, Aider, Opencode, etc.) to:
    - OpenAI: `http://127.0.0.1:28888/v1/openai/`
    - Anthropic: `http://127.0.0.1:28888/v1/anthropic/`
-   - Vertex/Gemini: `http://127.0.0.1:28888/v1/vertex/`
+   - Google Agent Platform (GEAP): `http://127.0.0.1:28888/v1/google/`
    *(API keys can be anything, the gateway will swap them with your physical keys)*
+
+> **Google Agent Platform REST API Reference**: https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest
+> **Note**: The legacy `/v1/vertex/` path is still supported for backward compatibility.
 
 > **Note**: If you are using Claude Code or Codex, it is recommended to use them together with [cc-switch](https://github.com/farion1231/cc-switch).
 
@@ -109,7 +112,10 @@ iwr -useb https://raw.githubusercontent.com/mrlaoliai/polaris-gateway/main/scrip
 2. **在业务端调用**: 将客户端的 API URL 指向以下地址（API Key 填任意值即可）：
    - OpenAI 协议: `http://127.0.0.1:28888/v1/openai/`
    - Anthropic 协议: `http://127.0.0.1:28888/v1/anthropic/`
-   - Vertex/Gemini 协议: `http://127.0.0.1:28888/v1/vertex/`
+   - Google Agent Platform (GEAP) 协议: `http://127.0.0.1:28888/v1/google/`
+
+> **Google Agent Platform 官方 REST API 文档**: https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest
+> **注意**: 旧路径 `/v1/vertex/` 仍然支持，向后兼容现有客户端配置。
 
 > **提示**: 如果您在使用 Claude Code 或 Codex，建议配合 [cc-switch](https://github.com/farion1231/cc-switch) 使用。
 
