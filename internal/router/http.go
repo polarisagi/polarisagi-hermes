@@ -101,6 +101,15 @@ func ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 拦截 GET 且 body 为空的请求——这类请求是客户端工具（如 /doctor、/plugins）的健康探测，
+	// 不含模型信息，无法路由，直接返回 200 避免误报 WARN 日志
+	if r.Method == http.MethodGet && len(bodyBytes) == 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status": "ok"}`))
+		return
+	}
+
 	// 步骤4：从请求体或 URL 路径提取模型名
 	// Google Agent Platform 原生协议：先从 body JSON 的 model 字段提取，失败则从 URL 路径提取
 	modelName := extractModelName(bodyBytes, sourceProtocol)
