@@ -31,9 +31,11 @@ func OpenAIToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	}
 	targetURL = targetURL + subPath
 
-	if dest.TargetModel != "" && dest.TargetModel != utils.ExtractModelName(bodyBytes) {
-		bodyBytes = bytes.ReplaceAll(bodyBytes, []byte(fmt.Sprintf(`"model":"%s"`, utils.ExtractModelName(bodyBytes))), []byte(fmt.Sprintf(`"model":"%s"`, dest.TargetModel)))
-		bodyBytes = bytes.ReplaceAll(bodyBytes, []byte(fmt.Sprintf(`"model": "%s"`, utils.ExtractModelName(bodyBytes))), []byte(fmt.Sprintf(`"model": "%s"`, dest.TargetModel)))
+	// 缓存原始模型名：避免在第二次 ReplaceAll 时 ExtractModelName 读到已被替换后的值
+	originalModel := utils.ExtractModelName(bodyBytes)
+	if dest.TargetModel != "" && dest.TargetModel != originalModel {
+		bodyBytes = bytes.ReplaceAll(bodyBytes, []byte(fmt.Sprintf(`"model":"%s"`, originalModel)), []byte(fmt.Sprintf(`"model":"%s"`, dest.TargetModel)))
+		bodyBytes = bytes.ReplaceAll(bodyBytes, []byte(fmt.Sprintf(`"model": "%s"`, originalModel)), []byte(fmt.Sprintf(`"model": "%s"`, dest.TargetModel)))
 	}
 
 	proxyReq, _ := http.NewRequestWithContext(ctx, r.Method, targetURL, bytes.NewReader(bodyBytes))

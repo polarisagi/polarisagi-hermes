@@ -13,9 +13,19 @@ type MessageRequest struct {
 	Temperature *float64    `json:"temperature,omitempty"` // 温度参数
 	TopP        *float64    `json:"top_p,omitempty"`       // Top-P 采样
 	TopK        *int        `json:"top_k,omitempty"`       // Top-K 采样
-	Stream      bool        `json:"stream,omitempty"`      // 是否流式响应
-	Tools       []Tool      `json:"tools,omitempty"`       // 可用工具列表
-	ToolChoice  *ToolChoice `json:"tool_choice,omitempty"` // 工具选择策略
+	Stream        bool            `json:"stream,omitempty"`         // 是否流式响应
+	Tools         []Tool          `json:"tools,omitempty"`          // 可用工具列表
+	ToolChoice    *ToolChoice     `json:"tool_choice,omitempty"`    // 工具选择策略
+	StopSequences []string        `json:"stop_sequences,omitempty"` // 自定义停止序列
+	Thinking      *ThinkingConfig `json:"thinking,omitempty"`       // 扩展思考配置（Claude Code /effort 命令使用）
+}
+
+// ThinkingConfig Anthropic 扩展思考配置
+// type="enabled" 时启用思考，budget_tokens 给出思考可用的 token 预算
+// 映射到 Gemini 的 generationConfig.thinkingConfig.thinkingBudget
+type ThinkingConfig struct {
+	Type         string `json:"type,omitempty"`          // "enabled" / "disabled"
+	BudgetTokens int    `json:"budget_tokens,omitempty"` // 思考阶段可用的 token 数
 }
 
 type Tool struct {
@@ -60,10 +70,15 @@ type Content struct {
 	Source    map[string]interface{} `json:"source,omitempty"`      // for image
 }
 
-// Usage Anthropic 用量统计，区分 input_tokens 和 output_tokens
+// Usage Anthropic 用量统计
+// Claude Code 的 /context 与 /cost 命令通过这些字段计算上下文占用百分比与累计费用
+//   - cache_creation_input_tokens：本次新写入 prompt cache 的 token 数（Anthropic 原生支持）
+//   - cache_read_input_tokens：命中 prompt cache 的 token 数（映射自 Gemini cachedContentTokenCount）
 type Usage struct {
-	InputTokens  int `json:"input_tokens"`
-	OutputTokens int `json:"output_tokens"`
+	InputTokens              int `json:"input_tokens"`
+	OutputTokens             int `json:"output_tokens"`
+	CacheCreationInputTokens int `json:"cache_creation_input_tokens,omitempty"`
+	CacheReadInputTokens     int `json:"cache_read_input_tokens,omitempty"`
 }
 
 // ── Anthropic SSE 流式事件结构体 ──

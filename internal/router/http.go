@@ -130,8 +130,21 @@ func ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// 路由匹配失败：无可用路由或无空闲节点 → 返回 503
 	if err != nil || dest == nil {
+		// ctx 已 cancel（如客户端断开）属正常退出，DEBUG 级别，不污染错误日志
+		if err != nil && ctx.Err() != nil {
+			slog.Debug("🔌 [入口] 客户端断开，排队请求退出", "trace_id", traceID, "model", modelName)
+			return
+		}
 		slog.Error("路由分发失败或队列超时", "trace_id", traceID, "source_protocol", sourceProtocol, "model", modelName, "error", err)
 		http.Error(w, fmt.Sprintf("Polaris Gateway: No active routes available for model %s (%s) or queue timeout", modelName, sourceProtocol), http.StatusServiceUnavailable)
+		return
+	}
+
+	// 极端窗口保护：客户端可能在 tryAcquire 成功的瞬间断开
+	// 此时节点已被标记 Busy，但实际请求不会发起。立即归还避免节点空转锁定
+	if ctx.Err() != nil {
+		ReleaseNode(dest.Node.ID)
+		slog.Debug("🔌 [入口] 客户端在 acquire 节点的瞬间断开，立即归还", "trace_id", traceID, "node", dest.Node.Name)
 		return
 	}
 

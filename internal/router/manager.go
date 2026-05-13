@@ -306,21 +306,38 @@ func tryAcquire(sourceProtocol, reqModel string) (dest *MatchedDestination, reas
 		return validCandidates[i].State.Priority > validCandidates[j].State.Priority
 	})
 
-	chosen := validCandidates[0]
+	// CAS 抢占：候选筛选时的状态检查与最终 Busy 设置存在时间窗口，必须在持锁内重新验证
+	// 严格保证「一节点一并发」：两个 goroutine 同时看到 node1=Idle 时，只有一个能成功
+	// 失败方会跳到下一个候选；如所有候选都被抢占，返回 false 让上层 ticker 继续轮询
+	// 这是避免单账号并发触发上游 429 的核心机制
+	racedCount := 0
+	for _, candidate := range validCandidates {
+		candidate.State.mu.Lock()
+		if candidate.State.Status != StatusIdle && candidate.State.Status != StatusProbation {
+			candidate.State.mu.Unlock()
+			racedCount++
+			continue
+		}
+		isProbationRun := (candidate.State.Status == StatusProbation)
+		candidate.State.Status = StatusBusy
+		candidate.State.mu.Unlock()
 
-	slog.Debug("🎯 [负载均衡] 自动选择目标节点", "source_protocol", sourceProtocol, "req_model", reqModel, "chosen_node", chosen.State.Name, "priority", chosen.State.Priority, "target_model", chosen.TargetModel, "is_probation", chosen.State.Status == StatusProbation)
+		slog.Debug("🎯 [负载均衡] 自动选择目标节点",
+			"source_protocol", sourceProtocol, "req_model", reqModel,
+			"chosen_node", candidate.State.Name, "priority", candidate.State.Priority,
+			"target_model", candidate.TargetModel, "is_probation", isProbationRun,
+			"raced_skip", racedCount)
 
-	chosen.State.mu.Lock()
-	isProbationRun := (chosen.State.Status == StatusProbation)
-	chosen.State.Status = StatusBusy
-	chosen.State.mu.Unlock()
+		return &MatchedDestination{
+			Node:           candidate.State,
+			TargetModel:    candidate.TargetModel,
+			TargetProtocol: candidate.TargetProtocol,
+			IsProbationRun: isProbationRun,
+		}, "", true
+	}
 
-	return &MatchedDestination{
-		Node:           chosen.State,
-		TargetModel:    chosen.TargetModel,
-		TargetProtocol:  chosen.TargetProtocol,
-		IsProbationRun: isProbationRun,
-	}, "", true
+	// 所有候选都在筛选与 acquire 之间被并发请求抢占
+	return nil, fmt.Sprintf("all %d candidates raced by concurrent requests", racedCount), false
 }
 
 // ReleaseNode 释放节点：将 Busy 状态的节点恢复为 Idle，供后续请求使用

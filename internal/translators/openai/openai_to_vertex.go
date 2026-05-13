@@ -32,8 +32,10 @@ func OpenAIToVertex(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	}
 
 	if dest.TargetModel != "" {
-		currentBody = bytes.ReplaceAll(currentBody, []byte(fmt.Sprintf(`"model":"%s"`, utils.ExtractModelName(currentBody))), []byte(fmt.Sprintf(`"model":"google/%s"`, dest.TargetModel)))
-		currentBody = bytes.ReplaceAll(currentBody, []byte(fmt.Sprintf(`"model": "%s"`, utils.ExtractModelName(currentBody))), []byte(fmt.Sprintf(`"model": "google/%s"`, dest.TargetModel)))
+		// 缓存原始模型名：第二次 ReplaceAll 读取必须用替换前的值
+		originalModel := utils.ExtractModelName(currentBody)
+		currentBody = bytes.ReplaceAll(currentBody, []byte(fmt.Sprintf(`"model":"%s"`, originalModel)), []byte(fmt.Sprintf(`"model":"google/%s"`, dest.TargetModel)))
+		currentBody = bytes.ReplaceAll(currentBody, []byte(fmt.Sprintf(`"model": "%s"`, originalModel)), []byte(fmt.Sprintf(`"model": "google/%s"`, dest.TargetModel)))
 	}
 
 	if dest.IsProbationRun {

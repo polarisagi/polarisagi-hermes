@@ -40,7 +40,14 @@ func VertexToVertex(ctx context.Context, w http.ResponseWriter, r *http.Request,
 			q.Add(k, v)
 		}
 	}
-	q.Set("key", dest.Node.Credentials)
+	// 认证策略：
+	//   - GEAP 合作伙伴模型 (publishers/anthropic/...) 强制 OAuth Bearer Token
+	//   - Gemini 短路径或 publishers/google 兼容 API Key 查询参数（向后兼容）
+	if strings.Contains(targetURL, "publishers/anthropic/") {
+		proxyReq.Header.Set("Authorization", "Bearer "+dest.Node.Credentials)
+	} else {
+		q.Set("key", dest.Node.Credentials)
+	}
 	proxyReq.URL.RawQuery = q.Encode()
 
 	utils.ExecuteAndStream(w, proxyReq, dest, "vertex", clientType, methodName, traceID, "Vertex",
@@ -103,36 +110,86 @@ func streamVertexResponse(w http.ResponseWriter, finalResp *http.Response, dest 
 	}
 }
 
-// buildVertexTargetURL 构建 Vertex 原生端点 URL
-// 支持两种模式:
-//  1. 有 ProjectID: 使用 GCP Agent Platform 路由格式，支持 {project_id}/{location}/{subpath} 模板
-//  2. 无 ProjectID: 使用标准 BaseURL 拼接路径
+// buildVertexTargetURL 构建 Gemini Enterprise Agent Platform (原 Vertex AI) 端点 URL
+// 支持三种入站路径：
+//  1. 短路径 `/models/X:method`              → 自动套用 publishers/google 前缀（向后兼容）
+//  2. 完整路径 `/publishers/{pub}/models/X:method` → 保留客户端指定的发布者（google/anthropic 等）
+//  3. 完整路径 `/projects/.../locations/.../publishers/...` → 视为绝对 GEAP 路径，直接拼接到 host
+//
+// 当 ProjectID 为空时退化为旧式 BaseURL + /v1 + path 拼接（用于非 GEAP 的 Gemini API 兼容端点）
 func buildVertexTargetURL(node *router.NodeState, incomingPath string) string {
 	subPath := strings.TrimPrefix(incomingPath, "/v1")
 	if !strings.HasPrefix(subPath, "/") {
 		subPath = "/" + subPath
 	}
+	trimmedSub := strings.TrimPrefix(subPath, "/")
 
 	if node.ProjectID != "" {
-		template := node.BaseURL
-		if template == "" {
-			template = "https://aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/google/{subpath}"
-		}
-
 		location := node.Location
 		if location == "" {
 			location = "global"
 		}
 
+		// 客户端已写完整 /projects/.../locations/.../publishers/... 路径：直接套到 GEAP host 上
+		if strings.HasPrefix(trimmedSub, "projects/") {
+			host := node.BaseURL
+			if host == "" {
+				host = inferGEAPHost(location)
+			} else {
+				// 用户在 BaseURL 配置了 host 占位的模板时，提取 host 部分
+				host = stripTemplatePath(host)
+			}
+			return strings.TrimSuffix(host, "/") + "/v1/" + trimmedSub
+		}
+
+		template := node.BaseURL
+		if template == "" {
+			template = inferGEAPHost(location) + "/v1/projects/{project_id}/locations/{location}/{publisher_subpath}"
+		}
+
+		// 客户端路径已包含 publishers/{pub}/... → 整体作为 publisher_subpath
+		// 否则默认套用 publishers/google/ 前缀（向后兼容 Gemini 模型短路径）
+		var publisherSubpath string
+		if strings.HasPrefix(trimmedSub, "publishers/") {
+			publisherSubpath = trimmedSub
+		} else {
+			publisherSubpath = "publishers/google/" + trimmedSub
+		}
+
 		resURL := strings.ReplaceAll(template, "{project_id}", node.ProjectID)
 		resURL = strings.ReplaceAll(resURL, "{location}", location)
-		resURL = strings.ReplaceAll(resURL, "{subpath}", strings.TrimPrefix(subPath, "/"))
+		// 同时兼容旧的 {subpath} 占位（自动加 publishers/google/ 前缀）
+		resURL = strings.ReplaceAll(resURL, "{subpath}", trimmedSub)
+		resURL = strings.ReplaceAll(resURL, "{publisher_subpath}", publisherSubpath)
 
 		return resURL
 	}
 
 	baseURL := strings.TrimSuffix(node.BaseURL, "/")
 	return baseURL + "/v1" + subPath
+}
+
+// inferGEAPHost 根据 location 推断 GEAP API host
+// global 端点用 aiplatform.googleapis.com，区域端点用 {region}-aiplatform.googleapis.com
+func inferGEAPHost(location string) string {
+	if location == "" || location == "global" {
+		return "https://aiplatform.googleapis.com"
+	}
+	return "https://" + location + "-aiplatform.googleapis.com"
+}
+
+// stripTemplatePath 从 BaseURL 模板中提取 scheme://host 部分，丢弃 /v1/... 等模板路径段
+func stripTemplatePath(template string) string {
+	idx := strings.Index(template, "://")
+	if idx < 0 {
+		return template
+	}
+	rest := template[idx+3:]
+	slash := strings.Index(rest, "/")
+	if slash < 0 {
+		return template
+	}
+	return template[:idx+3+slash]
 }
 
 func init() {

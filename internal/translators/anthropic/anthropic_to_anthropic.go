@@ -10,17 +10,24 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
-	"time"
 
 	"polaris-gateway/internal/router"
 	"polaris-gateway/internal/translators/utils"
 )
 
-var passthroughHTTPClient = &http.Client{Timeout: 180 * time.Second}
+// passthroughHTTPClient 复用 utils.SharedHTTPClient 共享 TCP 连接池
+var passthroughHTTPClient = utils.SharedHTTPClient
 
 // AnthropicToAnthropic is a pure passthrough: no protocol conversion, just load balancing + billing.
 // It proxies the Anthropic request body as-is to the target upstream and streams the response back.
 func AnthropicToAnthropic(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) {
+	// count_tokens 端点直接透传到上游 Anthropic 节点以获得官方精确计数
+	// 失败时函数内会降级到本地估算
+	if isCountTokensPath(r.URL.Path) {
+		handleCountTokensPassthrough(ctx, w, r, bodyBytes, dest, traceID)
+		return
+	}
+
 	clientType := "Anthropic-Passthrough"
 
 	// Parse request minimally to get model name for billing
@@ -68,7 +75,6 @@ func AnthropicToAnthropic(ctx context.Context, w http.ResponseWriter, r *http.Re
 	proxyReq.Header.Set("anthropic-version", "2023-06-01")
 	proxyReq.Header.Set("Content-Type", "application/json")
 
-	startTime := time.Now()
 	finalResp, err := passthroughHTTPClient.Do(proxyReq)
 	if err != nil {
 		utils.HandleNetworkError(w, err, dest, "anthropic", clientType, "passthrough", traceID, "Anthropic Passthrough")
@@ -83,7 +89,6 @@ func AnthropicToAnthropic(ctx context.Context, w http.ResponseWriter, r *http.Re
 		anthropicPassthroughNonStream(w, finalResp, traceID, dest, clientType, modelName, bodyBytes)
 	}
 
-	_ = startTime
 	utils.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
 }
 

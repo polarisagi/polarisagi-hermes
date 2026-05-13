@@ -32,16 +32,18 @@ func VertexToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	}
 	targetURL = targetURL + subPath
 
-	// Strip google/ prefix from model name if present (Vertex→OpenAI passthrough)
+	// 剥离 google/ 前缀：客户端发 vertex 协议但路由到 OpenAI 后端时模型名不该带前缀
+	// 同时覆盖 `"model":"google/` 与 `"model": "google/`（带空格）两种 JSON 编码方式
 	currentBody := bodyBytes
-	if bytes.Contains(currentBody, []byte(`"model":"google/`)) {
-		currentBody = bytes.ReplaceAll(currentBody, []byte(`"model":"google/`), []byte(`"model":"`))
-		currentBody = bytes.ReplaceAll(currentBody, []byte(`"model": "google/`), []byte(`"model": "`))
-	}
-	// Apply target model mapping if set
+	currentBody = bytes.ReplaceAll(currentBody, []byte(`"model":"google/`), []byte(`"model":"`))
+	currentBody = bytes.ReplaceAll(currentBody, []byte(`"model": "google/`), []byte(`"model": "`))
+
+	// 应用路由的目标模型映射
 	if dest.TargetModel != "" {
-		currentBody = bytes.ReplaceAll(currentBody, []byte(fmt.Sprintf(`"model":"%s"`, utils.ExtractModelName(currentBody))), []byte(fmt.Sprintf(`"model":"%s"`, dest.TargetModel)))
-		currentBody = bytes.ReplaceAll(currentBody, []byte(fmt.Sprintf(`"model": "%s"`, utils.ExtractModelName(currentBody))), []byte(fmt.Sprintf(`"model": "%s"`, dest.TargetModel)))
+		// 缓存原始模型名避免第二次 ReplaceAll 读到替换后的值
+		originalModel := utils.ExtractModelName(currentBody)
+		currentBody = bytes.ReplaceAll(currentBody, []byte(fmt.Sprintf(`"model":"%s"`, originalModel)), []byte(fmt.Sprintf(`"model":"%s"`, dest.TargetModel)))
+		currentBody = bytes.ReplaceAll(currentBody, []byte(fmt.Sprintf(`"model": "%s"`, originalModel)), []byte(fmt.Sprintf(`"model": "%s"`, dest.TargetModel)))
 	}
 
 	proxyReq, _ := http.NewRequestWithContext(ctx, r.Method, targetURL, bytes.NewReader(currentBody))

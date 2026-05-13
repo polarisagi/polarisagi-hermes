@@ -10,8 +10,10 @@ import (
 	"polaris-gateway/internal/translators/utils"
 )
 
-// writeSSEMessageStart sends the Anthropic SSE message_start event
-func writeSSEMessageStart(w http.ResponseWriter, flusher http.Flusher, traceID, modelName string) {
+// writeSSEMessageStart 发送 message_start 事件
+// estimatedInputTokens > 0 时填入 Usage.InputTokens，让 Claude Code 的 /context 命令
+// 在第一个事件就能显示上下文占比；后续 message_delta 会以精确值覆盖
+func writeSSEMessageStart(w http.ResponseWriter, flusher http.Flusher, traceID, modelName string, estimatedInputTokens int) {
 	writeSSE(w, flusher, "message_start", StreamEvent{
 		Type: "message_start",
 		Message: &MessageResponse{
@@ -20,7 +22,7 @@ func writeSSEMessageStart(w http.ResponseWriter, flusher http.Flusher, traceID, 
 			Role:    "assistant",
 			Content: []Content{},
 			Model:   modelName,
-			Usage:   Usage{},
+			Usage:   Usage{InputTokens: estimatedInputTokens},
 		},
 	})
 }

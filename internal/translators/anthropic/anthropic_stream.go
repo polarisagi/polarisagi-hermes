@@ -5,6 +5,7 @@ package anthropic
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,7 +20,9 @@ import (
 // 事件序列: message_start → content_block_start → content_block_delta* → content_block_stop → message_delta → message_stop
 // 同时在最后解析 usageMetadata 完成计费结算
 // 返回 streamOK: false 表示流式传输中发生不可恢复错误（Vertex 返回错误、IO 断联等），调用方应标记节点失败
-func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, req MessageRequest, traceID string, dest *router.MatchedDestination, clientType, modelName string, reqBody []byte) (streamOK bool) {
+func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexResp *http.Response, req MessageRequest, traceID string, dest *router.MatchedDestination, clientType, modelName string, reqBody []byte) (streamOK bool) {
+	defer vertexResp.Body.Close()
+
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -27,7 +30,10 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 
 	flusher, _ := w.(http.Flusher)
 
-	writeSSEMessageStart(w, flusher, traceID, modelName)
+	// 用本地估算填充 message_start 的 input_tokens，让 /context 命令能在首事件就显示进度
+	// usageMetadata 抵达后，下方 message_delta 会以精确值覆盖
+	estimatedInput := estimateAnthropicTokens(req)
+	writeSSEMessageStart(w, flusher, traceID, modelName, estimatedInput)
 
 	reader := bufio.NewReader(vertexResp.Body)
 	var promptTokens, completionTokens, cachedTokens int
@@ -40,6 +46,12 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 	var streamError string // tracks mid-stream error for reporting
 
 	for {
+		// 客户端断开时 r.Context() 被取消，提前退出避免继续消耗上游连接
+		if ctx.Err() != nil {
+			slog.Debug("🔌 [Stream] 客户端已断开，终止 Vertex 流式响应", "trace_id", traceID, "account", dest.Node.Name)
+			return true
+		}
+
 		line, err := reader.ReadBytes('\n')
 		if len(line) > 0 {
 			totalWritten += int64(len(line))
@@ -81,6 +93,15 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 			break
 		}
 
+		// Detect promptFeedback block (content policy refusal)
+		if pf, ok := vResp["promptFeedback"].(map[string]interface{}); ok {
+			if blockReason, ok := pf["blockReason"].(string); ok && blockReason != "" {
+				streamError = fmt.Sprintf("request blocked by Vertex safety filter: %s", blockReason)
+				slog.Error("❌ [Stream] Vertex promptFeedback 阻断请求", "trace_id", traceID, "account", dest.Node.Name, "block_reason", blockReason)
+				break
+			}
+		}
+
 		// Parse Usage
 		if usage, ok := vResp["usageMetadata"].(map[string]interface{}); ok {
 			if p, ok := usage["promptTokenCount"].(float64); ok {
@@ -106,12 +127,12 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 			case "MAX_TOKENS":
 				stopReason = "max_tokens"
 			case "STOP":
-				// stopReason will be set to "tool_use" below if a functionCall is detected
-			case "MALFORMED_FUNCTION_CALL":
-				// Model attempted a tool call but produced malformed args; treat as tool_use
-				// so Claude Code knows to retry rather than stopping the conversation
+				// 若下方循环检测到 functionCall，会覆盖为 "tool_use"
+				// 此处保持 stopReason 不变（默认 "end_turn"）
+			case "MALFORMED_FUNCTION_CALL", "UNEXPECTED_TOOL_CALL":
+				// 工具调用相关的非致命错误：映射为 tool_use 让客户端重试
 				stopReason = "tool_use"
-			case "SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII":
+			case "SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "IMAGE_SAFETY":
 				stopReason = "end_turn"
 				slog.Warn("⚠️ [Stream] Vertex 返回安全相关停止原因", "trace_id", traceID, "account", dest.Node.Name, "finish_reason", finishReason)
 			default:
@@ -131,6 +152,12 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 
 		for _, partIntf := range parts {
 			part, _ := partIntf.(map[string]interface{})
+
+			// Gemini 在启用 thinkingConfig 时会以 thought=true 的 part 返回内部推理过程
+			// 不应作为正式答案输出给客户端（否则思考内容会前置到最终答案前）
+			if isThought, _ := part["thought"].(bool); isThought {
+				continue
+			}
 
 			if text, ok := part["text"].(string); ok && text != "" {
 				if !inText {
@@ -220,6 +247,16 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 		}
 	}
 
+	// If the stream completed normally but Vertex generated no content, report as error
+	// This surfaces the "no assistant message" failure as a proper error rather than silently
+	// returning an empty assistant message that confuses Claude Code's /compact.
+	if streamError == "" && blockIndex == 0 && !inText {
+		streamError = "Vertex returned empty response with no text content (possible safety filter or empty candidates)"
+		slog.Warn("⚠️ [Stream] Vertex 流式响应未包含任何文本内容，将返回错误供客户端重试",
+			"trace_id", traceID, "account", dest.Node.Name,
+			"stop_reason", stopReason, "prompt_tokens", promptTokens)
+	}
+
 	// If streamError is set, send Anthropic-compatible error SSE and abort
 	if streamError != "" {
 		// Close any open block first so Claude Code can cleanly parse partial content
@@ -247,15 +284,18 @@ func streamAnthropicResponse(w http.ResponseWriter, vertexResp *http.Response, r
 		writeSSEContentBlockStop(w, flusher, blockIndex)
 	}
 
-	// Send message_delta (stop reason + usage)
+	// message_delta：Anthropic 协议要求附带最终 stop_reason 与精确 usage
+	// Gemini 的 cachedContentTokenCount 映射成 cache_read_input_tokens，
+	// Claude Code 的 /cost 命令据此识别 prompt cache 命中以反映真实费用
 	msgDeltaEvent := StreamEvent{
 		Type: "message_delta",
 		Delta: &Delta{
 			StopReason: stopReason,
 		},
 		Usage: &Usage{
-			InputTokens:  promptTokens,
-			OutputTokens: completionTokens,
+			InputTokens:          promptTokens,
+			OutputTokens:         completionTokens,
+			CacheReadInputTokens: cachedTokens,
 		},
 	}
 	writeSSE(w, flusher, "message_delta", msgDeltaEvent)
@@ -301,20 +341,49 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 		}
 	}
 
+	// Detect promptFeedback block (safety refusal before any candidates)
+	if pf, ok := vResp["promptFeedback"].(map[string]interface{}); ok {
+		if blockReason, ok := pf["blockReason"].(string); ok && blockReason != "" {
+			slog.Error("❌ [NonStream] Vertex promptFeedback 阻断请求", "trace_id", traceID, "account", dest.Node.Name, "block_reason", blockReason)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadGateway)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"type": "error",
+				"error": map[string]interface{}{
+					"type":    "api_error",
+					"message": fmt.Sprintf("request blocked by Vertex safety filter: %s", blockReason),
+				},
+			})
+			return
+		}
+	}
+
 	contents := []Content{}
 	stopReason := "end_turn"
 
 	if candidates, ok := vResp["candidates"].([]interface{}); ok && len(candidates) > 0 {
 		if cand, ok := candidates[0].(map[string]interface{}); ok {
+			// finishReason 映射与流式分支保持一致，避免客户端 stop_reason 检查不一致
 			if finishReason, ok := cand["finishReason"].(string); ok && finishReason != "" {
-				if finishReason == "MAX_TOKENS" {
+				switch finishReason {
+				case "MAX_TOKENS":
 					stopReason = "max_tokens"
+				case "MALFORMED_FUNCTION_CALL", "UNEXPECTED_TOOL_CALL":
+					stopReason = "tool_use"
+				case "SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "IMAGE_SAFETY":
+					stopReason = "end_turn"
+					slog.Warn("⚠️ [NonStream] Vertex 返回安全相关停止原因",
+						"trace_id", traceID, "account", dest.Node.Name, "finish_reason", finishReason)
 				}
 			}
 			if content, ok := cand["content"].(map[string]interface{}); ok {
 				if parts, ok := content["parts"].([]interface{}); ok && len(parts) > 0 {
 					for i, partIntf := range parts {
 						part, _ := partIntf.(map[string]interface{})
+						// 跳过 Gemini 思考过程 part，避免混入最终答案
+						if isThought, _ := part["thought"].(bool); isThought {
+							continue
+						}
 						if t, ok := part["text"].(string); ok && t != "" {
 							contents = append(contents, Content{
 								Type: "text",
@@ -341,6 +410,12 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 		}
 	}
 
+	if len(contents) == 0 {
+		slog.Warn("⚠️ [NonStream] Vertex 返回响应但无文本内容（可能被安全过滤器屏蔽或返回空候选项）",
+			"trace_id", traceID, "account", dest.Node.Name,
+			"stop_reason", stopReason, "vertex_resp_preview", string(bodyBytes[:min(len(bodyBytes), 500)]))
+	}
+
 	settleBilling("vertex", dest.Node.Name, clientType, "anthropic_adapter", modelName, int64(promptTokens), int64(completionTokens), int64(cachedTokens), vertexResp.StatusCode, dest, reqBody, traceID)
 
 	anthropicResp := MessageResponse{
@@ -351,8 +426,9 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 		StopReason:   stopReason,
 		StopSequence: "",
 		Usage: Usage{
-			InputTokens:  promptTokens,
-			OutputTokens: completionTokens,
+			InputTokens:          promptTokens,
+			OutputTokens:         completionTokens,
+			CacheReadInputTokens: cachedTokens,
 		},
 		Content: contents,
 	}

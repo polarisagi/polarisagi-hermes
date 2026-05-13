@@ -7,9 +7,30 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
 	"polaris-gateway/internal/config"
 )
+
+// sharedTransport 全局共享的 HTTP Transport，避免高并发下 TCP 连接膨胀
+// 默认 Transport 没有连接池限制，每个 LLM 上游请求都可能新建 socket，
+// Claude Code/opencode 等客户端瞬时几十个并发时会触发 EADDRINUSE / 文件句柄耗尽
+//
+// 调参依据：
+//   - MaxIdleConns=200 覆盖单网关 ~20 个上游节点 × 10 并发的常见规模
+//   - MaxIdleConnsPerHost=50 单个上游 LLM host 的 idle 连接上限
+//   - IdleConnTimeout=90s 比 LLM 平均响应时长长，复用率最大化
+//   - DisableCompression=false 让上游 gzip 响应能正常解压
+var sharedTransport = &http.Transport{
+	MaxIdleConns:          200,
+	MaxIdleConnsPerHost:   50,
+	MaxConnsPerHost:       0, // 0 = 不限并发连接，仅 idle 池有上限
+	IdleConnTimeout:       90 * time.Second,
+	TLSHandshakeTimeout:   10 * time.Second,
+	ExpectContinueTimeout: 1 * time.Second,
+	ResponseHeaderTimeout: 60 * time.Second, // 防止上游 hang 在 header 阶段
+	ForceAttemptHTTP2:     true,
+}
 
 // Project Atlas: Polaris Gateway (OpenAI Protocol Module)
 // Author: mrlaoliai

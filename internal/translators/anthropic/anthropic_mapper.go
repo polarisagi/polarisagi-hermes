@@ -77,6 +77,10 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 					switch m["type"] {
 					case "text":
 						parts = append(parts, map[string]interface{}{"text": m["text"]})
+					case "thinking", "redacted_thinking":
+						// Claude 扩展思考块：Vertex 无对等概念，直接丢弃
+						// 不丢弃会导致 model 角色出现空 part，触发 Vertex 校验失败
+						continue
 					case "image", "document", "audio", "video", "media":
 						if source, ok := m["source"].(map[string]interface{}); ok {
 							if source["type"] == "base64" {
@@ -196,6 +200,16 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 	}
 	if req.TopK != nil {
 		genConfig["topK"] = *req.TopK
+	}
+	if len(req.StopSequences) > 0 {
+		genConfig["stopSequences"] = req.StopSequences
+	}
+	// 扩展思考映射：Anthropic thinking.budget_tokens → Gemini thinkingConfig.thinkingBudget
+	// Claude Code 的 /effort 命令通过此字段调整模型推理深度
+	if req.Thinking != nil && req.Thinking.Type == "enabled" && req.Thinking.BudgetTokens > 0 {
+		genConfig["thinkingConfig"] = map[string]interface{}{
+			"thinkingBudget": req.Thinking.BudgetTokens,
+		}
 	}
 	if len(genConfig) > 0 {
 		vertexReq["generationConfig"] = genConfig
