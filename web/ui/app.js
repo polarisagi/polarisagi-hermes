@@ -86,6 +86,8 @@ createApp({
         const toDatetimeLocal = (dt) => {
             if (!dt) return '';
             dt = dt.trim();
+            // 去除 ISO 8601 时区后缀（modernc sqlite 驱动返回带 Z 的 RFC3339 格式）
+            dt = dt.replace(/Z$/, '').replace(/[+-]\d{2}:\d{2}$/, '');
             if (dt.length === 10) return dt + 'T00:00:00'; // 旧格式日期-only，补时间
             return dt.replace(' ', 'T');
         };
