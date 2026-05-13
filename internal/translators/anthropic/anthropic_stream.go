@@ -128,19 +128,23 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 			case "MAX_TOKENS":
 				stopReason = "max_tokens"
 			case "STOP":
-				// Gemini STOP 可能是自然结束或命中 stopSequences
-				// 尝试推断：若请求有 stopSequences，则标记为 stop_sequence 类型
+				// STOP 可能是自然结束或命中 stopSequences
+				// Gemini 不返回具体命中的序列，仅当请求有 stopSequences 时标记类型
 				if len(req.StopSequences) > 0 {
 					stopReason = "stop_sequence"
-					// Gemini 不在响应中返回具体命中的序列，仅标记类型
-					// matchedStopSeq 保持空字符串（与 Anthropic 行为一致：不确定时不填）
-					_ = matchedStopSeq
+					_ = matchedStopSeq // 保持空字符串（Gemini 不返回命中的具体序列）
 				}
-			case "MALFORMED_FUNCTION_CALL", "UNEXPECTED_TOOL_CALL":
-				stopReason = "tool_use"
-			case "SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "IMAGE_SAFETY":
+			case "SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII",
+				"IMAGE_SAFETY", "IMAGE_PROHIBITED_CONTENT", "IMAGE_RECITATION", "IMAGE_OTHER",
+				"NO_IMAGE", "OTHER":
+				// 安全过滤器、版权、图片生成失败等——映射为 end_turn 让客户端优雅降级
 				stopReason = "end_turn"
-				slog.Warn("⚠️ [Stream] Google Agent Platform 返回安全相关停止原因", "trace_id", traceID, "account", dest.Node.Name, "finish_reason", finishReason)
+				slog.Warn("⚠️ [Stream] GEAP 非正常停止原因", "trace_id", traceID, "account", dest.Node.Name, "finish_reason", finishReason)
+			case "MALFORMED_FUNCTION_CALL", "UNEXPECTED_TOOL_CALL":
+				// 模型尝试了工具调用但格式错误/非预期——实际的 tool_use 内容块由 part 处理决定
+				// 此处保持 end_turn；若 part 里确实有 functionCall，part 处理会覆盖为 tool_use
+				stopReason = "end_turn"
+				slog.Warn("⚠️ [Stream] GEAP 工具调用格式异常", "trace_id", traceID, "account", dest.Node.Name, "finish_reason", finishReason)
 			default:
 				stopReason = "end_turn"
 			}
@@ -286,7 +290,7 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 	// returning an empty assistant message that confuses Claude Code's /compact.
 	if streamError == "" && blockIndex == 0 && !inText {
 		streamError = "Google Agent Platform returned empty response with no text content (possible safety filter or empty candidates)"
-		slog.Warn("⚠️ [Stream] Vertex 流式响应未包含任何文本内容，将返回错误供客户端重试",
+		slog.Warn("⚠️ [Stream] GEAP 流式响应未包含任何文本内容，将返回错误供客户端重试",
 			"trace_id", traceID, "account", dest.Node.Name,
 			"stop_reason", stopReason, "prompt_tokens", promptTokens)
 	}
@@ -406,11 +410,15 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 					if len(req.StopSequences) > 0 {
 						stopReason = "stop_sequence"
 					}
-				case "MALFORMED_FUNCTION_CALL", "UNEXPECTED_TOOL_CALL":
-					stopReason = "tool_use"
-				case "SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "IMAGE_SAFETY":
+				case "SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII",
+					"IMAGE_SAFETY", "IMAGE_PROHIBITED_CONTENT", "IMAGE_RECITATION", "IMAGE_OTHER",
+					"NO_IMAGE", "OTHER":
 					stopReason = "end_turn"
-					slog.Warn("⚠️ [NonStream] Google Agent Platform 返回安全相关停止原因",
+					slog.Warn("⚠️ [NonStream] GEAP 非正常停止原因",
+						"trace_id", traceID, "account", dest.Node.Name, "finish_reason", finishReason)
+				case "MALFORMED_FUNCTION_CALL", "UNEXPECTED_TOOL_CALL":
+					stopReason = "end_turn"
+					slog.Warn("⚠️ [NonStream] GEAP 工具调用格式异常",
 						"trace_id", traceID, "account", dest.Node.Name, "finish_reason", finishReason)
 				}
 			}

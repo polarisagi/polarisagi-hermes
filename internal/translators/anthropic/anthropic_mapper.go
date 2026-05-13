@@ -7,15 +7,28 @@ import (
 	"strings"
 )
 
-// mapToVertexRequest 将 Anthropic Messages 请求转换为 Vertex 原生的 generateContent 请求体
+// geapSafetySettings BLOCK_NONE 安全配置，针对所有文本内容类别
+// 原因：Claude Code 频繁发送含代码、安全研究、命令行等内容，Gemini 默认阈值会误触安全过滤器
+// 本网关作为 API 代理，上游客户端已自行承担内容责任，无需二次拦截
+var geapSafetySettings = []map[string]interface{}{
+	{"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+	{"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+	{"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+	{"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+	{"category": "HARM_CATEGORY_JAILBREAK", "threshold": "BLOCK_NONE"},
+}
+
+// mapToVertexRequest 将 Anthropic Messages 请求转换为 GEAP 原生的 generateContent 请求体
 // 转换规则:
-//   - Anthropic system → Vertex systemInstruction
-//   - Anthropic user/assistant → Vertex user/model 角色
-//   - Anthropic 纯文本/多模态/工具调用内容块 → Vertex parts 数组
-//   - Anthropic max_tokens → Vertex maxOutputTokens
-//   - Anthropic temperature/topP/topK → Vertex generationConfig
-//   - Anthropic tools → Vertex tools (functionDeclarations)
-//   - Anthropic tool_choice → Vertex toolConfig
+//   - Anthropic system → GEAP systemInstruction
+//   - Anthropic user/assistant → GEAP user/model 角色
+//   - Anthropic 纯文本/多模态/工具调用内容块 → GEAP parts 数组
+//   - Anthropic max_tokens → GEAP maxOutputTokens
+//   - Anthropic temperature/topP/topK → GEAP generationConfig
+//   - Anthropic tools → GEAP tools (functionDeclarations)
+//   - Anthropic tool_choice → GEAP toolConfig
+//   - Anthropic metadata.user_id → GEAP labels（用于计费追踪）
+//   - 默认附加 safetySettings=BLOCK_NONE 避免安全过滤器误杀代码内容
 func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 	vertexReq := make(map[string]interface{})
 
@@ -291,7 +304,39 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 		}
 	}
 
+	// safetySettings：默认对所有类别设置 BLOCK_NONE，防止 Gemini 安全过滤器误杀代理流量
+	vertexReq["safetySettings"] = geapSafetySettings
+
+	// labels：将 Anthropic metadata.user_id 映射为 GEAP 请求标签，便于计费与审计追踪
+	// GEAP label 限制：key/value 最长 63 字符，仅允许小写字母、数字、下划线、连字符
+	if req.Metadata != nil && req.Metadata.UserID != "" {
+		sanitized := sanitizeLabelValue(req.Metadata.UserID)
+		if sanitized != "" {
+			vertexReq["labels"] = map[string]string{
+				"user-id": sanitized,
+			}
+		}
+	}
+
 	return vertexReq, nil
+}
+
+// sanitizeLabelValue 将任意字符串截断并清洗为合法的 GEAP label value
+// GEAP 要求：小写字母、数字、下划线、连字符；最长 63 字符
+func sanitizeLabelValue(s string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(s) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' || r == '-' {
+			b.WriteRune(r)
+		} else {
+			b.WriteRune('-')
+		}
+		if b.Len() >= 63 {
+			break
+		}
+	}
+	result := strings.Trim(b.String(), "-")
+	return result
 }
 
 // sanitizeSchema 递归清洗 JSON Schema，将所有字段透传，并专门针对 Vertex AI 的 Type 枚举限制处理混合类型和 nullable
@@ -308,10 +353,11 @@ func sanitizeSchema(schema map[string]interface{}) map[string]interface{} {
 		switch k {
 		case "$schema", "$ref", "$defs", "$id",
 			"propertyNames", "exclusiveMinimum", "exclusiveMaximum",
-			"additionalProperties", // Gemini 不支持，传入会导致 400
+			"additionalProperties",    // Gemini 不支持，传入会导致 400
 			"unevaluatedProperties", "unevaluatedItems",
-			"if", "then", "else", "not",      // 条件 schema 不支持
-			"contentEncoding", "contentMediaType": // 内容编码不支持
+			"if", "then", "else", "not",        // 条件 schema 不支持
+			"contentEncoding", "contentMediaType", // 内容编码不支持
+			"patternProperties":                 // 不支持按模式匹配的属性定义
 			continue
 		case "const":
 			// const 转为 enum 单值
@@ -338,17 +384,75 @@ func sanitizeSchema(schema map[string]interface{}) map[string]interface{} {
 		result["items"] = sanitizeSchema(items)
 	}
 
-	for _, compKey := range []string{"anyOf", "allOf", "oneOf"} {
-		if arr, ok := result[compKey].([]interface{}); ok {
-			cleanArr := make([]interface{}, 0, len(arr))
-			for _, item := range arr {
-				if itemMap, ok := item.(map[string]interface{}); ok {
-					cleanArr = append(cleanArr, sanitizeSchema(itemMap))
-				} else {
-					cleanArr = append(cleanArr, item)
+	// anyOf：递归清洗每个子 schema
+	if arr, ok := result["anyOf"].([]interface{}); ok {
+		cleanArr := make([]interface{}, 0, len(arr))
+		for _, item := range arr {
+			if itemMap, ok := item.(map[string]interface{}); ok {
+				cleanArr = append(cleanArr, sanitizeSchema(itemMap))
+			} else {
+				cleanArr = append(cleanArr, item)
+			}
+		}
+		result["anyOf"] = cleanArr
+	}
+
+	// oneOf → anyOf：Gemini 仅支持 anyOf，语义近似（结构上都是"任选其一"）
+	if oneOfArr, ok := result["oneOf"].([]interface{}); ok {
+		delete(result, "oneOf")
+		cleanArr := make([]interface{}, 0, len(oneOfArr))
+		for _, item := range oneOfArr {
+			if itemMap, ok := item.(map[string]interface{}); ok {
+				cleanArr = append(cleanArr, sanitizeSchema(itemMap))
+			} else {
+				cleanArr = append(cleanArr, item)
+			}
+		}
+		if existing, ok := result["anyOf"].([]interface{}); ok {
+			result["anyOf"] = append(existing, cleanArr...)
+		} else {
+			result["anyOf"] = cleanArr
+		}
+	}
+
+	// allOf：Gemini 不支持，尝试将子 schema 的 properties/required/type 合并到当前层
+	// 常见场景：{"allOf":[{"type":"object","properties":{...}},{"required":[...]}]}
+	if allOfArr, ok := result["allOf"].([]interface{}); ok {
+		delete(result, "allOf")
+		for _, item := range allOfArr {
+			if itemMap, ok := item.(map[string]interface{}); ok {
+				cleaned := sanitizeSchema(itemMap)
+				// 合并 properties
+				if props, ok := cleaned["properties"].(map[string]interface{}); ok {
+					if existProps, ok := result["properties"].(map[string]interface{}); ok {
+						for pk, pv := range props {
+							existProps[pk] = pv
+						}
+					} else {
+						result["properties"] = props
+					}
+				}
+				// 合并 required
+				if req, ok := cleaned["required"].([]interface{}); ok {
+					if existReq, ok := result["required"].([]interface{}); ok {
+						result["required"] = append(existReq, req...)
+					} else {
+						result["required"] = req
+					}
+				}
+				// 继承 type（当前层无 type 时）
+				if _, hasType := result["type"]; !hasType {
+					if t, ok := cleaned["type"]; ok {
+						result["type"] = t
+					}
+				}
+				// 继承 description（当前层无 description 时）
+				if _, hasDesc := result["description"]; !hasDesc {
+					if d, ok := cleaned["description"]; ok {
+						result["description"] = d
+					}
 				}
 			}
-			result[compKey] = cleanArr
 		}
 	}
 
