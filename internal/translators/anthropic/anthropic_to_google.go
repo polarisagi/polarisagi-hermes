@@ -123,10 +123,25 @@ func AnthropicToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Reque
 	utils.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
 }
 
-// buildAnthropicGoogleTargetURL 构建 Anthropic→Google Agent Platform 转发的目标 URL
+// buildAnthropicGoogleTargetURL 构建 Anthropic→Google 转发的目标 URL
 // 参考：https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest
-// 支持模板变量 {project_id}, {location}, {subpath}，与 GEAP 原生转发保持一致
+//
+// 双模式自动检测：
+//   - 有 project_id → GEAP 端点（aiplatform.googleapis.com，需 API Key 或服务账号）
+//   - 无 project_id + 无自定义 base_url → AI Studio 端点（generativelanguage.googleapis.com，仅 API Key）
+//
+// 支持自定义 base_url 模板变量 {project_id}, {location}, {subpath}
 func buildAnthropicGoogleTargetURL(node *router.NodeState, model string, stream bool) string {
+	endpoint := "generateContent"
+	if stream {
+		endpoint = "streamGenerateContent"
+	}
+
+	// AI Studio 模式：无 project_id 且未配置自定义 base_url，直接走 generativelanguage 端点
+	if node.ProjectID == "" && node.BaseURL == "" {
+		return fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:%s", model, endpoint)
+	}
+
 	template := node.BaseURL
 	if template == "" {
 		template = "https://aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/google/{subpath}"
@@ -135,11 +150,6 @@ func buildAnthropicGoogleTargetURL(node *router.NodeState, model string, stream 
 	location := node.Location
 	if location == "" {
 		location = "global"
-	}
-
-	endpoint := "generateContent"
-	if stream {
-		endpoint = "streamGenerateContent"
 	}
 
 	subpath := fmt.Sprintf("models/%s:%s", model, endpoint)

@@ -95,7 +95,7 @@ func AdminSettingsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // AdminModelsHandler 返回指定协议的可用模型列表，用于后台路由配置页面的模型选择下拉框
-// GET /api/admin/models?protocol=vertex → 返回 vertex 协议的所有模型
+// GET /api/admin/models?protocol=google → 返回 Google Agent Platform 所有可用模型（含 Gemini + Claude GEAP）
 // GET /api/admin/models → 返回所有协议的所有模型
 func AdminModelsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {

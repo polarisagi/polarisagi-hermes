@@ -240,8 +240,8 @@
                         <tbody>
                             <tr v-for="node in nodes" :key="node.id" class="border-b border-slate-700 hover:bg-slate-700/50">
                                 <td class="px-6 py-4">
-                                    <span :class="node.provider === 'openai' ? 'bg-indigo-600 border-indigo-500/50' : 'bg-emerald-600 border-emerald-500/50'"
-                                        class="text-white text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">{{ node.provider }}</span>
+                                    <span :class="protocolBadge(node.provider)"
+                                        class="text-white text-[10px] px-2 py-0.5 rounded-full font-bold uppercase border">{{ protocolLabel(node.provider) }}</span>
                                 </td>
                                 <td class="px-6 py-4 font-medium text-white">{{ node.name }}</td>
                                 <td class="px-6 py-4">{{ node.priority }}</td>
@@ -429,9 +429,8 @@
                                 <label class="block text-sm font-medium text-slate-300 mb-1">协议类型 (Provider) *</label>
                                 <select v-model="nodeForm.provider" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
                                     <option value="openai">OpenAI</option>
-                                    <option value="vertex">Vertex (GCP)</option>
+                                    <option value="google">Google Agent Platform</option>
                                     <option value="anthropic">Anthropic</option>
-                                    <option value="gemini">Gemini (API Key)</option>
                                 </select>
                             </div>
                             <div>
@@ -460,10 +459,13 @@
                             </div>
                         </div>
 
-                        <div v-if="nodeForm.provider === 'vertex'" class="grid grid-cols-2 gap-4 p-4 bg-slate-900/50 rounded-lg border border-slate-700">
+                        <div v-if="nodeForm.provider === 'google'" class="grid grid-cols-2 gap-4 p-4 bg-slate-900/50 rounded-lg border border-slate-700">
+                            <div class="col-span-2 text-xs text-slate-400 mb-1">
+                                GEAP 模式：填写 GCP Project ID 后使用服务账号/API Key 调用 <code>aiplatform.googleapis.com</code>；留空则自动切换为 AI Studio API Key 模式（<code>generativelanguage.googleapis.com</code>）。
+                            </div>
                             <div>
-                                <label class="block text-sm font-medium text-slate-300 mb-1">GCP Project ID *</label>
-                                <input v-model="nodeForm.project_id" type="text" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none">
+                                <label class="block text-sm font-medium text-slate-300 mb-1">GCP Project ID (GEAP 模式必填)</label>
+                                <input v-model="nodeForm.project_id" type="text" placeholder="留空使用 AI Studio API Key 模式" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none">
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-slate-300 mb-1">Location (默认 global)</label>
@@ -471,9 +473,9 @@
                             </div>
                         </div>
 
-                        <div v-if="nodeForm.provider === 'openai' || nodeForm.provider === 'anthropic'" class="p-4 bg-slate-900/50 rounded-lg border border-slate-700">
-                            <label class="block text-sm font-medium text-slate-300 mb-1">Base URL (可选中转地址)</label>
-                            <input v-model="nodeForm.base_url" type="text" placeholder="https://api.openai.com/v1" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none">
+                        <div v-if="nodeForm.provider === 'openai' || nodeForm.provider === 'anthropic' || nodeForm.provider === 'google'" class="p-4 bg-slate-900/50 rounded-lg border border-slate-700">
+                            <label class="block text-sm font-medium text-slate-300 mb-1">Base URL (可选自定义端点)</label>
+                            <input v-model="nodeForm.base_url" type="text" placeholder="留空使用官方默认端点" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none">
                         </div>
 
                         <div class="border-t border-slate-700 pt-4 mt-4">
@@ -521,7 +523,7 @@
                                 <select v-model="routeForm.source_protocol" @change="onSourceProtocolChange()" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
                                     <option value="openai">OpenAI (chat/completions)</option>
                                     <option value="anthropic">Anthropic (messages)</option>
-                                    <option value="vertex">Vertex (原生协议)</option>
+                                    <option value="google">Google (原生协议)</option>
                                 </select>
                                 <p class="text-xs text-slate-500 mt-1">客户端通过哪个协议接入网关</p>
                             </div>
@@ -529,8 +531,8 @@
                                 <label class="block text-sm font-medium text-slate-300 mb-1">目标协议 (转发端) *</label>
                                 <select v-model="routeForm.target_protocol" @change="onTargetProtocolChange()" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
                                     <option value="openai">OpenAI (标准 API)</option>
-                                    <option value="vertex">Vertex (GCP Agent Platform)</option>
-                                    <option value="gemini">Gemini (API Key)</option>
+                                    <option value="google">Google Agent Platform</option>
+                                    <option value="anthropic">Anthropic (直通)</option>
                                 </select>
                                 <p class="text-xs text-slate-500 mt-1">发给上游时的协议，系统自动选目标协议的节点</p>
                             </div>

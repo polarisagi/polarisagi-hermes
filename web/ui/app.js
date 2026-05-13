@@ -61,15 +61,15 @@ createApp({
 
         // Protocol display helpers
         const protocolLabel = (p) => {
-            const labels = { openai: 'OpenAI', vertex: 'Vertex (GCP)', anthropic: 'Anthropic', gemini: 'Gemini' };
+            const labels = { openai: 'OpenAI', google: 'Google Agent Platform', anthropic: 'Anthropic', gemini: 'Gemini (AI Studio)' };
             return labels[p] || p;
         };
         const protocolClass = (p) => {
-            const classes = { openai: 'text-indigo-400', vertex: 'text-emerald-400', anthropic: 'text-orange-400', gemini: 'text-blue-400' };
+            const classes = { openai: 'text-indigo-400', google: 'text-emerald-400', anthropic: 'text-orange-400', gemini: 'text-teal-400' };
             return classes[p] || 'text-slate-400';
         };
         const protocolBadge = (p) => {
-            const badges = { openai: 'bg-indigo-600 border-indigo-500/50', vertex: 'bg-emerald-600 border-emerald-500/50', anthropic: 'bg-orange-600 border-orange-500/50', gemini: 'bg-blue-600 border-blue-500/50' };
+            const badges = { openai: 'bg-indigo-600 border-indigo-500/50', google: 'bg-emerald-600 border-emerald-500/50', anthropic: 'bg-orange-600 border-orange-500/50', gemini: 'bg-teal-600 border-teal-500/50' };
             return badges[p] || 'bg-slate-600 border-slate-500/50';
         };
 
@@ -259,10 +259,6 @@ createApp({
         const saveNode = async () => {
             if (!nodeForm.value.name || (!nodeModal.value.isEdit && !nodeForm.value.credentials)) {
                 showToast('节点名称和API Key不能为空', 'error');
-                return;
-            }
-            if (nodeForm.value.provider === 'vertex' && !nodeForm.value.project_id) {
-                showToast('GCP Project ID 不能为空', 'error');
                 return;
             }
             if (nodeForm.value.priority < 0 || nodeForm.value.balance < 0 || nodeForm.value.limit_percent < 0) {

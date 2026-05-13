@@ -6,13 +6,17 @@ package models
 type ModelInfo struct {
 	Name        string `json:"name"`        // 模型标识名（用于路由匹配）
 	DisplayName string `json:"display_name"` // 展示名称
-	Protocol    string `json:"protocol"`    // 所属协议: openai, anthropic, google, gemini
+	Protocol    string `json:"protocol"`    // 所属协议: openai, anthropic, google
 	Category    string `json:"category"`    // 分类: flagship, reasoning, cost-efficient, vision, legacy
 }
 
 // GetModelsByProtocol 根据协议返回可用的模型列表
-// 支持: openai, anthropic, google（Google Agent Platform）, gemini
+// 支持: openai, anthropic, google（Google Agent Platform，含 Gemini 直连 API Key 节点）
+// "gemini" 作为 "google" 的别名保持向后兼容
 func GetModelsByProtocol(protocol string) []ModelInfo {
+	if protocol == "gemini" {
+		protocol = "google"
+	}
 	models, ok := modelCatalog[protocol]
 	if !ok {
 		return nil
@@ -89,10 +93,20 @@ var modelCatalog = map[string][]ModelInfo{
 		{Name: "claude-3-haiku-20240307", DisplayName: "Claude 3 Haiku", Protocol: "anthropic", Category: "legacy"},
 	},
 
-	// google 键对应 Google Agent Platform (GEAP) 协议
+	// google 键对应 Google Agent Platform (GEAP) 协议及 Gemini AI Studio API Key 节点
+	// 两类节点统一使用 "google" provider，区分方式：有 project_id → GEAP 端点；无 → AI Studio 端点
 	"google": {
 		// 通配符
-		{Name: "*", DisplayName: "全部 Google Agent Platform/Gemini 模型 (通配符)", Protocol: "google", Category: "wildcard"},
+		{Name: "*", DisplayName: "全部 Google/Gemini 模型 (通配符)", Protocol: "google", Category: "wildcard"},
+
+		// Claude 合作伙伴模型（GEAP 专属，需 project_id）
+		{Name: "claude-opus-4-7", DisplayName: "Claude Opus 4.7 (GEAP)", Protocol: "google", Category: "flagship"},
+		{Name: "claude-opus-4-6", DisplayName: "Claude Opus 4.6 (GEAP)", Protocol: "google", Category: "flagship"},
+		{Name: "claude-sonnet-4-6", DisplayName: "Claude Sonnet 4.6 (GEAP)", Protocol: "google", Category: "flagship"},
+		{Name: "claude-sonnet-4-5", DisplayName: "Claude Sonnet 4.5 (GEAP)", Protocol: "google", Category: "flagship"},
+		{Name: "claude-haiku-4-5", DisplayName: "Claude Haiku 4.5 (GEAP)", Protocol: "google", Category: "cost-efficient"},
+		{Name: "claude-3-5-sonnet-20241022", DisplayName: "Claude 3.5 Sonnet (GEAP)", Protocol: "google", Category: "flagship"},
+		{Name: "claude-3-5-haiku-20241022", DisplayName: "Claude 3.5 Haiku (GEAP)", Protocol: "google", Category: "cost-efficient"},
 
 		// Gemini 3.1 系列
 		{Name: "gemini-3.1-pro-preview-customtools", DisplayName: "Gemini 3.1 Pro CustomTools", Protocol: "google", Category: "flagship"},
@@ -133,30 +147,4 @@ var modelCatalog = map[string][]ModelInfo{
 		{Name: "google/gemini-1.5-flash", DisplayName: "Gemini 1.5 Flash (OpenAI兼容)", Protocol: "google", Category: "legacy"},
 	},
 
-	"gemini": {
-		// 通配符
-		{Name: "*", DisplayName: "全部 Gemini 模型 (通配符)", Protocol: "gemini", Category: "wildcard"},
-
-		// Gemini 3.1 系列
-		{Name: "gemini-3.1-pro-preview-customtools", DisplayName: "Gemini 3.1 Pro CustomTools", Protocol: "gemini", Category: "flagship"},
-		{Name: "gemini-3.1-pro-preview", DisplayName: "Gemini 3.1 Pro Preview", Protocol: "gemini", Category: "flagship"},
-		{Name: "gemini-3.1-pro", DisplayName: "Gemini 3.1 Pro — 旗舰", Protocol: "gemini", Category: "flagship"},
-		{Name: "gemini-3.1-flash", DisplayName: "Gemini 3.1 Flash — 快速版", Protocol: "gemini", Category: "cost-efficient"},
-
-		// Gemini 3.0 系列
-		{Name: "gemini-3.0-pro", DisplayName: "Gemini 3.0 Pro", Protocol: "gemini", Category: "flagship"},
-		{Name: "gemini-3.0-flash", DisplayName: "Gemini 3.0 Flash", Protocol: "gemini", Category: "cost-efficient"},
-
-		// Gemini 2.5 系列
-		{Name: "gemini-2.5-pro", DisplayName: "Gemini 2.5 Pro", Protocol: "gemini", Category: "flagship"},
-		{Name: "gemini-2.5-flash", DisplayName: "Gemini 2.5 Flash", Protocol: "gemini", Category: "cost-efficient"},
-
-		// Gemini 2.0 系列
-		{Name: "gemini-2.0-flash", DisplayName: "Gemini 2.0 Flash", Protocol: "gemini", Category: "cost-efficient"},
-		{Name: "gemini-2.0-flash-lite", DisplayName: "Gemini 2.0 Flash Lite", Protocol: "gemini", Category: "cost-efficient"},
-
-		// Gemini 1.5 系列
-		{Name: "gemini-1.5-pro", DisplayName: "Gemini 1.5 Pro", Protocol: "gemini", Category: "legacy"},
-		{Name: "gemini-1.5-flash", DisplayName: "Gemini 1.5 Flash", Protocol: "gemini", Category: "legacy"},
-	},
 }
