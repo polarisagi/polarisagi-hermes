@@ -90,9 +90,23 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 					switch m["type"] {
 					case "text":
 						parts = append(parts, map[string]interface{}{"text": m["text"]})
-					case "thinking", "redacted_thinking":
-						// Claude 扩展思考块：Vertex 无对等概念，直接丢弃
-						// 不丢弃会导致 model 角色出现空 part，触发 Vertex 校验失败
+					case "thinking":
+						// Anthropic thinking 块 → Gemini thought part
+						// signature 存储上一轮 Gemini 返回的 thoughtSignature，
+						// 原样传回以维持多轮对话中的思考连贯性（Gemini 校验签名匹配）
+						thinkText, _ := m["thinking"].(string)
+						sig, _ := m["signature"].(string)
+						thoughtPart := map[string]interface{}{
+							"text":    thinkText,
+							"thought": true,
+						}
+						if sig != "" {
+							thoughtPart["thoughtSignature"] = sig
+						}
+						parts = append(parts, thoughtPart)
+					case "redacted_thinking":
+						// redacted_thinking 存储 Anthropic 加密的 blob（data 字段），Gemini 无对等概念
+						// Gemini 通过 thoughtSignature 机制维持思考连贯性，无需加密 blob，安全丢弃
 						continue
 					case "image", "audio", "video", "media":
 						if source, ok := m["source"].(map[string]interface{}); ok {

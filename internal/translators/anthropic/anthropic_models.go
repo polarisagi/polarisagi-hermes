@@ -107,6 +107,7 @@ type Delta struct {
 	Type         string `json:"type,omitempty"`
 	Text         string `json:"text,omitempty"`
 	Thinking     string `json:"thinking,omitempty"`      // for thinking_delta
+	Signature    string `json:"signature,omitempty"`     // for signature_delta（thinking 块的签名，用于多轮对话验证）
 	StopReason   string `json:"stop_reason,omitempty"`
 	StopSequence string `json:"stop_sequence,omitempty"` // 触发停止的序列
 	PartialJson  string `json:"partial_json,omitempty"`  // for input_json_delta (tool_use)

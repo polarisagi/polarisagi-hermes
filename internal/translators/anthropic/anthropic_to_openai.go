@@ -263,6 +263,7 @@ func convertAnthropicMessages(msgs []Message) []oaiMessage {
 			// 情况 A：assistant + tool_use → 一条 oaiMessage，content + tool_calls
 			// 情况 B：user + tool_result → 拆出的多条 role=tool 消息（已收集）
 			// 情况 C：普通文本/图片 → 一条 oaiMessage 含 content
+			// 情况 D：仅含 thinking/redacted_thinking 块（已全部被过滤）→ 空占位，保持对话结构完整
 			if len(toolCalls) > 0 {
 				// assistant 工具调用：合并文本与 tool_calls
 				m := oaiMessage{Role: msg.Role, ToolCalls: toolCalls}
@@ -278,6 +279,10 @@ func convertAnthropicMessages(msgs []Message) []oaiMessage {
 				result = append(result, toolResults...)
 			} else if len(textParts) > 0 {
 				result = append(result, oaiMessage{Role: msg.Role, Content: collapseTextParts(textParts)})
+			} else if msg.Role == "assistant" {
+				// 所有块均为 thinking/redacted_thinking（OpenAI 不支持，已过滤），
+				// 保留空 assistant 消息以维持对话轮次结构，避免 OpenAI 后端因缺少 assistant 历史而报错
+				result = append(result, oaiMessage{Role: "assistant", Content: ""})
 			}
 		}
 	}

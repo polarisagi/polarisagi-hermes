@@ -42,6 +42,7 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 	blockIndex := 0
 	inText := false
 	inThinking := false       // 追踪是否有开放中的 thinking 内容块（用于合并多个 thought 分片）
+	var thoughtSig string     // 当前 thinking 块对应的 thoughtSignature（Gemini 返回，转存为 Anthropic signature）
 	var toolID string
 	stopReason := "end_turn"
 	var matchedStopSeq string // 触发停止的序列（Gemini 不直接返回，通过文本尾部推断）
@@ -175,43 +176,63 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 			// Gemini 在启用 thinkingConfig.includeThoughts 时，以 thought=true 的 part 返回推理过程。
 			// Gemini 流式可能把同一次思考分成多个 chunk 推送，全部合并到同一个 Anthropic thinking 块
 			// 以符合 Anthropic SSE 协议（一次完整思考对应一个 thinking block，内含多个 thinking_delta）。
+			// thoughtSignature：Gemini 返回的不透明签名，客户端下一轮需要原样传回以维持思考连贯性；
+			// 对应 Anthropic 的 signature_delta 事件，在 content_block_stop 之前发出。
 			if isThought, _ := part["thought"].(bool); isThought {
-				if req.Thinking != nil && req.Thinking.Type == "enabled" {
-					if thinkText, ok := part["text"].(string); ok && thinkText != "" {
-						// 有正文块打开时先关闭（thinking 必须排在 text 之前）
-						if inText {
-							writeSSEContentBlockStop(w, flusher, blockIndex)
-							inText = false
-							blockIndex++
-						}
-						// 首个 thought chunk：开启 thinking 块
-						if !inThinking {
-							writeSSE(w, flusher, "content_block_start", StreamEvent{
-								Type:  "content_block_start",
-								Index: ptrInt(blockIndex),
-								ContentBlock: &Content{
-									Type:     "thinking",
-									Thinking: "",
-								},
-							})
-							inThinking = true
-						}
-						// 追加 thinking_delta（多 chunk 持续写入同一块）
-						writeSSE(w, flusher, "content_block_delta", StreamEvent{
-							Type:  "content_block_delta",
+				// 无论客户端是否显式设置 thinking，只要 Gemini 返回 thought part 就处理
+				// （Gemini 2.5-pro 可能在 thinkingBudget 未显式禁用时自动思考）
+
+				// 优先捕获 thoughtSignature（可能在任意 chunk 出现，只需记录最新值）
+				if sig, ok := part["thoughtSignature"].(string); ok && sig != "" {
+					thoughtSig = sig
+				}
+
+				if thinkText, ok := part["text"].(string); ok && thinkText != "" {
+					// 有正文块打开时先关闭（thinking 必须排在 text 之前）
+					if inText {
+						writeSSEContentBlockStop(w, flusher, blockIndex)
+						inText = false
+						blockIndex++
+					}
+					// 首个 thought chunk：开启 thinking 块
+					if !inThinking {
+						writeSSE(w, flusher, "content_block_start", StreamEvent{
+							Type:  "content_block_start",
 							Index: ptrInt(blockIndex),
-							Delta: &Delta{
-								Type:     "thinking_delta",
-								Thinking: thinkText,
+							ContentBlock: &Content{
+								Type:     "thinking",
+								Thinking: "",
 							},
 						})
+						inThinking = true
 					}
+					// 追加 thinking_delta（多 chunk 持续写入同一块）
+					writeSSE(w, flusher, "content_block_delta", StreamEvent{
+						Type:  "content_block_delta",
+						Index: ptrInt(blockIndex),
+						Delta: &Delta{
+							Type:     "thinking_delta",
+							Thinking: thinkText,
+						},
+					})
 				}
 				continue
 			}
 
 			// 遇到非 thought part 时，关闭尚未关闭的 thinking 块
+			// 关闭前先发 signature_delta（Anthropic 要求 signature 在 content_block_stop 之前）
 			if inThinking {
+				if thoughtSig != "" {
+					writeSSE(w, flusher, "content_block_delta", StreamEvent{
+						Type:  "content_block_delta",
+						Index: ptrInt(blockIndex),
+						Delta: &Delta{
+							Type:      "signature_delta",
+							Signature: thoughtSig,
+						},
+					})
+					thoughtSig = ""
+				}
 				writeSSEContentBlockStop(w, flusher, blockIndex)
 				inThinking = false
 				blockIndex++
@@ -316,20 +337,28 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 	if streamError != "" {
 		// 先关闭所有开放中的内容块，让客户端能干净解析已收到的部分
 		if inThinking {
+			if thoughtSig != "" {
+				writeSSE(w, flusher, "content_block_delta", StreamEvent{
+					Type:  "content_block_delta",
+					Index: ptrInt(blockIndex),
+					Delta: &Delta{Type: "signature_delta", Signature: thoughtSig},
+				})
+			}
 			writeSSEContentBlockStop(w, flusher, blockIndex)
 		}
 		if inText {
 			writeSSEContentBlockStop(w, flusher, blockIndex)
 		}
-		writeSSE(w, flusher, "error", StreamEvent{
-			Type: "error",
-			Message: &MessageResponse{
-				Type: "error",
-				Role: "assistant",
-				Content: []Content{},
+		// Anthropic 错误事件格式：event: error / data: {"type":"error","error":{"type":"...","message":"..."}}
+		// 用 json.Marshal 保证 message 中的特殊字符正确转义
+		errPayload, _ := json.Marshal(map[string]interface{}{
+			"type": "error",
+			"error": map[string]interface{}{
+				"type":    "api_error",
+				"message": streamError,
 			},
 		})
-		fmt.Fprintf(w, "data: {\"type\":\"error\",\"error\":{\"type\":\"api_error\",\"message\":\"%s\"}}\n\n", streamError)
+		fmt.Fprintf(w, "event: error\ndata: %s\n\n", errPayload)
 		if flusher != nil {
 			flusher.Flush()
 		}
@@ -337,7 +366,18 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 	}
 
 	// 关闭所有尚未关闭的内容块
+	// thinking 块关闭前先发 signature_delta，让客户端在多轮对话时能正确传回签名
 	if inThinking {
+		if thoughtSig != "" {
+			writeSSE(w, flusher, "content_block_delta", StreamEvent{
+				Type:  "content_block_delta",
+				Index: ptrInt(blockIndex),
+				Delta: &Delta{
+					Type:      "signature_delta",
+					Signature: thoughtSig,
+				},
+			})
+		}
 		writeSSEContentBlockStop(w, flusher, blockIndex)
 		blockIndex++
 	}
@@ -458,17 +498,18 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 					toolIdx := 0
 					for _, partIntf := range parts {
 						part, _ := partIntf.(map[string]interface{})
-						// Gemini thought 部分：若客户端启用了 thinking，转为 thinking 内容块
+						// Gemini thought 部分 → Anthropic thinking 内容块
+						// 无论客户端是否显式设置 thinking，只要 Gemini 返回 thought part 就转换
+						// thoughtSignature 对应 Anthropic thinking.signature，客户端下一轮须原样传回
 						if isThought, _ := part["thought"].(bool); isThought {
-							if req.Thinking != nil && req.Thinking.Type == "enabled" {
-								if thinkText, ok := part["text"].(string); ok && thinkText != "" {
-									contents = append(contents, Content{
-										Type:     "thinking",
-										Thinking: thinkText,
-										// Gemini 不返回 signature，填空字符串满足 Anthropic schema
-										Signature: "",
-									})
-								}
+							thinkText, _ := part["text"].(string)
+							sig, _ := part["thoughtSignature"].(string)
+							if thinkText != "" {
+								contents = append(contents, Content{
+									Type:      "thinking",
+									Thinking:  thinkText,
+									Signature: sig,
+								})
 							}
 							continue
 						}

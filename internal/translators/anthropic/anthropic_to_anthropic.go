@@ -105,7 +105,7 @@ func anthropicPassthroughStream(w http.ResponseWriter, upstreamResp *http.Respon
 	tailBuf, _ := utils.ForwardStreamBody(w, upstreamResp.Body)
 
 	if bytes.Contains(tailBuf, []byte("output_tokens")) {
-		extractAndRecordAnthropicUsage(tailBuf, modelName, dest, clientType, "passthrough", traceID, reqBody)
+		extractAndRecordAnthropicUsage("anthropic", tailBuf, modelName, dest, clientType, "passthrough", traceID, reqBody)
 	}
 }
 
@@ -131,16 +131,45 @@ func anthropicPassthroughNonStream(w http.ResponseWriter, upstreamResp *http.Res
 	w.Write(bodyBytes)
 }
 
-// extractAndRecordAnthropicUsage 从 Anthropic SSE 流的尾部 buffer 中提取 output_tokens 并完成计费
-func extractAndRecordAnthropicUsage(tailBuf []byte, modelName string, dest *router.MatchedDestination, clientType, methodName, traceID string, reqBody []byte) {
-	// Try to find output_tokens in the tail buffer (Anthropic stream format)
-	re := regexp.MustCompile(`"output_tokens"\s*:\s*(\d+)`)
-	match := re.FindSubmatch(tailBuf)
-	if len(match) > 1 {
-		var outputTokens int64
-		fmt.Sscanf(string(match[1]), "%d", &outputTokens)
-		settleBilling("anthropic", dest.Node.Name, clientType, methodName, modelName, 0, outputTokens, 0, http.StatusOK, dest, reqBody, traceID)
+// extractAndRecordAnthropicUsage 从 Anthropic SSE 流的 tailBuf 中提取 usage 并完成计费
+//
+// Anthropic SSE 流中 output_tokens 出现两次：message_start 里是 0，message_delta 里才是真实值。
+// 必须取所有匹配的最大值，而非第一个（否则短流时总会得到 0）。
+// input_tokens 在 message_start（流头部），短流时 tailBuf 包含全文可以提取；
+// 长流时 tailBuf 只有尾部，此时降级用请求体字节估算。
+func extractAndRecordAnthropicUsage(provider string, tailBuf []byte, modelName string, dest *router.MatchedDestination, clientType, methodName, traceID string, reqBody []byte) {
+	// output_tokens：取 tailBuf 中所有匹配的最大值
+	outputRe := regexp.MustCompile(`"output_tokens"\s*:\s*(\d+)`)
+	var outputTokens int64
+	for _, m := range outputRe.FindAllSubmatch(tailBuf, -1) {
+		var v int64
+		fmt.Sscanf(string(m[1]), "%d", &v)
+		if v > outputTokens {
+			outputTokens = v
+		}
 	}
+	if outputTokens == 0 {
+		return
+	}
+
+	// input_tokens：在 tailBuf 中查找（短流全量可找到），长流时用估算兜底
+	var inputTokens int64
+	inputRe := regexp.MustCompile(`"input_tokens"\s*:\s*(\d+)`)
+	if m := inputRe.FindSubmatch(tailBuf); len(m) > 1 {
+		fmt.Sscanf(string(m[1]), "%d", &inputTokens)
+	}
+	if inputTokens == 0 {
+		inputTokens = utils.EstimatePromptTokens(reqBody)
+	}
+
+	// cache_read_input_tokens：Anthropic prompt cache 命中
+	var cacheReadTokens int64
+	cacheReadRe := regexp.MustCompile(`"cache_read_input_tokens"\s*:\s*(\d+)`)
+	if m := cacheReadRe.FindSubmatch(tailBuf); len(m) > 1 {
+		fmt.Sscanf(string(m[1]), "%d", &cacheReadTokens)
+	}
+
+	settleBilling(provider, dest.Node.Name, clientType, methodName, modelName, inputTokens, outputTokens, cacheReadTokens, http.StatusOK, dest, reqBody, traceID)
 }
 
 func init() {

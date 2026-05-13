@@ -82,7 +82,7 @@ func AnthropicToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Reque
 
 	if isCountTokensPath(r.URL.Path) {
 		if useGEAPClaude {
-			handleGEAPClaudeCountTokens(ctx, w, bodyBytes, dest, traceID, finalModel)
+			handleGEAPClaudeCountTokens(ctx, w, r, bodyBytes, dest, traceID, finalModel)
 		} else {
 			handleVertexCountTokens(ctx, w, bodyBytes, dest, traceID)
 		}
@@ -90,7 +90,7 @@ func AnthropicToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Reque
 	}
 
 	if useGEAPClaude {
-		handleGEAPClaude(ctx, w, bodyBytes, dest, traceID, finalModel, req.Stream)
+		handleGEAPClaude(ctx, w, r, bodyBytes, dest, traceID, finalModel, req.Stream)
 	} else {
 		handleGemini(ctx, w, bodyBytes, dest, traceID, finalModel, req)
 	}
@@ -102,7 +102,8 @@ func AnthropicToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Reque
 // 响应体：Anthropic 原生 SSE，透传无转换
 
 // handleGEAPClaude 将 Anthropic 请求直通到 GEAP Claude 端点
-func handleGEAPClaude(ctx context.Context, w http.ResponseWriter, bodyBytes []byte, dest *router.MatchedDestination, traceID, model string, stream bool) {
+// r 用于透传 anthropic-beta 等扩展头（如 interleaved-thinking-2025-05-14、prompt-caching-2024-07-31）
+func handleGEAPClaude(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID, model string, stream bool) {
 	const clientType = "Anthropic-GEAP-Claude"
 
 	geapBody, err := rewriteBodyForGEAPClaude(bodyBytes, false, "")
@@ -125,6 +126,20 @@ func handleGEAPClaude(ctx context.Context, w http.ResponseWriter, bodyBytes []by
 
 	proxyReq, _ := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(geapBody))
 	proxyReq.Header.Set("Content-Type", "application/json")
+
+	// 透传 Anthropic 扩展功能头：beta 功能（扩展思考、prompt cache）通过 anthropic-beta 头激活
+	// anthropic-version 已经由 rewriteBodyForGEAPClaude 注入 body 的 anthropic_version 字段，无需重复
+	if r != nil {
+		for k, vv := range r.Header {
+			lk := strings.ToLower(k)
+			if lk == "anthropic-beta" {
+				for _, v := range vv {
+					proxyReq.Header.Add(k, v)
+				}
+			}
+		}
+	}
+
 	q := proxyReq.URL.Query()
 	q.Set("key", dest.Node.Credentials)
 	proxyReq.URL.RawQuery = q.Encode()
@@ -167,12 +182,15 @@ func rewriteBodyForGEAPClaude(bodyBytes []byte, isCountTokens bool, targetModel 
 		if targetModel != "" {
 			m["model"] = targetModel
 		}
+		// count-tokens 端点只接受 messages/system/tools/tool_choice/thinking/model/anthropic_version
+		// 推理参数和流控字段全部删除
 		delete(m, "stream")
 		delete(m, "max_tokens")
 		delete(m, "temperature")
 		delete(m, "top_p")
 		delete(m, "top_k")
 		delete(m, "stop_sequences")
+		delete(m, "metadata")
 	} else {
 		delete(m, "model")
 	}
@@ -195,7 +213,7 @@ func streamGEAPClaude(w http.ResponseWriter, upstreamResp *http.Response, dest *
 	tailBuf, _ := utils.ForwardStreamBody(w, upstreamResp.Body)
 
 	if bytes.Contains(tailBuf, []byte("output_tokens")) {
-		extractAndRecordAnthropicUsage(tailBuf, modelName, dest, clientType, "anthropic_geap_claude", traceID, reqBody)
+		extractAndRecordAnthropicUsage("google", tailBuf, modelName, dest, clientType, "anthropic_geap_claude", traceID, reqBody)
 	}
 }
 
@@ -215,7 +233,7 @@ func nonStreamGEAPClaude(w http.ResponseWriter, upstreamResp *http.Response, des
 
 // handleGEAPClaudeCountTokens 调用 GEAP Claude count-tokens 端点获取精确计数，失败时降级本地估算
 // 端点：publishers/anthropic/models/count-tokens:rawPredict
-func handleGEAPClaudeCountTokens(ctx context.Context, w http.ResponseWriter, bodyBytes []byte, dest *router.MatchedDestination, traceID string, model string) {
+func handleGEAPClaudeCountTokens(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string, model string) {
 	geapBody, err := rewriteBodyForGEAPClaude(bodyBytes, true, model)
 	if err != nil {
 		slog.Warn("⚠️ [CountTokens-GEAP-Claude] body 重写失败，降级本地估算", "trace_id", traceID, "error", err)
@@ -232,6 +250,16 @@ func handleGEAPClaudeCountTokens(ctx context.Context, w http.ResponseWriter, bod
 		return
 	}
 	proxyReq.Header.Set("Content-Type", "application/json")
+	// 同样透传 anthropic-beta 头，确保 extended thinking 等 beta 特性在计数时得到正确统计
+	if r != nil {
+		for k, vv := range r.Header {
+			if strings.EqualFold(k, "anthropic-beta") {
+				for _, v := range vv {
+					proxyReq.Header.Add(k, v)
+				}
+			}
+		}
+	}
 	q := proxyReq.URL.Query()
 	q.Set("key", dest.Node.Credentials)
 	proxyReq.URL.RawQuery = q.Encode()

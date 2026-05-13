@@ -48,16 +48,21 @@ func writeSSEMessageStop(w http.ResponseWriter, flusher http.Flusher) {
 
 // parseAndSettleAnthropicResponse 从 Anthropic 格式的非流式响应体中提取 usage 并完成计费
 // 两个直通处理器（anthropic→anthropic 和 anthropic→geap-claude）均走此路径，仅 provider 不同
+// cache_read_input_tokens：prompt cache 命中；cache_creation_input_tokens：写入 cache（计为 prompt 消耗）
 func parseAndSettleAnthropicResponse(provider string, bodyBytes []byte, dest *router.MatchedDestination, clientType, methodName, modelName, traceID string, statusCode int, reqBody []byte) {
 	var resp struct {
 		Usage struct {
-			InputTokens  int `json:"input_tokens"`
-			OutputTokens int `json:"output_tokens"`
+			InputTokens              int `json:"input_tokens"`
+			OutputTokens             int `json:"output_tokens"`
+			CacheReadInputTokens     int `json:"cache_read_input_tokens"`
+			CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
 		} `json:"usage"`
 	}
 	if json.Unmarshal(bodyBytes, &resp) == nil {
+		// cache_creation 按正常 prompt 计费；cache_read 按折扣价，由 CalculateCost 处理
+		inputTokens := int64(resp.Usage.InputTokens) + int64(resp.Usage.CacheCreationInputTokens)
 		settleBilling(provider, dest.Node.Name, clientType, methodName, modelName,
-			int64(resp.Usage.InputTokens), int64(resp.Usage.OutputTokens), 0,
+			inputTokens, int64(resp.Usage.OutputTokens), int64(resp.Usage.CacheReadInputTokens),
 			statusCode, dest, reqBody, traceID)
 	}
 }
