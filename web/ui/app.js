@@ -83,7 +83,7 @@ createApp({
         const nodeModal = ref({ show: false, isEdit: false });
         const nodeForm = ref({
             id: 0, provider: 'openai', name: '', credentials: '', project_id: '', location: 'global', base_url: '',
-            priority: 0, limit_percent: 90.0, balance: 0.0, valid_from: '2000-01-01', valid_to: '2099-12-31', status: 1
+            priority: 0, limit_percent: 90.0, balance: 0.0, valid_from: '2000-01-01 00:00:00', valid_to: '2099-12-31 23:59:59', status: 1
         });
 
         const formatNum = (num) => Number(num).toFixed(4);
@@ -287,7 +287,7 @@ createApp({
             } else {
                 nodeForm.value = {
                     id: 0, provider: 'openai', name: '', credentials: '', project_id: '', location: 'global', base_url: '',
-                    priority: 0, limit_percent: 90.0, balance: 0.0, valid_from: '2000-01-01', valid_to: '2099-12-31', status: 1
+                    priority: 0, limit_percent: 90.0, balance: 0.0, valid_from: '2000-01-01 00:00:00', valid_to: '2099-12-31 23:59:59', status: 1
                 };
                 nodeModal.value = { show: true, isEdit: false };
             }

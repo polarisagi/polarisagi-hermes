@@ -18,6 +18,17 @@ import (
 // AdminDebugHandler toggles debug mode
 var DebugEnabled bool
 
+// normalizeDatetime 将仅含日期的字符串（YYYY-MM-DD）补全为完整的日期时间格式（YYYY-MM-DD HH:MM:SS）
+// defaultTime 为补全的时间部分，如 "00:00:00" 或 "23:59:59"
+// 已含时间部分的字符串直接原样返回
+func normalizeDatetime(dt, defaultTime string) string {
+	dt = strings.TrimSpace(dt)
+	if len(dt) == 10 { // 仅 YYYY-MM-DD，补全时间
+		return dt + " " + defaultTime
+	}
+	return dt
+}
+
 // Version can be injected via build flags (-ldflags="-X 'polaris-gateway/internal/webapi.Version=vX.Y.Z'")
 var Version = "dev"
 
@@ -201,6 +212,8 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 		if req.LimitPercent == 0 {
 			req.LimitPercent = 90.0
 		}
+		req.ValidFrom = normalizeDatetime(req.ValidFrom, "00:00:00")
+		req.ValidTo = normalizeDatetime(req.ValidTo, "23:59:59")
 		if req.ValidFrom == "" {
 			req.ValidFrom = "2000-01-01 00:00:00"
 		}
@@ -250,6 +263,8 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, `{"error":"project_id is required for Google Agent Platform nodes"}`, http.StatusBadRequest)
 			return
 		}
+		req.ValidFrom = normalizeDatetime(req.ValidFrom, "00:00:00")
+		req.ValidTo = normalizeDatetime(req.ValidTo, "23:59:59")
 		if !strings.Contains(req.Credentials, "......") && req.Credentials != "***" && req.Credentials != "" {
 			_, err := db.DB().Exec(`
 				UPDATE sys_nodes SET name=?, provider=?, base_url=?, credentials=?, project_id=?, location=?, priority=?, balance=?, limit_percent=?, valid_from=?, valid_to=?, status=?
