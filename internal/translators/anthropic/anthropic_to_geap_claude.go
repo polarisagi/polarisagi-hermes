@@ -1,9 +1,9 @@
 // Anthropic → Gemini Enterprise Agent Platform (Claude 合作伙伴模型) 直通处理器
 //
 // 当目标模型是 claude-* 时，GEAP 平台提供以下原生端点：
-//   - 非流式: POST {location}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/anthropic/models/{model}:rawPredict
-//   - 流式:   POST {location}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/anthropic/models/{model}:streamRawPredict
-//   - 计数:   POST {location}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/anthropic/models/count-tokens:rawPredict
+//   - 非流式: POST aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/anthropic/models/{model}:rawPredict
+//   - 流式:   POST aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/anthropic/models/{model}:streamRawPredict
+//   - 计数:   POST aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/anthropic/models/count-tokens:rawPredict
 //
 // 这些端点接收 Anthropic 原生请求体（仅需添加 anthropic_version 字段、剥离 model 字段），
 // 返回 Anthropic 原生响应（含 SSE 流），从而避免 Anthropic→Gemini→Anthropic 双向转换的语义损失
@@ -54,8 +54,7 @@ func buildGEAPClaudeURL(node *router.NodeState, model string, stream bool, isCou
 
 	template := node.BaseURL
 	if template == "" {
-		// 使用区域级 hostname；global 端点不支持 Claude
-		template = "https://" + location + "-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/anthropic/{subpath}"
+		template = "https://aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/anthropic/{subpath}"
 	}
 
 	var subpath string
@@ -128,8 +127,9 @@ func passthroughToGEAPClaude(ctx context.Context, w http.ResponseWriter, r *http
 
 	proxyReq, _ := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(geapBody))
 	proxyReq.Header.Set("Content-Type", "application/json")
-	// GEAP 上 Claude 端点必须用 OAuth Bearer Token 认证，Credentials 字段存放 access token
-	proxyReq.Header.Set("Authorization", "Bearer "+dest.Node.Credentials)
+	q := proxyReq.URL.Query()
+	q.Set("key", dest.Node.Credentials)
+	proxyReq.URL.RawQuery = q.Encode()
 
 	finalResp, err := httpClient.Do(proxyReq)
 	if err != nil {
@@ -251,7 +251,9 @@ func handleGEAPClaudeCountTokens(ctx context.Context, w http.ResponseWriter, bod
 		return
 	}
 	proxyReq.Header.Set("Content-Type", "application/json")
-	proxyReq.Header.Set("Authorization", "Bearer "+dest.Node.Credentials)
+	q := proxyReq.URL.Query()
+	q.Set("key", dest.Node.Credentials)
+	proxyReq.URL.RawQuery = q.Encode()
 
 	resp, err := httpClient.Do(proxyReq)
 	if err != nil {
