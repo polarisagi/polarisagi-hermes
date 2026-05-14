@@ -100,14 +100,18 @@ createApp({
 
         const nodeForm = ref({
             id: 0, provider: 'openai', name: '', credentials: '', project_id: '', location: 'global', base_url: '',
-            priority: 0, limit_percent: 90.0, balance: 0.0,
-            valid_from: `${todayPrefix()}T00:00:00`, valid_to: `${todayPrefix()}T23:59:59`, status: 1
+            priority: 10, limit_percent: 90.0, balance: 0.0,
+            valid_from: `${todayPrefix()}T00:00:00`, valid_to: `2099-12-31T23:59:59`, status: 1
         });
 
-        const formatNum = (num) => Number(num).toFixed(4);
+        const formatNum = (num) => Number(num || 0).toFixed(4);
         const formatToken = (num) => new Intl.NumberFormat().format(num);
         const formatShortDate = (dt) => dt ? dt.split('T')[0].split(' ')[0] : '-';
         const successRateColor = (rate) => rate > 95 ? 'border-emerald-500' : (rate > 80 ? 'border-yellow-500' : 'border-red-500');
+        const usagePercent = (node) => {
+            if (!node.balance || node.balance <= 0) return 0;
+            return ((node.used_amount || 0) / node.balance) * 100;
+        };
 
         // Protocol display helpers
         const protocolLabel = (p) => {
@@ -311,8 +315,8 @@ createApp({
                 const today = todayPrefix();
                 nodeForm.value = {
                     id: 0, provider: 'openai', name: '', credentials: '', project_id: '', location: 'global', base_url: '',
-                    priority: 0, limit_percent: 90.0, balance: 0.0,
-                    valid_from: `${today}T00:00:00`, valid_to: `${today}T23:59:59`, status: 1
+                    priority: 10, limit_percent: 90.0, balance: 0.0,
+                    valid_from: `${today}T00:00:00`, valid_to: `2099-12-31T23:59:59`, status: 1
                 };
                 nodeModal.value = { show: true, isEdit: false };
             }
@@ -596,7 +600,7 @@ createApp({
         return {
             currentTab, apiData, availableAccounts, selectedAccount, selectedAccountLabel, activePreset, groupedApiData, singleAccountDetails,
             setPreset, aggregatedData, formatNum, formatToken, formatShortDate, successRateColor, concurrency,
-            getUsagePercent, getRemainingPercent, getBarColor, getRemainingColor,
+            getUsagePercent, getRemainingPercent, getBarColor, getRemainingColor, usagePercent,
             settings, nodes, routes, fetchSettings, fetchNodes, fetchRoutes, saveSettings, resetSettings,
             nodeModal, nodeForm, openNodeModal, saveNode, deleteNode,
             routeModal, routeForm, openRouteModal, saveRoute, deleteRoute, toast,
