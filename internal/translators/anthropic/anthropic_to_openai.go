@@ -54,6 +54,11 @@ func AnthropicToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	extractedBillingHeader := ExtractAndStripBillingHeader(&req)
+	if extractedBillingHeader != "" {
+		w.Header().Set("X-Anthropic-Billing-Header", extractedBillingHeader)
+	}
+
 	oaiReq := buildOpenAIRequest(req, dest)
 	oaiBody, _ := json.Marshal(oaiReq)
 

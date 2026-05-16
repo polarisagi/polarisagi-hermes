@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"polaris-gateway/internal/db"
 	"polaris-gateway/internal/router"
@@ -44,6 +45,53 @@ func writeSSEMessageStop(w http.ResponseWriter, flusher http.Flusher) {
 	writeSSE(w, flusher, "message_stop", StreamEvent{
 		Type: "message_stop",
 	})
+}
+
+// ExtractAndStripBillingHeader 检查并移除 System prompt 中的 x-anthropic-billing-header。
+// 返回提取到的 header 字符串，以便在返回给客户端时将其带上。
+// 支持 string 和 []interface{} 两种解析格式。
+func ExtractAndStripBillingHeader(req *MessageRequest) string {
+	if req.System == nil {
+		return ""
+	}
+
+	var extracted string
+	prefix := "x-anthropic-billing-header:"
+
+	switch sys := req.System.(type) {
+	case string:
+		if strings.HasPrefix(strings.TrimSpace(sys), prefix) {
+			// Find the first newline or end of string
+			parts := strings.SplitN(sys, "\n", 2)
+			extracted = strings.TrimSpace(parts[0])
+			if len(parts) > 1 {
+				req.System = strings.TrimSpace(parts[1])
+			} else {
+				req.System = nil
+			}
+		}
+	case []interface{}:
+		var newSys []interface{}
+		for _, item := range sys {
+			if m, ok := item.(map[string]interface{}); ok {
+				if m["type"] == "text" {
+					if text, ok := m["text"].(string); ok {
+						if strings.HasPrefix(strings.TrimSpace(text), prefix) {
+							extracted = strings.TrimSpace(text)
+							continue // skip this block
+						}
+					}
+				}
+			}
+			newSys = append(newSys, item)
+		}
+		if len(newSys) == 0 {
+			req.System = nil
+		} else {
+			req.System = newSys
+		}
+	}
+	return extracted
 }
 
 // parseAndSettleAnthropicResponse 从 Anthropic 格式的非流式响应体中提取 usage 并完成计费

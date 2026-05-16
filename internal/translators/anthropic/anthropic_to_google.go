@@ -73,6 +73,12 @@ func AnthropicToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	extractedBillingHeader := ExtractAndStripBillingHeader(&req)
+	if extractedBillingHeader != "" {
+		w.Header().Set("X-Anthropic-Billing-Header", extractedBillingHeader)
+		bodyBytes, _ = json.Marshal(req)
+	}
+
 	// TargetModel（路由映射 target 字段）非空时覆盖客户端模型名
 	finalModel := dest.TargetModel
 	if finalModel == "" {
