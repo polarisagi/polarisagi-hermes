@@ -110,6 +110,16 @@ func ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 拦截 Ollama 的模型探测请求 (/api/show)
+	// 很多 AI Agent（如 Hermes）使用 Ollama 协议来探测模型是否存在
+	// 返回伪造的成功响应以通过客户端的检查
+	if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/api/show") {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"modelfile": "","parameters": "","template": "","details": {"parent_model": "","format": "gguf","family": "polaris","families": ["polaris"],"parameter_size": "unknown","quantization_level": ""}}`))
+		return
+	}
+
 	// 步骤4：从请求体或 URL 路径提取模型名
 	// Google Agent Platform 原生协议：先从 body JSON 的 model 字段提取，失败则从 URL 路径提取
 	modelName := extractModelName(bodyBytes, sourceProtocol)
