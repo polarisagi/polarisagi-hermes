@@ -238,7 +238,7 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 				blockIndex++
 			}
 
-			if text, ok := part["text"].(string); ok && text != "" {
+			if text, ok := part["text"].(string); ok {
 				if !inText {
 					writeSSE(w, flusher, "content_block_start", StreamEvent{
 						Type:  "content_block_start",
@@ -251,14 +251,16 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 					inText = true
 				}
 
-				writeSSE(w, flusher, "content_block_delta", StreamEvent{
-					Type:  "content_block_delta",
-					Index: ptrInt(blockIndex),
-					Delta: &Delta{
-						Type: "text_delta",
-						Text: text,
-					},
-				})
+				if text != "" {
+					writeSSE(w, flusher, "content_block_delta", StreamEvent{
+						Type:  "content_block_delta",
+						Index: ptrInt(blockIndex),
+						Delta: &Delta{
+							Type: "text_delta",
+							Text: text,
+						},
+					})
+				}
 			}
 
 			if fc, ok := part["functionCall"].(map[string]interface{}); ok {
@@ -326,12 +328,22 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 		}
 	}
 
-	// 流式正常结束但无任何内容块 → 表面化为错误，让调用方重试而非返回空消息
+	// 流式正常结束但无任何内容块 → 注入空文本块兜底，防止 Claude Code /compact 等操作报错
 	if streamError == "" && blockIndex == 0 && !inText && !inThinking {
-		streamError = "Google Agent Platform returned empty response with no text content (possible safety filter or empty candidates)"
-		slog.Warn("⚠️ [Stream] GEAP 流式响应未包含任何内容块",
+		slog.Warn("⚠️ [Stream] GEAP 流式响应未包含任何内容块，注入空文本块兜底",
 			"trace_id", traceID, "account", dest.Node.Name,
 			"stop_reason", stopReason, "prompt_tokens", promptTokens)
+		
+		writeSSE(w, flusher, "content_block_start", StreamEvent{
+			Type:  "content_block_start",
+			Index: ptrInt(blockIndex),
+			ContentBlock: &Content{
+				Type: "text",
+				Text: "",
+			},
+		})
+		writeSSEContentBlockStop(w, flusher, blockIndex)
+		blockIndex++
 	}
 
 	if streamError != "" {
@@ -542,20 +554,20 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 	}
 
 	// 判断是否存在真正有意义的内容块：
-	// tool_use / thinking 不属于"空"，只有 contents 为空或仅含空文本才需要占位符
+	// tool_use / thinking 不属于"空"，只有 contents 为空才需要注入兜底
 	hasRealContent := false
 	for _, c := range contents {
-		if c.Type == "tool_use" || c.Type == "thinking" || (c.Type == "text" && c.Text != "") {
+		if c.Type == "tool_use" || c.Type == "thinking" || c.Type == "text" {
 			hasRealContent = true
 			break
 		}
 	}
 	if !hasRealContent {
-		slog.Warn("⚠️ [NonStream] GEAP 返回无有效文本内容（安全过滤或空候选），填充占位符防止客户端崩溃",
+		slog.Warn("⚠️ [NonStream] GEAP 返回无有效文本内容（安全过滤或空候选），注入空文本块防止客户端报错",
 			"trace_id", traceID, "account", dest.Node.Name,
 			"stop_reason", stopReason, "geap_resp_preview", string(bodyBytes[:min(len(bodyBytes), 500)]))
 		contents = []Content{
-			{Type: "text", Text: "[Summary skipped: Google Agent Platform returned an empty response]"},
+			{Type: "text", Text: ""},
 		}
 	}
 
