@@ -52,7 +52,7 @@ func getIncomingProtocol(path string) string {
 		if strings.Contains(path, "messages") {
 			return "anthropic"
 		}
-		if strings.Contains(path, "generateContent") || strings.Contains(path, "streamGenerateContent") {
+		if strings.Contains(path, "generateContent") || strings.Contains(path, "streamGenerateContent") || strings.Contains(path, "publishers/google/") {
 			return "google"
 		}
 		return "unknown"
