@@ -7,6 +7,7 @@ package google
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -24,6 +25,8 @@ func GoogleToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	methodName := utils.ExtractMethodName(r.URL.Path)
 
 	targetURL := buildGoogleTargetURL(dest.Node, r.URL.Path)
+
+	bodyBytes = fixGoogleRequestBody(bodyBytes)
 
 	proxyReq, _ := http.NewRequestWithContext(ctx, r.Method, targetURL, bytes.NewReader(bodyBytes))
 	for k, vv := range r.Header {
@@ -163,6 +166,47 @@ func stripTemplatePath(template string) string {
 		return template
 	}
 	return template[:idx+3+slash]
+}
+
+// fixGoogleRequestBody 修复客户端发送的非法请求体（如缺少 parts 字段）
+// GEAP 强制要求 systemInstruction 和 contents 中的每一项必须包含至少一个 parts。
+func fixGoogleRequestBody(bodyBytes []byte) []byte {
+	if len(bodyBytes) == 0 {
+		return bodyBytes
+	}
+
+	var reqData map[string]interface{}
+	if err := json.Unmarshal(bodyBytes, &reqData); err != nil {
+		return bodyBytes
+	}
+
+	modified := false
+
+	if sysInstr, ok := reqData["systemInstruction"].(map[string]interface{}); ok {
+		if parts, ok := sysInstr["parts"].([]interface{}); !ok || len(parts) == 0 {
+			sysInstr["parts"] = []interface{}{map[string]interface{}{"text": ""}}
+			modified = true
+		}
+	}
+
+	if contents, ok := reqData["contents"].([]interface{}); ok {
+		for _, item := range contents {
+			if contentMap, ok := item.(map[string]interface{}); ok {
+				if parts, ok := contentMap["parts"].([]interface{}); !ok || len(parts) == 0 {
+					contentMap["parts"] = []interface{}{map[string]interface{}{"text": ""}}
+					modified = true
+				}
+			}
+		}
+	}
+
+	if modified {
+		if newBody, err := json.Marshal(reqData); err == nil {
+			return newBody
+		}
+	}
+
+	return bodyBytes
 }
 
 func init() {
