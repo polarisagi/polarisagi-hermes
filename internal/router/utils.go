@@ -86,9 +86,15 @@ func extractModelName(body []byte, protocol string) string {
 	case "google":
 		var req struct {
 			Model string `json:"model"`
+			Name  string `json:"name"`
 		}
-		if json.Unmarshal(body, &req) == nil && req.Model != "" {
-			return req.Model
+		if json.Unmarshal(body, &req) == nil {
+			if req.Model != "" {
+				return strings.TrimPrefix(req.Model, "models/")
+			}
+			if req.Name != "" {
+				return strings.TrimPrefix(req.Name, "models/")
+			}
 		}
 		return "_google_native_"
 	}

@@ -5,7 +5,7 @@ REPO="mrlaoliai/polaris-gateway"
 BIN_NAME="polaris-gateway"
 INSTALL_DIR="/usr/local/bin"
 
-echo "🌌 正在安装 Polaris Gateway..."
+echo "🌌 正在安装/更新 Polaris Gateway..."
 
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
@@ -28,8 +28,23 @@ curl -sSL -f -o /tmp/${BIN_NAME} "$DL_URL" || {
 }
 
 chmod +x /tmp/${BIN_NAME}
+
+if [ "$OS" = "linux" ] && command -v systemctl >/dev/null; then
+    if systemctl is-active --quiet polaris-gateway 2>/dev/null; then
+        echo "🛑 正在停止运行中的 Linux 服务..."
+        sudo systemctl stop polaris-gateway || true
+    fi
+elif [ "$OS" = "darwin" ]; then
+    PLIST_PATH="$HOME/Library/LaunchAgents/com.polaris.gateway.plist"
+    if launchctl list | grep -q "com.polaris.gateway"; then
+        echo "🛑 正在停止运行中的 macOS 服务..."
+        launchctl unload "$PLIST_PATH" 2>/dev/null || true
+    fi
+    pkill -f "${BIN_NAME}" 2>/dev/null || true
+fi
+
 sudo mkdir -p ${INSTALL_DIR}
-sudo mv /tmp/${BIN_NAME} ${INSTALL_DIR}/${BIN_NAME}
+sudo mv -f /tmp/${BIN_NAME} ${INSTALL_DIR}/${BIN_NAME}
 
 echo "✅ 二进制文件已安装至: ${INSTALL_DIR}/${BIN_NAME}"
 

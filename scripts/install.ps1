@@ -1,4 +1,4 @@
-Write-Host "🌌 正在安装 Polaris Gateway (Windows)..." -ForegroundColor Cyan
+Write-Host "🌌 正在安装/更新 Polaris Gateway (Windows)..." -ForegroundColor Cyan
 
 # 检查管理员权限
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -18,16 +18,31 @@ if (-not (Test-Path $InstallDir)) {
 $Arch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "arm64" } else { "amd64" }
 $DownloadUrl = "https://github.com/$Repo/releases/latest/download/polaris-gateway-windows-$Arch.exe"
 
+$TaskName = "PolarisGatewayService"
+
+# 停止可能正在运行的服务和进程，以便覆盖文件
+if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
+    Write-Host "🛑 正在停止运行中的后台服务..." -ForegroundColor Cyan
+    Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 2
+}
+
+$Process = Get-Process -Name "polaris-gateway" -ErrorAction SilentlyContinue
+if ($Process) {
+    Write-Host "🛑 正在结束旧进程..." -ForegroundColor Cyan
+    Stop-Process -Name "polaris-gateway" -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 2
+}
+
 Write-Host "⬇️ 正在从 GitHub 下载最新版本: $DownloadUrl"
 try {
-    Invoke-WebRequest -Uri $DownloadUrl -OutFile "$InstallDir\$BinName"
+    Invoke-WebRequest -Uri $DownloadUrl -OutFile "$InstallDir\$BinName" -UseBasicParsing
 } catch {
     Write-Host "❌ 下载失败。请检查网络或确认仓库是否已发布 Release。" -ForegroundColor Red
     exit 1
 }
 
 Write-Host "⚙️ 正在注册 Windows 计划任务以实现开机后台静默自启..."
-$TaskName = "PolarisGatewayService"
 $Action = New-ScheduledTaskAction -Execute "$InstallDir\$BinName" -WorkingDirectory $InstallDir
 $Trigger = New-ScheduledTaskTrigger -AtStartup
 $Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -DontStopOnIdleEnd

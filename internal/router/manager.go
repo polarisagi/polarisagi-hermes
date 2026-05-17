@@ -15,6 +15,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math/rand"
 	"sort"
 	"strings"
 	"sync"
@@ -302,8 +303,13 @@ func tryAcquire(sourceProtocol, reqModel string) (dest *MatchedDestination, reas
 		return nil, "no model mapping matched", false
 	}
 
+	// 相同优先级的节点随机打乱，实现随机负载均衡
+	rand.Shuffle(len(validCandidates), func(i, j int) {
+		validCandidates[i], validCandidates[j] = validCandidates[j], validCandidates[i]
+	})
+
 	// Sort by Priority Descending -> auto load balancing
-	sort.Slice(validCandidates, func(i, j int) bool {
+	sort.SliceStable(validCandidates, func(i, j int) bool {
 		return validCandidates[i].State.Priority > validCandidates[j].State.Priority
 	})
 
