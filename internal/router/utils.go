@@ -117,3 +117,14 @@ func extractModelFromGooglePath(path string) string {
 	}
 	return ""
 }
+
+// ReplaceGoogleModelInPath 替换 Google 原生 URL 路径中的模型名
+func ReplaceGoogleModelInPath(path, targetModel string) string {
+	if match := modelRegexGoogleURL.FindStringSubmatch(path); len(match) > 1 {
+		return strings.Replace(path, match[1], targetModel, 1)
+	}
+	if match := modelRegexGoogleGatewayURL.FindStringSubmatch(path); len(match) > 1 {
+		return strings.Replace(path, match[1], targetModel, 1)
+	}
+	return path
+}

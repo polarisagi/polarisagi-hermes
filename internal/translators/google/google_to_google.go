@@ -24,7 +24,7 @@ func GoogleToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	clientType := utils.IdentifyClient(r)
 	methodName := utils.ExtractMethodName(r.URL.Path)
 
-	targetURL := buildGoogleTargetURL(dest.Node, r.URL.Path)
+	targetURL := buildGoogleTargetURL(dest.Node, r.URL.Path, dest.TargetModel)
 
 	bodyBytes = fixGoogleRequestBody(bodyBytes)
 
@@ -92,8 +92,29 @@ func streamGoogleResponse(w http.ResponseWriter, finalResp *http.Response, dest 
 //  3. 完整路径 `/projects/.../locations/.../publishers/...` → 视为绝对 GEAP 路径，直接拼接到 host
 //
 // 当 ProjectID 为空时退化为旧式 BaseURL + /v1 + path 拼接（用于非 GEAP 的 Gemini API 兼容端点）
-func buildGoogleTargetURL(node *router.NodeState, incomingPath string) string {
-	subPath := strings.TrimPrefix(incomingPath, "/v1")
+func buildGoogleTargetURL(node *router.NodeState, incomingPath string, targetModel string) string {
+	if targetModel != "" {
+		targetModel = strings.TrimPrefix(targetModel, "google/")
+		incomingPath = router.ReplaceGoogleModelInPath(incomingPath, targetModel)
+	}
+
+	versionPrefix := "/v1"
+	if strings.HasPrefix(incomingPath, "/v1beta") {
+		versionPrefix = "/v1beta"
+	} else if strings.HasPrefix(incomingPath, "/v1alpha") {
+		versionPrefix = "/v1alpha"
+	}
+
+	if node.ProjectID == "" && versionPrefix == "/v1" {
+		if strings.Contains(targetModel, "preview") || strings.Contains(targetModel, "3.1") || strings.Contains(targetModel, "2.5") || strings.Contains(targetModel, "2.0") || strings.Contains(targetModel, "lite") {
+			versionPrefix = "/v1beta"
+		}
+	}
+
+	subPath := strings.TrimPrefix(incomingPath, "/v1beta")
+	subPath = strings.TrimPrefix(subPath, "/v1alpha")
+	subPath = strings.TrimPrefix(subPath, "/v1")
+
 	if !strings.HasPrefix(subPath, "/") {
 		subPath = "/" + subPath
 	}
@@ -141,7 +162,7 @@ func buildGoogleTargetURL(node *router.NodeState, incomingPath string) string {
 	}
 
 	baseURL := strings.TrimSuffix(node.BaseURL, "/")
-	return baseURL + "/v1" + subPath
+	return baseURL + versionPrefix + subPath
 }
 
 // inferGEAPHost 根据 location 推断 Google Agent Platform API host

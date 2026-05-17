@@ -264,7 +264,14 @@ func BuildTargetURL(acc config.AccountDetail, incomingPath string) string {
 
 	// 3. 标准 OpenAI 节点处理 (如 DeepSeek)
 	baseURL := strings.TrimSuffix(acc.BaseURL, "/")
-	return baseURL + "/v1" + subPath
+	
+	versionPrefix := "/v1"
+	if strings.Contains(baseURL, "generativelanguage.googleapis") {
+		if strings.Contains(subPath, "preview") || strings.Contains(subPath, "3.1") || strings.Contains(subPath, "2.5") || strings.Contains(subPath, "2.0") || strings.Contains(subPath, "lite") {
+			versionPrefix = "/v1beta"
+		}
+	}
+	return baseURL + versionPrefix + subPath
 }
 
 // ForwardStreamBody 将 body 流式转发到 w，同时维护尾部 8KB 缓冲窗口

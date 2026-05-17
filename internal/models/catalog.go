@@ -114,6 +114,8 @@ var modelCatalog = map[string][]ModelInfo{
 		{Name: "gemini-3.1-pro-preview", DisplayName: "Gemini 3.1 Pro Preview", Protocol: "google", Category: "flagship"},
 		{Name: "gemini-3.1-pro", DisplayName: "Gemini 3.1 Pro — 旗舰", Protocol: "google", Category: "flagship"},
 		{Name: "gemini-3.1-flash", DisplayName: "Gemini 3.1 Flash — 快速版", Protocol: "google", Category: "cost-efficient"},
+		{Name: "gemini-3.1-flash-lite-preview", DisplayName: "Gemini 3.1 Flash Lite Preview", Protocol: "google", Category: "cost-efficient"},
+		{Name: "gemini-3.1-flash-lite", DisplayName: "Gemini 3.1 Flash Lite", Protocol: "google", Category: "cost-efficient"},
 		{Name: "gemini-3.1-ultra", DisplayName: "Gemini 3.1 Ultra — 最强版", Protocol: "google", Category: "flagship"},
 
 		// Gemini 3.0 系列
@@ -139,6 +141,8 @@ var modelCatalog = map[string][]ModelInfo{
 		{Name: "google/gemini-3.1-pro-preview", DisplayName: "Gemini 3.1 Pro Preview (OpenAI兼容)", Protocol: "google", Category: "flagship"},
 		{Name: "google/gemini-3.1-pro", DisplayName: "Gemini 3.1 Pro (OpenAI兼容)", Protocol: "google", Category: "flagship"},
 		{Name: "google/gemini-3.1-flash", DisplayName: "Gemini 3.1 Flash (OpenAI兼容)", Protocol: "google", Category: "cost-efficient"},
+		{Name: "google/gemini-3.1-flash-lite-preview", DisplayName: "Gemini 3.1 Flash Lite Preview (OpenAI兼容)", Protocol: "google", Category: "cost-efficient"},
+		{Name: "google/gemini-3.1-flash-lite", DisplayName: "Gemini 3.1 Flash Lite (OpenAI兼容)", Protocol: "google", Category: "cost-efficient"},
 		{Name: "google/gemini-3.0-pro", DisplayName: "Gemini 3.0 Pro (OpenAI兼容)", Protocol: "google", Category: "flagship"},
 		{Name: "google/gemini-3.0-flash", DisplayName: "Gemini 3.0 Flash (OpenAI兼容)", Protocol: "google", Category: "cost-efficient"},
 		{Name: "google/gemini-2.5-flash", DisplayName: "Gemini 2.5 Flash (OpenAI兼容)", Protocol: "google", Category: "cost-efficient"},
