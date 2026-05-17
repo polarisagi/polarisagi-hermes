@@ -6,10 +6,13 @@ package router
 import (
 	"fmt"
 	"log/slog"
+	"net/http"
 	"sync"
 	"time"
 
 	"polaris-gateway/internal/config"
+
+	"golang.org/x/oauth2"
 )
 
 // NodeStatus 节点运行时状态枚举
@@ -27,6 +30,7 @@ const (
 // 每个节点是 goroutine-safe 的，通过内部的 sync.Mutex 保护状态转换
 type NodeState struct {
 	config.AccountDetail                                     // 内嵌静态配置
+	TokenSource           oauth2.TokenSource                 // (可选) 如果配置了 ADC JSON，将在此处生成 OAuth2 TokenSource
 	Status                NodeStatus                         // 当前状态
 	FailureTimestamps     []time.Time                        // 失败时间戳列表（用于滑动窗口计数）
 	CurrentCooldown       time.Duration                      // 当前冷却时长（失败后翻倍增长）
@@ -134,4 +138,30 @@ func (s *NodeState) RecordCost(cost float64, traceID string) {
 			}
 		}
 	}
+}
+
+// InjectGoogleAuth 统一为 Google/Vertex HTTP 请求注入认证信息 (ADC JSON 或 API Key)
+func (s *NodeState) InjectGoogleAuth(req *http.Request) error {
+	if s.TokenSource != nil {
+		token, err := s.TokenSource.Token()
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Authorization", "Bearer "+token.AccessToken)
+		return nil
+	}
+
+	// 如果没有 TokenSource（即填的是普通 API Key）
+	// Vertex AI 端点（ProjectID != ""）通常使用 Bearer Token
+	// Gemini 端点（ProjectID == ""）使用 Bearer 或者 x-goog-api-key 或 ?key=
+	// 这里统一：如果没有配置 TokenSource，则视作普通的 API Key
+	if s.ProjectID == "" {
+		q := req.URL.Query()
+		q.Set("key", s.Credentials)
+		req.URL.RawQuery = q.Encode()
+	} else {
+		// 部分 Vertex AI 支持 Bearer 形式传入服务号 Token，如果用户强行在后台填 Token 文本的话：
+		req.Header.Set("Authorization", "Bearer "+s.Credentials)
+	}
+	return nil
 }

@@ -44,9 +44,13 @@ func GoogleToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Request,
 			q.Add(k, v)
 		}
 	}
-	// 统一使用 API Key 查询参数认证（Gemini 和 GEAP Claude 均支持 ?key= 方式）
-	q.Set("key", dest.Node.Credentials)
 	proxyReq.URL.RawQuery = q.Encode()
+
+	if err := dest.Node.InjectGoogleAuth(proxyReq); err != nil {
+		slog.Error("❌ [GoogleToGoogle] 注入认证信息失败", "node", dest.Node.Name, "err", err)
+		http.Error(w, "Failed to generate ADC Token", http.StatusInternalServerError)
+		return
+	}
 
 	utils.ExecuteAndStream(w, proxyReq, dest, "google", clientType, methodName, traceID, "Google Agent Platform",
 		func(finalResp *http.Response, startTime time.Time) {

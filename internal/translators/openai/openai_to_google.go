@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -43,14 +42,6 @@ func OpenAIToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Request,
 		slog.Warn("⚠️ 启用 🟠 Probation OAI 账号探路", "trace_id", traceID, "account", dest.Node.Name)
 	}
 
-	parsedURL, err := url.Parse(targetURL)
-	if err == nil && dest.Node.ProjectID != "" {
-		q := parsedURL.Query()
-		q.Set("key", dest.Node.Credentials)
-		parsedURL.RawQuery = q.Encode()
-		targetURL = parsedURL.String()
-	}
-
 	proxyReq, _ := http.NewRequestWithContext(ctx, r.Method, targetURL, bytes.NewReader(currentBody))
 
 	for k, vv := range r.Header {
@@ -62,7 +53,15 @@ func OpenAIToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Request,
 		}
 	}
 
-	if dest.Node.ProjectID == "" {
+	// 统一注入 Google 认证信息 (自动处理 ADC Token 或 API Key)
+	if err := dest.Node.InjectGoogleAuth(proxyReq); err != nil {
+		slog.Error("❌ [OpenAIToGoogle] 注入认证信息失败", "node", dest.Node.Name, "err", err)
+		http.Error(w, "Failed to generate ADC Token", http.StatusInternalServerError)
+		return
+	}
+
+	// 对于 OpenAI 兼容协议（特别是 Gemini 的），有时需要以 Bearer 形式传入原始 API Key
+	if dest.Node.TokenSource == nil && dest.Node.ProjectID == "" {
 		proxyReq.Header.Set("Authorization", "Bearer "+dest.Node.Credentials)
 	}
 

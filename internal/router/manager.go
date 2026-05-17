@@ -13,6 +13,7 @@ package router
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"math/rand"
@@ -23,6 +24,8 @@ import (
 
 	"polaris-gateway/internal/config"
 	"polaris-gateway/internal/db"
+
+	"golang.org/x/oauth2/google"
 )
 
 var (
@@ -60,6 +63,17 @@ func ReloadFromConfig() {
 				AccountDetail:   acc,
 				CurrentCooldown: time.Duration(config.AppConfig.Breaker.InitialCooldownSeconds) * time.Second,
 				TotalConsumed:   cycleConsumed,
+			}
+
+			// 如果 Credentials 看起来是一个 JSON（通常以 { 开头），尝试解析为 OAuth2 TokenSource
+			if strings.HasPrefix(strings.TrimSpace(acc.Credentials), "{") && json.Valid([]byte(acc.Credentials)) {
+				creds, err := google.CredentialsFromJSON(context.Background(), []byte(acc.Credentials), "https://www.googleapis.com/auth/cloud-platform")
+				if err == nil && creds != nil {
+					state.TokenSource = creds.TokenSource
+					slog.Info("🔑 [ADC JSON] 成功为节点加载 OAuth2 TokenSource", "node", acc.Name)
+				} else {
+					slog.Warn("⚠️ [ADC JSON] 节点 Credentials 疑似 JSON，但解析 OAuth2 失败", "node", acc.Name, "err", err)
+				}
 			}
 
 			if state.Balance > 0 && state.LimitPercent > 0 {
