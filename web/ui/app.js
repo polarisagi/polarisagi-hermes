@@ -380,6 +380,29 @@ createApp({
             }
         };
 
+        const startGoogleAuth = () => {
+            const isLocal = window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost';
+            if (!isLocal) {
+                alert('⚠️ 限制提醒：\n\nGoogle OAuth 强制要求回调地址必须为 127.0.0.1 本地端口。\n\n由于当前 Polaris 网关部署在远程服务器（非本地访问），自动跳转授权将无法把令牌返回给服务器。\n\n请在您的本地电脑上运行最新版 Polaris 附带的 adc-gen (Mac/Windows/Linux) 授权小工具，或者在本地安装 gcloud 后运行 `gcloud auth application-default login`，然后将生成的完整 JSON 粘贴到下方的输入框中。');
+                return;
+            }
+            
+            const receiveMessage = (event) => {
+                if (event.data && event.data.type === 'google_adc_auth' && event.data.data) {
+                    nodeForm.value.credentials = event.data.data;
+                    showToast('✅ Google ADC 凭证已自动填入');
+                    window.removeEventListener('message', receiveMessage);
+                }
+            };
+            window.addEventListener('message', receiveMessage, false);
+
+            const width = 600;
+            const height = 700;
+            const left = Math.max(0, (window.innerWidth - width) / 2 + window.screenX);
+            const top = Math.max(0, (window.innerHeight - height) / 2 + window.screenY);
+            window.open('/api/admin/oauth/google/start', 'GoogleAuth', `width=${width},height=${height},top=${top},left=${left}`);
+        };
+
         // --- Route management (new protocol-to-protocol design) ---
 
         const openRouteModal = (route = null) => {
@@ -602,7 +625,7 @@ createApp({
             setPreset, aggregatedData, formatNum, formatToken, formatShortDate, successRateColor, concurrency,
             getUsagePercent, getRemainingPercent, getBarColor, getRemainingColor, usagePercent,
             settings, nodes, routes, fetchSettings, fetchNodes, fetchRoutes, saveSettings, resetSettings,
-            nodeModal, nodeForm, openNodeModal, saveNode, deleteNode,
+            nodeModal, nodeForm, openNodeModal, saveNode, deleteNode, startGoogleAuth,
             routeModal, routeForm, openRouteModal, saveRoute, deleteRoute, toast,
             addMapping, removeMapping, protocolLabel, protocolClass, protocolBadge,
             logsText, isAutoScroll, logLevelFilter, debugEnabled, toggleDebug, fetchLogs, version,

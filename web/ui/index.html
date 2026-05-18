@@ -468,13 +468,21 @@
                                 </div>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-slate-300 mb-1">
-                                    API Key <span class="text-red-400">*</span>
-                                    <span v-if="nodeForm.provider === 'google'" class="text-slate-500 font-normal text-xs ml-1">（GCP API Key）</span>
-                                    <span v-else-if="nodeForm.provider === 'anthropic'" class="text-slate-500 font-normal text-xs ml-1">（sk-ant-... 格式）</span>
-                                    <span v-else class="text-slate-500 font-normal text-xs ml-1">（sk-... 或 Bearer Token）</span>
-                                </label>
-                                <input v-model="nodeForm.credentials" type="password"
+                                <div class="flex justify-between items-center mb-1">
+                                    <label class="block text-sm font-medium text-slate-300">
+                                        API Key / ADC JSON <span class="text-red-400">*</span>
+                                        <span v-if="nodeForm.provider === 'google'" class="text-slate-500 font-normal text-xs ml-1">（支持直接粘贴 ADC JSON）</span>
+                                        <span v-else-if="nodeForm.provider === 'anthropic'" class="text-slate-500 font-normal text-xs ml-1">（sk-ant-... 格式）</span>
+                                        <span v-else class="text-slate-500 font-normal text-xs ml-1">（sk-... 或 Bearer Token）</span>
+                                    </label>
+                                    <button v-if="nodeForm.provider === 'google'" @click="startGoogleAuth" title="一键获取 Google OAuth 凭证" class="text-xs bg-blue-600/20 text-blue-400 border border-blue-500/50 hover:bg-blue-600 hover:text-white px-2 py-1 rounded transition flex items-center gap-1">
+                                        <span>🔑</span>自动获取授权
+                                    </button>
+                                </div>
+                                <textarea v-if="nodeForm.provider === 'google'" v-model="nodeForm.credentials" rows="3"
+                                    :placeholder="nodeModal.isEdit ? '留空则保持原样，支持直接粘贴 ADC JSON' : '请输入 API Key 或粘贴 ADC JSON'"
+                                    class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none resize-y"></textarea>
+                                <input v-else v-model="nodeForm.credentials" type="password"
                                     :placeholder="nodeModal.isEdit ? '留空则保持原样，填写将覆盖旧值' : '请输入 API Key'"
                                     class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
                             </div>

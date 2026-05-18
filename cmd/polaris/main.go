@@ -55,6 +55,8 @@ func main() {
 	mux.HandleFunc("/api/admin/logs", webapi.AdminLogsHandler)
 	mux.HandleFunc("/api/admin/debug", webapi.AdminDebugHandler)
 	mux.HandleFunc("/api/admin/models", webapi.AdminModelsHandler)
+	mux.HandleFunc("/api/admin/oauth/google/start", webapi.AdminOAuthGoogleStartHandler)
+	mux.HandleFunc("/api/admin/oauth/google/callback", webapi.AdminOAuthGoogleCallbackHandler)
 
 	// Unified Router Catch-All
 	mux.HandleFunc("/v1/", router.ServeHTTP)
