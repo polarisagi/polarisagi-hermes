@@ -12,6 +12,7 @@ docs/superpowers/
 *.md
 !README.md
 !README_zh.md
+!ARCHITECTURE.md
 !CONTRIBUTING.md
 !CODE_OF_CONDUCT.md
 !CHANGELOG.md
