@@ -2,6 +2,22 @@ const { createApp, ref, computed, onMounted } = Vue;
 
 createApp({
     setup() {
+        const lang = ref(getSystemLanguage());
+        const theme = ref(getSystemTheme());
+
+        const t = (key) => {
+            return messages[lang.value][key] || key;
+        };
+
+        const setLang = (l) => {
+            setSystemLanguage(l);
+        };
+
+        const setTheme = (t) => {
+            theme.value = t;
+            applyTheme(t);
+        };
+
         const currentTab = ref('dashboard');
         const apiData = ref([]);
         const availableAccounts = ref([]);
@@ -24,16 +40,16 @@ createApp({
         // 各源协议合法的目标协议列表（只展示后端已实现的 6 条路由）
         const VALID_ROUTES = {
             anthropic: [
-                { value: 'anthropic', label: 'Anthropic — 透传直通' },
-                { value: 'google',    label: 'Google Agent Platform — Gemini / GEAP Claude' },
-                { value: 'openai',    label: 'OpenAI — 协议转换' },
+                { value: 'anthropic', label: t('route_anthropic_direct') },
+                { value: 'google',    label: t('route_anthropic_google') },
+                { value: 'openai',    label: t('route_anthropic_openai') },
             ],
             openai: [
-                { value: 'openai',  label: 'OpenAI — 透传直通' },
-                { value: 'google',  label: 'Google Agent Platform — Vertex OAI 兼容端点' },
+                { value: 'openai',  label: t('route_openai_direct') },
+                { value: 'google',  label: t('route_openai_google') },
             ],
             google: [
-                { value: 'google', label: 'Google Agent Platform — 透传直通' },
+                { value: 'google', label: t('route_google_direct') },
             ],
         };
 
@@ -43,12 +59,12 @@ createApp({
 
         const routeTypeDesc = computed(() => {
             const descs = {
-                'anthropic_anthropic': '透传直通 · Anthropic 账号多节点轮询，请求格式不变',
-                'anthropic_google':    'Anthropic 格式转 Gemini 原生协议；claude-* 模型走 GEAP rawPredict 直通',
-                'anthropic_openai':    'Anthropic Messages 格式转 OpenAI Chat Completions 格式',
-                'openai_openai':       '透传直通 · OpenAI 账号多节点轮询，请求格式不变',
-                'openai_google':       'OpenAI 格式转 Vertex AI OpenAI 兼容端点 (endpoints/openapi)',
-                'google_google':       '透传直通 · Google 账号多节点轮询，请求格式不变',
+                'anthropic_anthropic': t('desc_anthropic_direct'),
+                'anthropic_google': t('desc_anthropic_google'),
+                'anthropic_openai': t('desc_anthropic_openai'),
+                'openai_openai': t('desc_openai_direct'),
+                'openai_google': t('desc_openai_google'),
+                'google_google': t('desc_google_direct'),
             };
             return descs[`${routeForm.value.source_protocol}_${routeForm.value.target_protocol}`] || '';
         });
@@ -93,7 +109,7 @@ createApp({
         };
 
         const triggerUpdate = () => {
-            if (!confirm(`确定要平滑热更新到 ${latestVersion.value} 吗？\n整个过程完全自动化，并且不会中断正在处理的流量。`)) return;
+            if (!confirm(lang.value === 'zh' ? `确定要平滑热更新到 ${latestVersion.value} 吗？\n整个过程完全自动化，并且不会中断正在处理的流量。` : `Are you sure you want to smooth update to ${latestVersion.value}?\nThe process is fully automated and will not interrupt active traffic.`)) return;
             
             isUpdating.value = true;
             fetch('/api/admin/update', {
@@ -165,7 +181,7 @@ createApp({
         };
 
         const selectedAccountLabel = computed(() => {
-            if (selectedAccount.value === 'all') return '全部汇总';
+            if (selectedAccount.value === 'all') return t('all_summary');
             const matched = availableAccounts.value.find(a => a.value === selectedAccount.value);
             return matched ? matched.label : selectedAccount.value;
         });
@@ -299,7 +315,7 @@ createApp({
                 settings.value.breaker.failure_window_seconds < 0 || 
                 settings.value.breaker.initial_cooldown_seconds < 0 || 
                 settings.value.breaker.max_cooldown_seconds < 0) {
-                showToast('各项设置的值不能为负数', 'error');
+                showToast(t('err_negative'), 'error');
                 return;
             }
             
@@ -319,17 +335,17 @@ createApp({
                     body: JSON.stringify(payload)
                 });
                 if (res.ok) {
-                    showToast('系统设置已保存并热加载生效');
+                    showToast(t('settings_saved'));
                 } else {
-                    showToast('保存失败', 'error');
+                    showToast(t('save_failed'), 'error');
                 }
             } catch(e) {
-                showToast('网络错误', 'error');
+                showToast(t('network_error'), 'error');
             }
         };
 
         const resetSettings = () => {
-            if(!confirm('确定要恢复系统默认设置吗？')) return;
+            if(!confirm(lang.value === 'zh' ? '确定要恢复系统默认设置吗？' : 'Are you sure you want to reset to default settings?')) return;
             settings.value = {
                 listen_addr: '127.0.0.1:28888',
                 breaker: {
@@ -365,19 +381,19 @@ createApp({
 
         const saveNode = async () => {
             if (!nodeForm.value.name || (!nodeModal.value.isEdit && !nodeForm.value.credentials)) {
-                showToast('节点名称和 API Key 不能为空', 'error');
+                showToast(t('err_empty_node'), 'error');
                 return;
             }
             if (nodeForm.value.provider === 'google' && !nodeForm.value.project_id) {
-                showToast('Google Agent Platform 节点必须填写 GCP Project ID', 'error');
+                showToast(t('err_gcp_project'), 'error');
                 return;
             }
             if (nodeForm.value.priority < 0 || nodeForm.value.balance < 0 || nodeForm.value.limit_percent < 0) {
-                showToast('优先级、额度等数字不能为负数', 'error');
+                showToast(t('err_negative_numbers'), 'error');
                 return;
             }
             if (nodeForm.value.limit_percent > 100) {
-                showToast('阻断水位线不能超过100', 'error');
+                showToast(t('err_limit_exceed'), 'error');
                 return;
             }
 
@@ -394,30 +410,30 @@ createApp({
                     body: JSON.stringify(payload)
                 });
                 if (res.ok) {
-                    showToast(nodeModal.value.isEdit ? '节点已更新' : '节点已添加');
+                    showToast(nodeModal.value.isEdit ? t('node_updated') : t('node_added'));
                     nodeModal.value.show = false;
                     fetchNodes();
                 } else {
                     const err = await res.text();
-                    showToast('保存失败: ' + err, 'error');
+                    showToast(t('save_failed') + ': ' + err, 'error');
                 }
             } catch(e) {
-                showToast('网络错误', 'error');
+                showToast(t('network_error'), 'error');
             }
         };
 
         const deleteNode = async (id) => {
-            if(!confirm('确定要删除这个节点吗？此操作不可恢复。')) return;
+            if(!confirm(lang.value === 'zh' ? '确定要删除这个节点吗？此操作不可恢复。' : 'Are you sure you want to delete this node? This action cannot be undone.')) return;
             try {
                 const res = await fetch(`/api/admin/nodes?id=${id}`, { method: 'DELETE' });
                 if (res.ok) {
-                    showToast('节点已删除');
+                    showToast(t('node_deleted'));
                     fetchNodes();
                 } else {
-                    showToast('删除失败', 'error');
+                    showToast(t('delete_failed'), 'error');
                 }
             } catch(e) {
-                showToast('网络错误', 'error');
+                showToast(t('network_error'), 'error');
             }
         };
 
@@ -431,7 +447,7 @@ createApp({
             const receiveMessage = (event) => {
                 if (event.data && event.data.type === 'google_adc_auth' && event.data.data) {
                     nodeForm.value.credentials = event.data.data;
-                    showToast('✅ Google ADC 凭证已自动填入');
+                    showToast(t('adc_filled'));
                     window.removeEventListener('message', receiveMessage);
                 }
             };
@@ -488,11 +504,11 @@ createApp({
             // Validate: at least one valid mapping
             const validMappings = routeForm.value.model_mappings.filter(m => m.match.trim() !== '');
             if (validMappings.length === 0) {
-                showToast('至少需要填写一个模型匹配规则', 'error');
+                showToast(t('err_empty_mapping'), 'error');
                 return;
             }
             if (!routeForm.value.source_protocol || !routeForm.value.target_protocol) {
-                showToast('必须选择源协议和目标协议', 'error');
+                showToast(t('err_empty_protocols'), 'error');
                 return;
             }
 
@@ -511,30 +527,30 @@ createApp({
                     body: JSON.stringify(payload)
                 });
                 if (res.ok) {
-                    showToast(routeModal.value.isEdit ? '路由已更新' : '路由已添加');
+                    showToast(routeModal.value.isEdit ? t('route_updated') : t('route_added'));
                     routeModal.value.show = false;
                     fetchRoutes();
                 } else {
                     const err = await res.text();
-                    showToast('保存失败: ' + err, 'error');
+                    showToast(t('save_failed') + ': ' + err, 'error');
                 }
             } catch(e) {
-                showToast('网络错误', 'error');
+                showToast(t('network_error'), 'error');
             }
         };
 
         const deleteRoute = async (id) => {
-            if(!confirm('确定要删除这个路由吗？')) return;
+            if(!confirm(lang.value === 'zh' ? '确定要删除这个路由吗？' : 'Are you sure you want to delete this route?')) return;
             try {
                 const res = await fetch(`/api/admin/routes?id=${id}`, { method: 'DELETE' });
                 if (res.ok) {
-                    showToast('路由已删除');
+                    showToast(t('route_deleted'));
                     fetchRoutes();
                 } else {
-                    showToast('删除失败', 'error');
+                    showToast(t('delete_failed'), 'error');
                 }
             } catch(e) {
-                showToast('网络错误', 'error');
+                showToast(t('network_error'), 'error');
             }
         };
 
@@ -556,7 +572,7 @@ createApp({
                 });
                 const json = await res.json();
                 debugEnabled.value = json.debug;
-                showToast(debugEnabled.value ? 'Debug 模式已开启' : 'Debug 模式已关闭');
+                showToast(debugEnabled.value ? t('debug_enabled') : t('debug_disabled'));
             } catch(e) {
                 showToast('切换 Debug 失败', 'error');
             }
@@ -663,6 +679,7 @@ createApp({
         });
 
         return {
+            t, lang, theme, setLang, setTheme,
             currentTab, apiData, availableAccounts, selectedAccount, selectedAccountLabel, activePreset, groupedApiData, singleAccountDetails,
             setPreset, aggregatedData, formatNum, formatToken, formatShortDate, successRateColor, concurrency,
             getUsagePercent, getRemainingPercent, getBarColor, getRemainingColor, usagePercent,

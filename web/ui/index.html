@@ -4,7 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <title>Polaris Admin Panel</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+        <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { darkMode: 'class' }
+    </script>
+    <script src="i18n.js"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
@@ -16,46 +20,60 @@
 <body class="flex h-screen overflow-hidden">
     <div id="app" v-cloak class="flex w-full">
         <!-- Sidebar -->
-        <div class="w-64 bg-slate-900 border-r border-slate-800 flex flex-col h-full flex-shrink-0">
-            <div class="p-6 border-b border-slate-800">
+        <div class="w-64 bg-gray-50 dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800 flex flex-col h-full flex-shrink-0">
+            <div class="p-6 border-b border-gray-200 dark:border-slate-800">
                 <h1 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">
                     Polaris
                 </h1>
-                <p class="text-slate-500 text-xs mt-1 uppercase tracking-wider">Gateway Admin <span v-if="version" class="ml-2 lowercase text-slate-400 font-mono">{{ version }}</span></p>
+                <p class="text-gray-500 dark:text-slate-500 text-xs mt-1 uppercase tracking-wider">{{ t("app_subtitle") }} <span v-if="version" class="ml-2 lowercase text-gray-500 dark:text-slate-400 font-mono">{{ version }}</span></p>
                 
                 <!-- 一键更新按钮 -->
                 <div v-if="updateAvailable" class="mt-4">
                     <button @click="triggerUpdate" class="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white text-xs font-bold py-2 px-3 rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all transform hover:scale-[1.02]" :disabled="isUpdating">
-                        <span v-if="!isUpdating">✨ 发现新版本 {{ latestVersion }}</span>
+                        <span v-if="!isUpdating">{{ t("new_version_found") }} {{ latestVersion }}</span>
                         <span v-else class="flex items-center gap-2">
                             <svg class="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                            正在自动更新...
+                            {{ t("updating") }}
                         </span>
                     </button>
                 </div>
             </div>
+            
+            <!-- Theme & Lang Switcher -->
+            <div class="px-6 py-2 flex items-center justify-between border-b border-gray-200 dark:border-slate-800 text-sm">
+                <div class="flex gap-2">
+                    <button @click="setTheme('light')" :class="theme === 'light' ? 'text-blue-500' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'">🌞</button>
+                    <button @click="setTheme('dark')" :class="theme === 'dark' ? 'text-blue-500' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'">🌙</button>
+                    <button @click="setTheme('system')" :class="theme === 'system' ? 'text-blue-500' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'">💻</button>
+                </div>
+                <div class="flex gap-2 text-gray-500 font-medium">
+                    <button @click="setLang('zh')" :class="lang === 'zh' ? 'text-blue-500' : 'hover:text-gray-900 dark:hover:text-white'">中</button>
+                    <button @click="setLang('en')" :class="lang === 'en' ? 'text-blue-500' : 'hover:text-gray-900 dark:hover:text-white'">EN</button>
+                </div>
+            </div>
+
             <nav class="flex-1 p-4 space-y-2">
-                <a @click="currentTab = 'dashboard'" :class="currentTab === 'dashboard' ? 'bg-blue-600/20 text-blue-400 border-blue-500/50' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200 border-transparent'" class="block px-4 py-3 rounded-lg cursor-pointer transition border">
+                <a @click="currentTab = 'dashboard'" :class="currentTab === 'dashboard' ? 'bg-blue-600/20 text-blue-400 border-blue-500/50' : 'text-gray-500 dark:text-slate-400 hover:bg-white dark:bg-slate-800 hover:text-gray-800 dark:text-slate-200 border-transparent'" class="block px-4 py-3 rounded-lg cursor-pointer transition border">
                     <div class="flex items-center gap-3 font-medium">
-                        <span>📊 监控大盘</span>
+                        <span>{{ t("tab_dashboard") }}</span>
                     </div>
                 </a>
-                <a @click="currentTab = 'nodes'" :class="currentTab === 'nodes' ? 'bg-emerald-600/20 text-emerald-400 border-emerald-500/50' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200 border-transparent'" class="block px-4 py-3 rounded-lg cursor-pointer transition border">
+                <a @click="currentTab = 'nodes'" :class="currentTab === 'nodes' ? 'bg-emerald-600/20 text-emerald-400 border-emerald-500/50' : 'text-gray-500 dark:text-slate-400 hover:bg-white dark:bg-slate-800 hover:text-gray-800 dark:text-slate-200 border-transparent'" class="block px-4 py-3 rounded-lg cursor-pointer transition border">
                     <div class="flex items-center gap-3 font-medium">
-                        <span>🌐 节点管理</span>
+                        <span>{{ t("tab_nodes") }}</span>
                     </div>
                 </a>
-                <a @click="currentTab = 'routes'" :class="currentTab === 'routes' ? 'bg-pink-600/20 text-pink-400 border-pink-500/50' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200 border-transparent'" class="block px-4 py-3 rounded-lg cursor-pointer transition border">
+                <a @click="currentTab = 'routes'" :class="currentTab === 'routes' ? 'bg-pink-600/20 text-pink-400 border-pink-500/50' : 'text-gray-500 dark:text-slate-400 hover:bg-white dark:bg-slate-800 hover:text-gray-800 dark:text-slate-200 border-transparent'" class="block px-4 py-3 rounded-lg cursor-pointer transition border">
                     <div class="flex items-center gap-3 font-medium">
-                        <span>🔀 路由管理</span>
+                        <span>{{ t("tab_routes") }}</span>
                     </div>
                 </a>
-                <a @click="currentTab = 'settings'" :class="currentTab === 'settings' ? 'bg-purple-600/20 text-purple-400 border-purple-500/50' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200 border-transparent'" class="block px-4 py-3 rounded-lg cursor-pointer transition border">
+                <a @click="currentTab = 'settings'" :class="currentTab === 'settings' ? 'bg-purple-600/20 text-purple-400 border-purple-500/50' : 'text-gray-500 dark:text-slate-400 hover:bg-white dark:bg-slate-800 hover:text-gray-800 dark:text-slate-200 border-transparent'" class="block px-4 py-3 rounded-lg cursor-pointer transition border">
                     <div class="flex items-center gap-3 font-medium">
-                        <span>⚙️ 系统设置</span>
+                        <span>{{ t("tab_settings") }}</span>
                     </div>
                 </a>
-                <a @click="currentTab = 'logs'" :class="currentTab === 'logs' ? 'bg-amber-600/20 text-amber-400 border-amber-500/50' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200 border-transparent'" class="block px-4 py-3 rounded-lg cursor-pointer transition border">
+                <a @click="currentTab = 'logs'" :class="currentTab === 'logs' ? 'bg-amber-600/20 text-amber-400 border-amber-500/50' : 'text-gray-500 dark:text-slate-400 hover:bg-white dark:bg-slate-800 hover:text-gray-800 dark:text-slate-200 border-transparent'" class="block px-4 py-3 rounded-lg cursor-pointer transition border">
                     <div class="flex items-center gap-3 font-medium">
                         <span>📝 运行日志</span>
                     </div>
@@ -76,22 +94,22 @@
 
             <!-- Dashboard Tab -->
             <div v-show="currentTab === 'dashboard'" class="max-w-6xl mx-auto">
-                <div class="flex justify-between items-start mb-8 border-b border-slate-700 pb-6">
+                <div class="flex justify-between items-start mb-8 border-b border-gray-300 dark:border-slate-700 pb-6">
                     <div>
                         <h2 class="text-2xl font-bold text-white">监控大盘</h2>
-                        <p class="text-slate-400 mt-1">计费与多协议排队中心</p>
+                        <p class="text-gray-500 dark:text-slate-400 mt-1">计费与多协议排队中心</p>
                     </div>
                     <div class="flex gap-4">
                         <div class="card rounded-xl px-5 py-3 flex flex-col items-center shadow-lg">
-                            <span class="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-1">正在处理</span>
+                            <span class="text-[10px] text-gray-500 dark:text-slate-500 uppercase font-bold tracking-wider mb-1">正在处理</span>
                             <div class="flex items-baseline gap-1">
                                 <span class="text-2xl font-mono text-emerald-400">{{ concurrency.active }}</span>
-                                <span class="text-xs text-slate-500">/ {{ concurrency.max }}</span>
+                                <span class="text-xs text-gray-500 dark:text-slate-500">/ {{ concurrency.max }}</span>
                             </div>
                         </div>
                         <div class="card rounded-xl px-5 py-3 flex flex-col items-center shadow-lg"
                             :class="concurrency.waiting > 0 ? 'border-yellow-500/50 ring-1 ring-yellow-500/20' : ''">
-                            <span class="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-1">排队等待</span>
+                            <span class="text-[10px] text-gray-500 dark:text-slate-500 uppercase font-bold tracking-wider mb-1">排队等待</span>
                             <div class="flex items-center gap-2">
                                 <span class="text-2xl font-mono"
                                     :class="concurrency.waiting > 0 ? 'text-yellow-400 pulse' : 'text-slate-600'">
@@ -100,7 +118,7 @@
                             </div>
                         </div>
                         <div class="flex flex-col justify-end">
-                            <select v-model="selectedAccount" class="bg-slate-800 border border-slate-600 text-white text-sm rounded-lg block p-2.5 outline-none focus:ring-2 focus:ring-blue-500">
+                            <select v-model="selectedAccount" class="bg-white dark:bg-slate-800 border border-slate-600 text-white text-sm rounded-lg block p-2.5 outline-none focus:ring-2 focus:ring-blue-500">
                                 <option value="all">🌐 查看全部协议流水</option>
                                 <option v-for="acc in availableAccounts" :key="acc.value" :value="acc.value">{{ acc.label }}</option>
                             </select>
@@ -110,31 +128,31 @@
 
                 <div class="card rounded-xl p-4 mb-8 flex flex-wrap gap-4 items-center justify-between shadow-lg">
                     <div class="flex gap-2">
-                        <button @click="setPreset('today')" :class="activePreset === 'today' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300'" class="px-4 py-2 rounded-lg text-sm transition">今日</button>
-                        <button @click="setPreset('week')" :class="activePreset === 'week' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300'" class="px-4 py-2 rounded-lg text-sm transition">近 7 天</button>
-                        <button @click="setPreset('month')" :class="activePreset === 'month' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300'" class="px-4 py-2 rounded-lg text-sm transition">本月</button>
+                        <button @click="setPreset('today')" :class="activePreset === 'today' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-300'" class="px-4 py-2 rounded-lg text-sm transition">今日</button>
+                        <button @click="setPreset('week')" :class="activePreset === 'week' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-300'" class="px-4 py-2 rounded-lg text-sm transition">近 7 天</button>
+                        <button @click="setPreset('month')" :class="activePreset === 'month' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-300'" class="px-4 py-2 rounded-lg text-sm transition">本月</button>
                     </div>
                     <div class="flex items-center gap-3">
-                        <span class="text-slate-400 text-sm">自定义区间:</span>
-                        <input type="text" id="datePicker" placeholder="选择日期范围" class="bg-slate-800 border border-slate-600 text-white text-sm rounded-lg block w-64 p-2.5 text-center outline-none focus:ring-2 focus:ring-blue-500">
+                        <span class="text-gray-500 dark:text-slate-400 text-sm">自定义区间:</span>
+                        <input type="text" id="datePicker" placeholder="选择日期范围" class="bg-white dark:bg-slate-800 border border-slate-600 text-white text-sm rounded-lg block w-64 p-2.5 text-center outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                     <div class="card rounded-xl p-6 shadow-lg border-l-4 border-emerald-500">
-                        <p class="text-slate-400 text-sm mb-1">区间账单预估 (USD)</p>
+                        <p class="text-gray-500 dark:text-slate-400 text-sm mb-1">区间账单预估 (USD)</p>
                         <h3 class="text-3xl font-bold text-white">$ {{ formatNum(aggregatedData.totalCost) }}</h3>
                     </div>
                     <div class="card rounded-xl p-6 shadow-lg border-l-4 border-blue-500">
-                        <p class="text-slate-400 text-sm mb-1">提示词消耗 (Tokens)</p>
+                        <p class="text-gray-500 dark:text-slate-400 text-sm mb-1">提示词消耗 (Tokens)</p>
                         <h3 class="text-2xl font-bold text-blue-400">{{ formatToken(aggregatedData.totalPrompt) }}</h3>
                     </div>
                     <div class="card rounded-xl p-6 shadow-lg border-l-4 border-purple-500">
-                        <p class="text-slate-400 text-sm mb-1">生成响应 (Tokens)</p>
+                        <p class="text-gray-500 dark:text-slate-400 text-sm mb-1">生成响应 (Tokens)</p>
                         <h3 class="text-2xl font-bold text-purple-400">{{ formatToken(aggregatedData.totalCompletion) }}</h3>
                     </div>
                     <div class="card rounded-xl p-6 shadow-lg border-l-4" :class="successRateColor(aggregatedData.successRate)">
-                        <p class="text-slate-400 text-sm mb-1">请求成功率</p>
+                        <p class="text-gray-500 dark:text-slate-400 text-sm mb-1">请求成功率</p>
                         <div class="flex items-end gap-2">
                             <h3 class="text-2xl font-bold text-white">{{ aggregatedData.successRate }}%</h3>
                         </div>
@@ -142,8 +160,8 @@
                 </div>
 
                 <div v-if="selectedAccount === 'all'" class="card rounded-xl shadow-lg overflow-hidden">
-                    <table class="w-full text-sm text-left text-slate-300">
-                        <thead class="text-xs text-slate-400 uppercase bg-slate-800 border-b border-slate-700">
+                    <table class="w-full text-sm text-left text-gray-700 dark:text-slate-300">
+                        <thead class="text-xs text-gray-500 dark:text-slate-400 uppercase bg-white dark:bg-slate-800 border-b border-gray-300 dark:border-slate-700">
                             <tr>
                                 <th class="px-6 py-4">网关节点 / 协议调用矩阵</th>
                                 <th class="px-6 py-4 text-right whitespace-nowrap">筛选区间消耗 ($)</th>
@@ -153,12 +171,12 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="row in groupedApiData" :key="row.account" class="border-b border-slate-700 hover:bg-slate-700/50">
+                            <tr v-for="row in groupedApiData" :key="row.account" class="border-b border-gray-300 dark:border-slate-700 hover:bg-gray-200 dark:bg-slate-700/50">
                                 <td class="px-6 py-4">
                                     <div class="font-medium text-blue-300 text-lg mb-2">{{ row.account }}</div>
                                     <div class="space-y-3 pr-2">
-                                        <div v-for="pd in row.platformDetails" :key="pd.platform" class="bg-slate-800/50 rounded-lg p-2 border border-slate-700/50">
-                                            <div class="text-xs font-bold text-slate-300 mb-2 uppercase flex justify-between items-center">
+                                        <div v-for="pd in row.platformDetails" :key="pd.platform" class="bg-white dark:bg-slate-800/50 rounded-lg p-2 border border-gray-300 dark:border-slate-700/50">
+                                            <div class="text-xs font-bold text-gray-700 dark:text-slate-300 mb-2 uppercase flex justify-between items-center">
                                                 <span :class="pd.platform === 'openai' ? 'text-indigo-400' : 'text-emerald-400'">{{ pd.platform }} 协议</span>
                                                 <span class="text-emerald-400 font-mono">${{ formatNum(pd.cost) }}</span>
                                             </div>
@@ -169,18 +187,18 @@
                                 <td class="px-6 py-4 align-top pt-5">
                                     <div v-if="row.balance > 0">
                                         <div class="flex justify-between text-[10px] mb-1">
-                                            <span class="text-slate-400">自: {{ formatShortDate(row.valid_from) }}</span>
+                                            <span class="text-gray-500 dark:text-slate-400">自: {{ formatShortDate(row.valid_from) }}</span>
                                             <span :class="getRemainingColor(row)" class="font-semibold">剩余可用: {{ getRemainingPercent(row) }}%</span>
                                         </div>
-                                        <div class="w-full bg-slate-800 rounded-full h-2.5 relative overflow-hidden ring-1 ring-slate-700">
+                                        <div class="w-full bg-white dark:bg-slate-800 rounded-full h-2.5 relative overflow-hidden ring-1 ring-slate-700">
                                             <div :class="getBarColor(row)" class="h-2.5 rounded-full transition-all duration-700 ease-in-out" :style="{ width: Math.min(getUsagePercent(row), 100) + '%' }"></div>
                                         </div>
-                                        <div class="text-[10px] text-slate-500 mt-1 flex justify-between">
+                                        <div class="text-[10px] text-gray-500 dark:text-slate-500 mt-1 flex justify-between">
                                             <span>本期: ${{ formatNum(row.cycle_cost_usd) }}</span>
                                             <span>总额: ${{ formatNum(row.balance) }}</span>
                                         </div>
                                     </div>
-                                    <div v-else class="text-[10px] text-slate-500 bg-slate-800 px-2 py-1 rounded inline-block text-center w-full">无安全线拦截</div>
+                                    <div v-else class="text-[10px] text-gray-500 dark:text-slate-500 bg-white dark:bg-slate-800 px-2 py-1 rounded inline-block text-center w-full">无安全线拦截</div>
                                 </td>
                                 <td class="px-6 py-4 text-right align-top pt-5">{{ formatToken(row.prompt_tokens + row.completion_tokens) }}</td>
                                 <td class="px-6 py-4 text-center align-top pt-5">
@@ -189,21 +207,21 @@
                                 </td>
                             </tr>
                             <tr v-if="groupedApiData.length === 0">
-                                <td colspan="5" class="px-6 py-8 text-center text-slate-500">所选日期范围内无流水数据。</td>
+                                <td colspan="5" class="px-6 py-8 text-center text-gray-500 dark:text-slate-500">所选日期范围内无流水数据。</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
 
                 <div v-else class="card rounded-xl shadow-lg overflow-hidden">
-                    <div class="px-6 py-4 border-b border-slate-700 bg-slate-800/30 flex items-center justify-between">
+                    <div class="px-6 py-4 border-b border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800/30 flex items-center justify-between">
                         <h3 class="text-lg font-semibold text-blue-300">
-                            <span class="text-slate-400 text-sm font-normal mr-2">当前筛查节点:</span>
+                            <span class="text-gray-500 dark:text-slate-400 text-sm font-normal mr-2">当前筛查节点:</span>
                             {{ selectedAccountLabel }}
                         </h3>
                     </div>
-                    <table class="w-full text-sm text-left text-slate-300">
-                        <thead class="text-xs text-slate-400 uppercase bg-slate-800 border-b border-slate-700">
+                    <table class="w-full text-sm text-left text-gray-700 dark:text-slate-300">
+                        <thead class="text-xs text-gray-500 dark:text-slate-400 uppercase bg-white dark:bg-slate-800 border-b border-gray-300 dark:border-slate-700">
                             <tr>
                                 <th class="px-6 py-4">协议 (Platform)</th>
                                 <th class="px-6 py-4">客户端识别 (Client)</th>
@@ -214,12 +232,12 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="row in singleAccountDetails" :key="row.platform + row.client + row.method" class="border-b border-slate-700 hover:bg-slate-700/50">
+                            <tr v-for="row in singleAccountDetails" :key="row.platform + row.client + row.method" class="border-b border-gray-300 dark:border-slate-700 hover:bg-gray-200 dark:bg-slate-700/50">
                                 <td class="px-6 py-4"><span :class="row.platform === 'openai' ? 'text-indigo-400' : 'text-emerald-400'" class="font-bold uppercase text-xs">{{ row.platform }}</span></td>
-                                <td class="px-6 py-4 font-medium text-slate-300">{{ row.client }}</td>
+                                <td class="px-6 py-4 font-medium text-gray-700 dark:text-slate-300">{{ row.client }}</td>
                                 <td class="px-6 py-4 text-blue-400 font-mono text-xs">{{ row.method }}</td>
                                 <td class="px-6 py-4 text-right font-bold text-emerald-400">$ {{ formatNum(row.period_cost_usd) }}</td>
-                                <td class="px-6 py-4 text-right text-slate-400 text-xs">{{ formatToken(row.prompt_tokens) }} / {{ formatToken(row.completion_tokens) }}</td>
+                                <td class="px-6 py-4 text-right text-gray-500 dark:text-slate-400 text-xs">{{ formatToken(row.prompt_tokens) }} / {{ formatToken(row.completion_tokens) }}</td>
                                 <td class="px-6 py-4 text-center">
                                     <span class="bg-emerald-900 text-emerald-300 text-xs px-2 py-1 rounded mr-1">√ {{ row.success_count }}</span>
                                     <span class="bg-red-900 text-red-300 text-xs px-2 py-1 rounded">x {{ row.error_count }}</span>
@@ -240,20 +258,20 @@
                 </div>
                 
                 <div class="card rounded-xl shadow-lg overflow-hidden">
-                    <table class="w-full text-sm text-left text-slate-300">
-                        <thead class="text-xs text-slate-400 uppercase bg-slate-800 border-b border-slate-700">
+                    <table class="w-full text-sm text-left text-gray-700 dark:text-slate-300">
+                        <thead class="text-xs text-gray-500 dark:text-slate-400 uppercase bg-white dark:bg-slate-800 border-b border-gray-300 dark:border-slate-700">
                             <tr>
                                 <th class="px-4 py-3">平台</th>
-                                <th class="px-4 py-3">节点名称</th>
-                                <th class="px-4 py-3 w-16 text-center">优先级</th>
+                                <th class="px-4 py-3">{{ t("node_name") }}</th>
+                                <th class="px-4 py-3 w-16 text-center">{{ t("priority") }}</th>
                                 <th class="px-4 py-3">额度/用量</th>
-                                <th class="px-4 py-3">有效期</th>
+                                <th class="px-4 py-3">{{ t("valid_range") }}</th>
                                 <th class="px-4 py-3 text-center w-20">状态</th>
-                                <th class="px-4 py-3 text-right w-24">操作</th>
+                                <th class="px-4 py-3 text-right w-24">{{ t("actions") }}</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="node in nodes" :key="node.id" class="border-b border-slate-700 hover:bg-slate-700/50">
+                            <tr v-for="node in nodes" :key="node.id" class="border-b border-gray-300 dark:border-slate-700 hover:bg-gray-200 dark:bg-slate-700/50">
                                 <td class="px-4 py-3">
                                     <span :class="protocolBadge(node.provider)"
                                         class="text-white text-[10px] px-2 py-0.5 rounded-full font-bold uppercase border">{{ protocolLabel(node.provider) }}</span>
@@ -263,16 +281,16 @@
                                 <td class="px-4 py-3">
                                     <div v-if="node.balance > 0" class="space-y-1">
                                         <div class="flex items-center justify-between text-[10px]">
-                                            <span class="text-slate-400">${{ formatNum(node.used_amount || 0) }} / ${{ formatNum(node.balance) }}</span>
-                                            <span :class="usagePercent(node) >= node.limit_percent ? 'text-red-400' : 'text-slate-500'">{{ usagePercent(node).toFixed(1) }}%</span>
+                                            <span class="text-gray-500 dark:text-slate-400">${{ formatNum(node.used_amount || 0) }} / ${{ formatNum(node.balance) }}</span>
+                                            <span :class="usagePercent(node) >= node.limit_percent ? 'text-red-400' : 'text-gray-500 dark:text-slate-500'">{{ usagePercent(node).toFixed(1) }}%</span>
                                         </div>
-                                        <div class="w-full bg-slate-700 rounded-full h-1.5">
+                                        <div class="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-1.5">
                                             <div :class="usagePercent(node) >= node.limit_percent ? 'bg-red-500' : 'bg-emerald-500'" class="h-1.5 rounded-full transition-all" :style="{ width: Math.min(usagePercent(node), 100) + '%' }"></div>
                                         </div>
                                     </div>
-                                    <span v-else class="text-slate-500 text-xs">无上限</span>
+                                    <span v-else class="text-gray-500 dark:text-slate-500 text-xs">无上限</span>
                                 </td>
-                                <td class="px-4 py-3 text-xs text-slate-400">
+                                <td class="px-4 py-3 text-xs text-gray-500 dark:text-slate-400">
                                     <span v-if="node.valid_from && node.valid_to">
                                         {{ formatShortDate(node.valid_from) }}<br><span class="text-slate-600">~</span> {{ formatShortDate(node.valid_to) }}
                                     </span>
@@ -280,16 +298,16 @@
                                 </td>
                                 <td class="px-4 py-3 text-center">
                                     <span v-if="node.status === 1" class="text-emerald-400 text-xs bg-emerald-400/10 px-2 py-1 rounded">启用</span>
-                                    <span v-else-if="node.status === 0" class="text-slate-500 text-xs bg-slate-500/10 px-2 py-1 rounded">禁用</span>
+                                    <span v-else-if="node.status === 0" class="text-gray-500 dark:text-slate-500 text-xs bg-slate-500/10 px-2 py-1 rounded">禁用</span>
                                     <span v-else-if="node.status === -1" class="text-red-500 text-xs bg-red-500/10 px-2 py-1 rounded">已熔断</span>
                                 </td>
                                 <td class="px-4 py-3 text-right space-x-2">
-                                    <button @click="openNodeModal(node)" class="text-blue-400 hover:text-blue-300 text-xs">编辑</button>
-                                    <button @click="deleteNode(node.id)" class="text-red-400 hover:text-red-300 text-xs">删除</button>
+                                    <button @click="openNodeModal(node)" class="text-blue-400 hover:text-blue-300 text-xs">{{ t("edit") }}</button>
+                                    <button @click="deleteNode(node.id)" class="text-red-400 hover:text-red-300 text-xs">{{ t("delete") }}</button>
                                 </td>
                             </tr>
                             <tr v-if="nodes.length === 0">
-                                <td colspan="7" class="px-6 py-8 text-center text-slate-500">暂无节点配置，请添加。</td>
+                                <td colspan="7" class="px-6 py-8 text-center text-gray-500 dark:text-slate-500">暂无节点配置，请添加。</td>
                             </tr>
                         </tbody>
                     </table>
@@ -301,7 +319,7 @@
                 <div class="flex justify-between items-center mb-6">
                     <div>
                         <h2 class="text-2xl font-bold text-white">路由管理</h2>
-                        <p class="text-slate-400 text-sm mt-1">配置协议到协议的转换规则与多模型映射，系统将自动负载均衡选择目标节点</p>
+                        <p class="text-gray-500 dark:text-slate-400 text-sm mt-1">配置协议到协议的转换规则与多模型映射，系统将自动负载均衡选择目标节点</p>
                     </div>
                     <button @click="openRouteModal()" class="bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-lg transition font-medium text-sm flex items-center gap-2 shadow-lg shadow-pink-500/20">
                         <span>+</span> 添加新路由
@@ -309,24 +327,24 @@
                 </div>
                 
                 <div class="card rounded-xl shadow-lg overflow-hidden">
-                    <table class="w-full text-sm text-left text-slate-300">
-                        <thead class="text-xs text-slate-400 uppercase bg-slate-800 border-b border-slate-700">
+                    <table class="w-full text-sm text-left text-gray-700 dark:text-slate-300">
+                        <thead class="text-xs text-gray-500 dark:text-slate-400 uppercase bg-white dark:bg-slate-800 border-b border-gray-300 dark:border-slate-700">
                             <tr>
                                 <th class="px-6 py-4">源协议 (接收)</th>
                                 <th class="px-6 py-4">目标协议 (转发)</th>
                                 <th class="px-6 py-4">模型映射 (Match → Target)</th>
                                 <th class="px-6 py-4 text-center">状态</th>
-                                <th class="px-6 py-4 text-right">操作</th>
+                                <th class="px-6 py-4 text-right">{{ t("actions") }}</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="route in routes" :key="route.id" class="border-b border-slate-700 hover:bg-slate-700/50">
+                            <tr v-for="route in routes" :key="route.id" class="border-b border-gray-300 dark:border-slate-700 hover:bg-gray-200 dark:bg-slate-700/50">
                                 <td class="px-6 py-4">
                                     <span :class="protocolBadge(route.source_protocol)" class="text-white text-[10px] px-2 py-0.5 rounded-full font-bold uppercase border">{{ protocolLabel(route.source_protocol) }}</span>
                                 </td>
                                 <td class="px-6 py-4">
                                     <div :class="'text-sm font-medium ' + protocolClass(route.target_protocol)">{{ protocolLabel(route.target_protocol) }}</div>
-                                    <div class="text-xs text-slate-500 mt-0.5">{{ {
+                                    <div class="text-xs text-gray-500 dark:text-slate-500 mt-0.5">{{ {
                                         'anthropic_anthropic': '透传直通',
                                         'anthropic_google':    'Anthropic→Gemini/GEAP',
                                         'anthropic_openai':    'Anthropic→OpenAI',
@@ -338,25 +356,25 @@
                                 <td class="px-6 py-4">
                                     <div class="flex flex-wrap gap-1.5">
                                         <span v-for="(m, i) in (route.model_mappings || [])" :key="i"
-                                            class="bg-slate-800 border border-slate-700 rounded px-2 py-0.5 text-xs">
+                                            class="bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 rounded px-2 py-0.5 text-xs">
                                             <span class="text-blue-400 font-mono">{{ m.match }}</span>
-                                            <span class="text-slate-500 mx-1">→</span>
+                                            <span class="text-gray-500 dark:text-slate-500 mx-1">→</span>
                                             <span class="text-emerald-400 font-mono">{{ m.target }}</span>
                                         </span>
-                                        <span v-if="!route.model_mappings || route.model_mappings.length === 0" class="text-slate-500 text-xs">未配置映射</span>
+                                        <span v-if="!route.model_mappings || route.model_mappings.length === 0" class="text-gray-500 dark:text-slate-500 text-xs">未配置映射</span>
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 text-center">
                                     <span v-if="route.status === 1" class="text-emerald-400 text-xs bg-emerald-400/10 px-2 py-1 rounded">启用</span>
-                                    <span v-else class="text-slate-500 text-xs bg-slate-500/10 px-2 py-1 rounded">禁用</span>
+                                    <span v-else class="text-gray-500 dark:text-slate-500 text-xs bg-slate-500/10 px-2 py-1 rounded">禁用</span>
                                 </td>
                                 <td class="px-6 py-4 text-right space-x-2">
-                                    <button @click="openRouteModal(route)" class="text-blue-400 hover:text-blue-300 text-xs">编辑</button>
-                                    <button @click="deleteRoute(route.id)" class="text-red-400 hover:text-red-300 text-xs">删除</button>
+                                    <button @click="openRouteModal(route)" class="text-blue-400 hover:text-blue-300 text-xs">{{ t("edit") }}</button>
+                                    <button @click="deleteRoute(route.id)" class="text-red-400 hover:text-red-300 text-xs">{{ t("delete") }}</button>
                                 </td>
                             </tr>
                             <tr v-if="routes.length === 0">
-                                <td colspan="5" class="px-6 py-8 text-center text-slate-500">暂无路由配置。请添加一条协议转换路由来开始使用。</td>
+                                <td colspan="5" class="px-6 py-8 text-center text-gray-500 dark:text-slate-500">暂无路由配置。请添加一条协议转换路由来开始使用。</td>
                             </tr>
                         </tbody>
                     </table>
@@ -369,40 +387,40 @@
                 
                 <div class="card rounded-xl p-6 shadow-lg space-y-6">
                     <div>
-                        <h3 class="text-lg font-medium text-white mb-4 border-b border-slate-700 pb-2">基础配置</h3>
+                        <h3 class="text-lg font-medium text-white mb-4 border-b border-gray-300 dark:border-slate-700 pb-2">基础配置</h3>
                         <div class="space-y-4">
                             <div>
-                                <label class="block text-sm font-medium text-slate-300 mb-1">代理监听地址</label>
-                                <input v-model="settings.listen_addr" type="text" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
-                                <p class="text-xs text-slate-500 mt-1">例如: :8080 或 127.0.0.1:8080</p>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">代理监听地址</label>
+                                <input v-model="settings.listen_addr" type="text" class="w-full bg-white dark:bg-slate-800 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                                <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">例如: :8080 或 127.0.0.1:8080</p>
                             </div>
                         </div>
                     </div>
 
                     <div>
-                        <h3 class="text-lg font-medium text-white mb-4 border-b border-slate-700 pb-2">熔断器规则</h3>
+                        <h3 class="text-lg font-medium text-white mb-4 border-b border-gray-300 dark:border-slate-700 pb-2">熔断器规则</h3>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-slate-300 mb-1">连续失败阈值 (次)</label>
-                                <input v-model.number="settings.breaker.failure_threshold" type="number" min="0" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">连续失败阈值 (次)</label>
+                                <input v-model.number="settings.breaker.failure_threshold" type="number" min="0" class="w-full bg-white dark:bg-slate-800 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-slate-300 mb-1">失败统计窗口 (秒)</label>
-                                <input v-model.number="settings.breaker.failure_window_seconds" type="number" min="0" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">{{ t("cb_failure_window") }}</label>
+                                <input v-model.number="settings.breaker.failure_window_seconds" type="number" min="0" class="w-full bg-white dark:bg-slate-800 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-slate-300 mb-1">初始冷却时间 (秒)</label>
-                                <input v-model.number="settings.breaker.initial_cooldown_seconds" type="number" min="0" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">{{ t("cb_initial_cooldown") }}</label>
+                                <input v-model.number="settings.breaker.initial_cooldown_seconds" type="number" min="0" class="w-full bg-white dark:bg-slate-800 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-slate-300 mb-1">最大冷却时间 (秒)</label>
-                                <input v-model.number="settings.breaker.max_cooldown_seconds" type="number" min="0" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">{{ t("cb_max_cooldown") }}</label>
+                                <input v-model.number="settings.breaker.max_cooldown_seconds" type="number" min="0" class="w-full bg-white dark:bg-slate-800 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
                             </div>
                         </div>
                     </div>
 
                     <div class="pt-4 flex justify-end gap-3">
-                        <button @click="resetSettings" class="bg-slate-700 hover:bg-slate-600 text-white px-6 py-2 rounded-lg font-medium transition shadow-lg shadow-slate-500/20">
+                        <button @click="resetSettings" class="bg-gray-200 dark:bg-slate-700 hover:bg-slate-600 text-white px-6 py-2 rounded-lg font-medium transition shadow-lg shadow-slate-500/20">
                             恢复默认
                         </button>
                         <button @click="saveSettings" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition shadow-lg shadow-blue-500/20">
@@ -410,21 +428,21 @@
                         </button>
                     </div>
 
-                    <div class="border-t border-slate-700 pt-6 mt-6">
+                    <div class="border-t border-gray-300 dark:border-slate-700 pt-6 mt-6">
                         <h3 class="text-lg font-medium text-white mb-4">Google OAuth 2.0 授权配置</h3>
-                        <p class="text-xs text-slate-400 mb-4">
+                        <p class="text-xs text-gray-500 dark:text-slate-400 mb-4">
                             如果使用 gcloud 内置凭据时遇到"此应用已被阻止"错误，请在<a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="text-blue-400 hover:underline"> Google Cloud Console → 凭据</a> 创建 OAuth 2.0 客户端 ID（桌面应用），并将 Client ID 和 Secret 填入下方。
                             然后还需要在 Google Cloud Console 中将以下重定向 URI 加入"已获授权的重定向 URI"列表：
-                            <code class="bg-slate-800 px-1.5 py-0.5 rounded text-emerald-400 text-xs" id="redirectUriHint">http://127.0.0.1:28888/api/admin/oauth/google/callback</code>
+                            <code class="bg-white dark:bg-slate-800 px-1.5 py-0.5 rounded text-emerald-400 text-xs" id="redirectUriHint">http://127.0.0.1:28888/api/admin/oauth/google/callback</code>
                         </p>
                         <div class="space-y-4">
                             <div>
-                                <label class="block text-sm font-medium text-slate-300 mb-1">OAuth 2.0 Client ID</label>
-                                <input v-model="settings.google_oauth_client_id" type="text" placeholder="留空使用 gcloud 内置 ID（可能被拦截）" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm font-mono">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">OAuth 2.0 Client ID</label>
+                                <input v-model="settings.google_oauth_client_id" type="text" placeholder="留空使用 gcloud 内置 ID（可能被拦截）" class="w-full bg-white dark:bg-slate-800 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm font-mono">
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-slate-300 mb-1">OAuth 2.0 Client Secret</label>
-                                <input v-model="settings.google_oauth_client_secret" type="password" placeholder="留空使用 gcloud 内置 Secret" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm font-mono">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">OAuth 2.0 Client Secret</label>
+                                <input v-model="settings.google_oauth_client_secret" type="password" placeholder="留空使用 gcloud 内置 Secret" class="w-full bg-white dark:bg-slate-800 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm font-mono">
                             </div>
                         </div>
                     </div>
@@ -436,22 +454,22 @@
                 <div class="flex justify-between items-center mb-6">
                     <h2 class="text-2xl font-bold text-white">运行日志</h2>
                     <div class="flex gap-3">
-                        <select v-model="logLevelFilter" @change="fetchLogs" class="bg-slate-800 border border-slate-700 text-slate-300 text-sm rounded-lg block p-2 outline-none focus:ring-2 focus:ring-blue-500">
+                        <select v-model="logLevelFilter" @change="fetchLogs" class="bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 text-gray-700 dark:text-slate-300 text-sm rounded-lg block p-2 outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="all">所有级别 (All)</option>
                             <option value="info">INFO</option>
                             <option value="warn">WARN</option>
                             <option value="error">ERROR</option>
                             <option value="debug">DEBUG</option>
                         </select>
-                        <button @click="toggleDebug" :class="debugEnabled ? 'bg-purple-600 text-white border-purple-500' : 'bg-slate-800 text-slate-400 border-slate-700'" class="px-4 py-2 rounded-lg text-sm border transition flex items-center gap-2">
+                        <button @click="toggleDebug" :class="debugEnabled ? 'bg-purple-600 text-white border-purple-500' : 'bg-white dark:bg-slate-800 text-gray-500 dark:text-slate-400 border-gray-300 dark:border-slate-700'" class="px-4 py-2 rounded-lg text-sm border transition flex items-center gap-2">
                             <span>🐛</span>
                             <span>{{ debugEnabled ? 'DEBUG ON' : 'DEBUG OFF' }}</span>
                         </button>
-                        <button @click="isAutoScroll = !isAutoScroll" :class="isAutoScroll ? 'bg-emerald-600/20 text-emerald-400 border-emerald-500/50' : 'bg-slate-800 text-slate-400 border-slate-700'" class="px-4 py-2 rounded-lg text-sm border transition flex items-center gap-2">
+                        <button @click="isAutoScroll = !isAutoScroll" :class="isAutoScroll ? 'bg-emerald-600/20 text-emerald-400 border-emerald-500/50' : 'bg-white dark:bg-slate-800 text-gray-500 dark:text-slate-400 border-gray-300 dark:border-slate-700'" class="px-4 py-2 rounded-lg text-sm border transition flex items-center gap-2">
                             <span v-if="isAutoScroll" class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span>
                             <span>自动滚动 {{ isAutoScroll ? 'ON' : 'OFF' }}</span>
                         </button>
-                        <button @click="fetchLogs" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg transition text-sm flex items-center gap-2">
+                        <button @click="fetchLogs" class="bg-white dark:bg-slate-800 hover:bg-gray-200 dark:bg-slate-700 text-white px-4 py-2 rounded-lg transition text-sm flex items-center gap-2">
                             刷新
                         </button>
                     </div>
@@ -473,37 +491,37 @@
             </div>
 
             <!-- Node Editor Modal -->
-            <div v-if="nodeModal.show" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div class="bg-slate-800 border border-slate-700 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-                    <div class="p-6 border-b border-slate-700 flex justify-between items-center">
+            <div v-if="nodeModal.show" class="fixed inset-0 bg-gray-50 dark:bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+                    <div class="p-6 border-b border-gray-300 dark:border-slate-700 flex justify-between items-center">
                         <h3 class="text-xl font-bold text-white">{{ nodeModal.isEdit ? '编辑节点' : '添加新节点' }}</h3>
-                        <button @click="nodeModal.show = false" class="text-slate-400 hover:text-white transition">✕</button>
+                        <button @click="nodeModal.show = false" class="text-gray-500 dark:text-slate-400 hover:text-white transition">✕</button>
                     </div>
                     <div class="p-6 overflow-y-auto flex-1 space-y-5">
                         <!-- 区块 1: 基本信息 -->
-                        <div class="p-4 bg-slate-900/40 rounded-lg border border-slate-700/60 space-y-4">
-                            <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">基本信息</h4>
+                        <div class="p-4 bg-gray-50 dark:bg-slate-900/40 rounded-lg border border-gray-300 dark:border-slate-700/60 space-y-4">
+                            <h4 class="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">基本信息</h4>
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-sm font-medium text-slate-300 mb-1">协议类型 <span class="text-red-400">*</span></label>
-                                    <select v-model="nodeForm.provider" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">协议类型 <span class="text-red-400">*</span></label>
+                                    <select v-model="nodeForm.provider" class="w-full bg-gray-50 dark:bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
                                         <option value="openai">OpenAI</option>
                                         <option value="google">Google Agent Platform</option>
                                         <option value="anthropic">Anthropic</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-slate-300 mb-1">节点名称 <span class="text-red-400">*</span></label>
-                                    <input v-model="nodeForm.name" type="text" placeholder="唯一标识，例如账号邮箱" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">节点名称 <span class="text-red-400">*</span></label>
+                                    <input v-model="nodeForm.name" type="text" placeholder="唯一标识，例如账号邮箱" class="w-full bg-gray-50 dark:bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
                                 </div>
                             </div>
                             <div>
                                 <div class="flex justify-between items-center mb-1">
-                                    <label class="block text-sm font-medium text-slate-300">
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300">
                                         API Key / ADC JSON <span class="text-red-400">*</span>
-                                        <span v-if="nodeForm.provider === 'google'" class="text-slate-500 font-normal text-xs ml-1">（支持直接粘贴 ADC JSON）</span>
-                                        <span v-else-if="nodeForm.provider === 'anthropic'" class="text-slate-500 font-normal text-xs ml-1">（sk-ant-... 格式）</span>
-                                        <span v-else class="text-slate-500 font-normal text-xs ml-1">（sk-... 或 Bearer Token）</span>
+                                        <span v-if="nodeForm.provider === 'google'" class="text-gray-500 dark:text-slate-500 font-normal text-xs ml-1">（支持直接粘贴 ADC JSON）</span>
+                                        <span v-else-if="nodeForm.provider === 'anthropic'" class="text-gray-500 dark:text-slate-500 font-normal text-xs ml-1">（sk-ant-... 格式）</span>
+                                        <span v-else class="text-gray-500 dark:text-slate-500 font-normal text-xs ml-1">（sk-... 或 Bearer Token）</span>
                                     </label>
                                     <button v-if="nodeForm.provider === 'google'" @click="startGoogleAuth" title="一键获取 Google OAuth 凭证" class="text-xs bg-blue-600/20 text-blue-400 border border-blue-500/50 hover:bg-blue-600 hover:text-white px-2 py-1 rounded transition flex items-center gap-1">
                                         <span>🔑</span>自动获取授权
@@ -511,27 +529,27 @@
                                 </div>
                                 <textarea v-if="nodeForm.provider === 'google'" v-model="nodeForm.credentials" rows="3"
                                     :placeholder="nodeModal.isEdit ? '留空则保持原样，支持直接粘贴 ADC JSON' : '请输入 API Key 或粘贴 ADC JSON'"
-                                    class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none resize-y"></textarea>
+                                    class="w-full bg-gray-50 dark:bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none resize-y"></textarea>
                                 <input v-else v-model="nodeForm.credentials" type="password"
                                     :placeholder="nodeModal.isEdit ? '留空则保持原样，填写将覆盖旧值' : '请输入 API Key'"
-                                    class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                                    class="w-full bg-gray-50 dark:bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
                             </div>
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-sm font-medium text-slate-300 mb-1">优先级</label>
-                                    <input v-model.number="nodeForm.priority" type="number" min="0" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
-                                    <p class="text-xs text-slate-500 mt-1">数字越小越优先，同模型时优先选中</p>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">{{ t("priority") }}</label>
+                                    <input v-model.number="nodeForm.priority" type="number" min="0" class="w-full bg-gray-50 dark:bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                                    <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">数字越小越优先，同模型时优先选中</p>
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-slate-300 mb-1">最小请求间隔 (秒)</label>
-                                    <input v-model.number="nodeForm.min_request_interval_sec" type="number" min="0" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
-                                    <p class="text-xs text-slate-500 mt-1">0=使用全局默认(6s)，防止触发上游 RPM 限流</p>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">最小请求间隔 (秒)</label>
+                                    <input v-model.number="nodeForm.min_request_interval_sec" type="number" min="0" class="w-full bg-gray-50 dark:bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                                    <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">0=使用全局默认(6s)，防止触发上游 RPM 限流</p>
                                 </div>
                             </div>
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-sm font-medium text-slate-300 mb-1">运行状态</label>
-                                    <select v-model="nodeForm.status" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">{{ t("status") }}</label>
+                                    <select v-model="nodeForm.status" class="w-full bg-gray-50 dark:bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
                                         <option :value="1">正常启用</option>
                                         <option :value="0">手动禁用</option>
                                         <option :value="-1">熔断/过期</option>
@@ -541,56 +559,56 @@
                         </div>
 
                         <!-- 区块 2: 供应商配置 -->
-                        <div class="p-4 bg-slate-900/40 rounded-lg border border-slate-700/60 space-y-4">
-                            <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">供应商配置</h4>
+                        <div class="p-4 bg-gray-50 dark:bg-slate-900/40 rounded-lg border border-gray-300 dark:border-slate-700/60 space-y-4">
+                            <h4 class="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">供应商配置</h4>
                             <div v-if="nodeForm.provider === 'google'" class="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-sm font-medium text-slate-300 mb-1">GCP Project ID <span class="text-red-400">*</span></label>
-                                    <input v-model="nodeForm.project_id" type="text" placeholder="your-gcp-project-id" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none focus:ring-1 focus:ring-blue-500">
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">GCP Project ID <span class="text-red-400">*</span></label>
+                                    <input v-model="nodeForm.project_id" type="text" placeholder="your-gcp-project-id" class="w-full bg-gray-50 dark:bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none focus:ring-1 focus:ring-blue-500">
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-slate-300 mb-1">Location</label>
-                                    <input v-model="nodeForm.location" type="text" placeholder="global" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none focus:ring-1 focus:ring-blue-500">
-                                    <p class="text-xs text-slate-500 mt-1">默认 global；Claude 模型可选 us-east5</p>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Location</label>
+                                    <input v-model="nodeForm.location" type="text" placeholder="global" class="w-full bg-gray-50 dark:bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none focus:ring-1 focus:ring-blue-500">
+                                    <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">默认 global；Claude 模型可选 us-east5</p>
                                 </div>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-slate-300 mb-1">Base URL (可选)</label>
-                                <input v-model="nodeForm.base_url" type="text" placeholder="留空使用官方默认端点" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none focus:ring-1 focus:ring-blue-500">
-                                <p class="text-xs text-slate-500 mt-1">自定义 API 端点地址，留空则使用各协议官方默认地址</p>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Base URL (可选)</label>
+                                <input v-model="nodeForm.base_url" type="text" placeholder="留空使用官方默认端点" class="w-full bg-gray-50 dark:bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none focus:ring-1 focus:ring-blue-500">
+                                <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">自定义 API 端点地址，留空则使用各协议官方默认地址</p>
                             </div>
                         </div>
 
                         <!-- 区块 3: 计费与有效期 -->
-                        <div class="p-4 bg-slate-900/40 rounded-lg border border-slate-700/60 space-y-4">
-                            <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">计费与有效期</h4>
+                        <div class="p-4 bg-gray-50 dark:bg-slate-900/40 rounded-lg border border-gray-300 dark:border-slate-700/60 space-y-4">
+                            <h4 class="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">计费与有效期</h4>
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-sm font-medium text-slate-300 mb-1">总额度 ($)</label>
-                                    <input v-model.number="nodeForm.balance" type="number" min="0" step="0.01" placeholder="0.00" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none focus:ring-1 focus:ring-blue-500">
-                                    <p class="text-xs text-slate-500 mt-1">0 表示不限制</p>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">总额度 ($)</label>
+                                    <input v-model.number="nodeForm.balance" type="number" min="0" step="0.01" placeholder="0.00" class="w-full bg-gray-50 dark:bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none focus:ring-1 focus:ring-blue-500">
+                                    <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">0 表示不限制</p>
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-slate-300 mb-1">熔断水位线 (%)</label>
-                                    <input v-model.number="nodeForm.limit_percent" type="number" min="0" max="100" step="0.1" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none focus:ring-1 focus:ring-blue-500">
-                                    <p class="text-xs text-slate-500 mt-1">用量达到额度该百分比后熔断</p>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">熔断水位线 (%)</label>
+                                    <input v-model.number="nodeForm.limit_percent" type="number" min="0" max="100" step="0.1" class="w-full bg-gray-50 dark:bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none focus:ring-1 focus:ring-blue-500">
+                                    <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">用量达到额度该百分比后熔断</p>
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-slate-300 mb-1">起始有效时间</label>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">起始有效时间</label>
                                     <input v-model="nodeForm.valid_from" type="datetime-local" step="1" style="color-scheme:dark"
-                                        class="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                                        class="w-full bg-gray-50 dark:bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-slate-300 mb-1">截止有效时间</label>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">截止有效时间</label>
                                     <input v-model="nodeForm.valid_to" type="datetime-local" step="1" style="color-scheme:dark"
-                                        class="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
-                                    <p class="text-xs text-slate-500 mt-1">到期自动停用</p>
+                                        class="w-full bg-gray-50 dark:bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                                    <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">到期自动停用</p>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <div class="p-6 border-t border-slate-700 flex justify-end gap-3 bg-slate-800/50">
-                        <button @click="nodeModal.show = false" class="px-5 py-2 rounded-lg text-slate-300 hover:bg-slate-700 transition">取消</button>
+                    <div class="p-6 border-t border-gray-300 dark:border-slate-700 flex justify-end gap-3 bg-white dark:bg-slate-800/50">
+                        <button @click="nodeModal.show = false" class="px-5 py-2 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:bg-slate-700 transition">{{ t("cancel") }}</button>
                         <button @click="saveNode" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition shadow-lg shadow-blue-500/20">
                             保存
                         </button>
@@ -599,49 +617,49 @@
             </div>
             
             <!-- Route Editor Modal -->
-            <div v-if="routeModal.show" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div class="bg-slate-800 border border-slate-700 rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
-                    <div class="p-6 border-b border-slate-700 flex justify-between items-center">
+            <div v-if="routeModal.show" class="fixed inset-0 bg-gray-50 dark:bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+                    <div class="p-6 border-b border-gray-300 dark:border-slate-700 flex justify-between items-center">
                         <h3 class="text-xl font-bold text-white">{{ routeModal.isEdit ? '编辑路由' : '添加新路由' }}</h3>
-                        <button @click="routeModal.show = false" class="text-slate-400 hover:text-white transition">✕</button>
+                        <button @click="routeModal.show = false" class="text-gray-500 dark:text-slate-400 hover:text-white transition">✕</button>
                     </div>
                     <div class="p-6 overflow-y-auto flex-1 space-y-4">
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-slate-300 mb-1">源协议 (接收端) *</label>
-                                <select v-model="routeForm.source_protocol" @change="onSourceProtocolChange()" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">源协议 (接收端) *</label>
+                                <select v-model="routeForm.source_protocol" @change="onSourceProtocolChange()" class="w-full bg-gray-50 dark:bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
                                     <option value="anthropic">Anthropic — Messages API</option>
                                     <option value="openai">OpenAI — Chat Completions API</option>
                                     <option value="google">Google — 原生 GEAP 协议</option>
                                 </select>
-                                <p class="text-xs text-slate-500 mt-1">客户端通过哪个协议接入网关</p>
+                                <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">客户端通过哪个协议接入网关</p>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-slate-300 mb-1">目标协议 (转发端) *</label>
-                                <select v-model="routeForm.target_protocol" @change="onTargetProtocolChange()" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">目标协议 (转发端) *</label>
+                                <select v-model="routeForm.target_protocol" @change="onTargetProtocolChange()" class="w-full bg-gray-50 dark:bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
                                     <option v-for="tp in availableTargetProtocols" :key="tp.value" :value="tp.value">{{ tp.label }}</option>
                                 </select>
                                 <p class="text-xs text-emerald-400/80 mt-1" v-if="routeTypeDesc">{{ routeTypeDesc }}</p>
-                                <p class="text-xs text-slate-500 mt-1" v-else>发给上游时的协议，系统自动选目标协议的节点</p>
+                                <p class="text-xs text-gray-500 dark:text-slate-500 mt-1" v-else>发给上游时的协议，系统自动选目标协议的节点</p>
                             </div>
                         </div>
 
-                        <div class="border-t border-slate-700 pt-4">
+                        <div class="border-t border-gray-300 dark:border-slate-700 pt-4">
                             <div class="flex justify-between items-center mb-3">
-                                <label class="block text-sm font-medium text-slate-300">模型映射规则 (Model Mappings) *</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300">模型映射规则 (Model Mappings) *</label>
                                 <button @click="addMapping" class="text-blue-400 hover:text-blue-300 text-xs px-2 py-1 rounded border border-blue-500/30 hover:border-blue-400 transition">
                                     + 添加映射
                                 </button>
                             </div>
-                            <p class="text-xs text-slate-500 mb-3">当客户端请求的模型名匹配左侧规则时，自动替换为右侧的目标模型名并发往目标协议。输入框支持从预设模型列表中自动补全。</p>
+                            <p class="text-xs text-gray-500 dark:text-slate-500 mb-3">当客户端请求的模型名匹配左侧规则时，自动替换为右侧的目标模型名并发往目标协议。输入框支持从预设模型列表中自动补全。</p>
                             
                             <div class="space-y-2">
                                 <div v-for="(mapping, index) in routeForm.model_mappings" :key="index"
-                                    class="flex items-center gap-2 bg-slate-900/50 rounded-lg p-2 border border-slate-700">
-                                    <span class="text-slate-500 text-xs w-5">{{ index + 1 }}.</span>
+                                    class="flex items-center gap-2 bg-gray-50 dark:bg-slate-900/50 rounded-lg p-2 border border-gray-300 dark:border-slate-700">
+                                    <span class="text-gray-500 dark:text-slate-500 text-xs w-5">{{ index + 1 }}.</span>
                                     <input v-model="mapping.match" type="text" placeholder="匹配模型 (如 gpt-4o, * 为全部)" 
                                         :list="'match-list-' + index"
-                                        class="flex-1 bg-slate-900 border border-slate-600 rounded p-2 text-sm text-blue-400 font-mono outline-none focus:ring-1 focus:ring-blue-500">
+                                        class="flex-1 bg-gray-50 dark:bg-slate-900 border border-slate-600 rounded p-2 text-sm text-blue-400 font-mono outline-none focus:ring-1 focus:ring-blue-500">
                                     <datalist :id="'match-list-' + index">
                                         <option value="*">全部模型(通配符)</option>
                                         <option v-for="m in sourceModels" :key="m.name" :value="m.name">{{ m.display_name }}</option>
@@ -649,7 +667,7 @@
                                     <span class="text-slate-600 text-sm">→</span>
                                     <input v-model="mapping.target" type="text" placeholder="目标模型 (如 gemini-1.5-pro)" 
                                         :list="'target-list-' + index"
-                                        class="flex-1 bg-slate-900 border border-slate-600 rounded p-2 text-sm text-emerald-400 font-mono outline-none focus:ring-1 focus:ring-emerald-500">
+                                        class="flex-1 bg-gray-50 dark:bg-slate-900 border border-slate-600 rounded p-2 text-sm text-emerald-400 font-mono outline-none focus:ring-1 focus:ring-emerald-500">
                                     <datalist :id="'target-list-' + index">
                                         <option v-for="m in targetModels" :key="m.name" :value="m.name">{{ m.display_name }}</option>
                                     </datalist>
@@ -661,15 +679,15 @@
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-slate-300 mb-1">路由状态</label>
-                            <select v-model="routeForm.status" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">路由状态</label>
+                            <select v-model="routeForm.status" class="w-full bg-gray-50 dark:bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
                                 <option :value="1">启用</option>
                                 <option :value="0">禁用</option>
                             </select>
                         </div>
                     </div>
-                    <div class="p-6 border-t border-slate-700 flex justify-end gap-3 bg-slate-800/50">
-                        <button @click="routeModal.show = false" class="px-5 py-2 rounded-lg text-slate-300 hover:bg-slate-700 transition">取消</button>
+                    <div class="p-6 border-t border-gray-300 dark:border-slate-700 flex justify-end gap-3 bg-white dark:bg-slate-800/50">
+                        <button @click="routeModal.show = false" class="px-5 py-2 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:bg-slate-700 transition">{{ t("cancel") }}</button>
                         <button @click="saveRoute" class="bg-pink-600 hover:bg-pink-700 text-white px-6 py-2 rounded-lg font-medium transition shadow-lg shadow-pink-500/20">
                             保存
                         </button>
