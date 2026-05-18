@@ -75,7 +75,7 @@
                 </a>
                 <a @click="currentTab = 'logs'" :class="currentTab === 'logs' ? 'bg-amber-600/20 text-amber-400 border-amber-500/50' : 'text-gray-500 dark:text-slate-400 hover:bg-white dark:bg-slate-800 hover:text-gray-800 dark:text-slate-200 border-transparent'" class="block px-4 py-3 rounded-lg cursor-pointer transition border">
                     <div class="flex items-center gap-3 font-medium">
-                        <span>📝 运行日志</span>
+                        <span>{{ t("tab_logs") }}</span>
                     </div>
                 </a>
             </nav>
@@ -96,12 +96,12 @@
             <div v-show="currentTab === 'dashboard'" class="max-w-6xl mx-auto">
                 <div class="flex justify-between items-start mb-8 border-b border-gray-300 dark:border-slate-700 pb-6">
                     <div>
-                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">监控大盘</h2>
-                        <p class="text-gray-500 dark:text-slate-400 mt-1">计费与多协议排队中心</p>
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">{{ t("tab_dashboard_title") }}</h2>
+                        <p class="text-gray-500 dark:text-slate-400 mt-1">{{ t("dashboard_subtitle") }}</p>
                     </div>
                     <div class="flex gap-4">
                         <div class="card rounded-xl px-5 py-3 flex flex-col items-center shadow-lg">
-                            <span class="text-[10px] text-gray-500 dark:text-slate-500 uppercase font-bold tracking-wider mb-1">正在处理</span>
+                            <span class="text-[10px] text-gray-500 dark:text-slate-500 uppercase font-bold tracking-wider mb-1">{{ t("processing") }}</span>
                             <div class="flex items-baseline gap-1">
                                 <span class="text-2xl font-mono text-emerald-400">{{ concurrency.active }}</span>
                                 <span class="text-xs text-gray-500 dark:text-slate-500">/ {{ concurrency.max }}</span>
@@ -109,7 +109,7 @@
                         </div>
                         <div class="card rounded-xl px-5 py-3 flex flex-col items-center shadow-lg"
                             :class="concurrency.waiting > 0 ? 'border-yellow-500/50 ring-1 ring-yellow-500/20' : ''">
-                            <span class="text-[10px] text-gray-500 dark:text-slate-500 uppercase font-bold tracking-wider mb-1">排队等待</span>
+                            <span class="text-[10px] text-gray-500 dark:text-slate-500 uppercase font-bold tracking-wider mb-1">{{ t("waiting") }}</span>
                             <div class="flex items-center gap-2">
                                 <span class="text-2xl font-mono"
                                     :class="concurrency.waiting > 0 ? 'text-yellow-400 pulse' : 'text-gray-400 dark:text-slate-600'">
@@ -119,7 +119,7 @@
                         </div>
                         <div class="flex flex-col justify-end">
                             <select v-model="selectedAccount" class="bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-gray-900 dark:text-white text-sm rounded-lg block p-2.5 outline-none focus:ring-2 focus:ring-blue-500">
-                                <option value="all">🌐 查看全部协议流水</option>
+                                <option value="all">{{ t("view_all_protocols") }}</option>
                                 <option v-for="acc in availableAccounts" :key="acc.value" :value="acc.value">{{ acc.label }}</option>
                             </select>
                         </div>
@@ -128,31 +128,31 @@
 
                 <div class="card rounded-xl p-4 mb-8 flex flex-wrap gap-4 items-center justify-between shadow-lg">
                     <div class="flex gap-2">
-                        <button @click="setPreset('today')" :class="activePreset === 'today' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-300'" class="px-4 py-2 rounded-lg text-sm transition">今日</button>
-                        <button @click="setPreset('week')" :class="activePreset === 'week' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-300'" class="px-4 py-2 rounded-lg text-sm transition">近 7 天</button>
-                        <button @click="setPreset('month')" :class="activePreset === 'month' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-300'" class="px-4 py-2 rounded-lg text-sm transition">本月</button>
+                        <button @click="setPreset('today')" :class="activePreset === 'today' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-300'" class="px-4 py-2 rounded-lg text-sm transition">{{ t("filter_today") }}</button>
+                        <button @click="setPreset('week')" :class="activePreset === 'week' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-300'" class="px-4 py-2 rounded-lg text-sm transition">{{ t("filter_7days") }}</button>
+                        <button @click="setPreset('month')" :class="activePreset === 'month' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-300'" class="px-4 py-2 rounded-lg text-sm transition">{{ t("filter_month") }}</button>
                     </div>
                     <div class="flex items-center gap-3">
-                        <span class="text-gray-500 dark:text-slate-400 text-sm">自定义区间:</span>
-                        <input type="text" id="datePicker" placeholder="选择日期范围" class="bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-gray-900 dark:text-white text-sm rounded-lg block w-64 p-2.5 text-center outline-none focus:ring-2 focus:ring-blue-500">
+                        <span class="text-gray-500 dark:text-slate-400 text-sm">{{ t("custom_range") }}</span>
+                        <input type="text" id="datePicker" placeholder="{{ t("select_date_range") }}" class="bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-gray-900 dark:text-white text-sm rounded-lg block w-64 p-2.5 text-center outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                     <div class="card rounded-xl p-6 shadow-lg border-l-4 border-emerald-500">
-                        <p class="text-gray-500 dark:text-slate-400 text-sm mb-1">区间账单预估 (USD)</p>
+                        <p class="text-gray-500 dark:text-slate-400 text-sm mb-1">{{ t("estimated_cost") }}</p>
                         <h3 class="text-3xl font-bold text-gray-900 dark:text-white">$ {{ formatNum(aggregatedData.totalCost) }}</h3>
                     </div>
                     <div class="card rounded-xl p-6 shadow-lg border-l-4 border-blue-500">
-                        <p class="text-gray-500 dark:text-slate-400 text-sm mb-1">提示词消耗 (Tokens)</p>
+                        <p class="text-gray-500 dark:text-slate-400 text-sm mb-1">{{ t("prompt_tokens") }}</p>
                         <h3 class="text-2xl font-bold text-blue-400">{{ formatToken(aggregatedData.totalPrompt) }}</h3>
                     </div>
                     <div class="card rounded-xl p-6 shadow-lg border-l-4 border-purple-500">
-                        <p class="text-gray-500 dark:text-slate-400 text-sm mb-1">生成响应 (Tokens)</p>
+                        <p class="text-gray-500 dark:text-slate-400 text-sm mb-1">{{ t("completion_tokens") }}</p>
                         <h3 class="text-2xl font-bold text-purple-400">{{ formatToken(aggregatedData.totalCompletion) }}</h3>
                     </div>
                     <div class="card rounded-xl p-6 shadow-lg border-l-4" :class="successRateColor(aggregatedData.successRate)">
-                        <p class="text-gray-500 dark:text-slate-400 text-sm mb-1">请求成功率</p>
+                        <p class="text-gray-500 dark:text-slate-400 text-sm mb-1">{{ t("success_rate") }}</p>
                         <div class="flex items-end gap-2">
                             <h3 class="text-2xl font-bold text-gray-900 dark:text-white">{{ aggregatedData.successRate }}%</h3>
                         </div>
@@ -163,11 +163,11 @@
                     <table class="w-full text-sm text-left text-gray-700 dark:text-slate-300">
                         <thead class="text-xs text-gray-500 dark:text-slate-400 uppercase bg-white dark:bg-slate-800 border-b border-gray-300 dark:border-slate-700">
                             <tr>
-                                <th class="px-6 py-4">网关节点 / 协议调用矩阵</th>
-                                <th class="px-6 py-4 text-right whitespace-nowrap">筛选区间消耗 ($)</th>
-                                <th class="px-6 py-4 text-center">当前账期水位</th>
-                                <th class="px-6 py-4 text-right">总 Tokens</th>
-                                <th class="px-6 py-4 text-center">状态分布</th>
+                                <th class="px-6 py-4">{{ t("matrix_header_node") }}</th>
+                                <th class="px-6 py-4 text-right whitespace-nowrap">{{ t("matrix_header_cost") }}</th>
+                                <th class="px-6 py-4 text-center">{{ t("matrix_header_level") }}</th>
+                                <th class="px-6 py-4 text-right">{{ t("matrix_header_tokens") }}</th>
+                                <th class="px-6 py-4 text-center">{{ t("matrix_header_status") }}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -177,7 +177,7 @@
                                     <div class="space-y-3 pr-2">
                                         <div v-for="pd in row.platformDetails" :key="pd.platform" class="bg-white dark:bg-slate-800/50 rounded-lg p-2 border border-gray-300 dark:border-slate-700/50">
                                             <div class="text-xs font-bold text-gray-700 dark:text-slate-300 mb-2 uppercase flex justify-between items-center">
-                                                <span :class="pd.platform === 'openai' ? 'text-indigo-400' : 'text-emerald-400'">{{ pd.platform }} 协议</span>
+                                                <span :class="pd.platform === 'openai' ? 'text-indigo-400' : 'text-emerald-400'">{{ pd.platform }} {{ t("protocol_suffix") }}</span>
                                                 <span class="text-emerald-400 font-mono">${{ formatNum(pd.cost) }}</span>
                                             </div>
                                         </div>
@@ -187,18 +187,18 @@
                                 <td class="px-6 py-4 align-top pt-5">
                                     <div v-if="row.balance > 0">
                                         <div class="flex justify-between text-[10px] mb-1">
-                                            <span class="text-gray-500 dark:text-slate-400">自: {{ formatShortDate(row.valid_from) }}</span>
-                                            <span :class="getRemainingColor(row)" class="font-semibold">剩余可用: {{ getRemainingPercent(row) }}%</span>
+                                            <span class="text-gray-500 dark:text-slate-400">{{ t("from_date") }} {{ formatShortDate(row.valid_from) }}</span>
+                                            <span :class="getRemainingColor(row)" class="font-semibold">{{ t("remaining") }} {{ getRemainingPercent(row) }}%</span>
                                         </div>
                                         <div class="w-full bg-white dark:bg-slate-800 rounded-full h-2.5 relative overflow-hidden ring-1 ring-gray-300 dark:ring-slate-700">
                                             <div :class="getBarColor(row)" class="h-2.5 rounded-full transition-all duration-700 ease-in-out" :style="{ width: Math.min(getUsagePercent(row), 100) + '%' }"></div>
                                         </div>
                                         <div class="text-[10px] text-gray-500 dark:text-slate-500 mt-1 flex justify-between">
-                                            <span>本期: ${{ formatNum(row.cycle_cost_usd) }}</span>
-                                            <span>总额: ${{ formatNum(row.balance) }}</span>
+                                            <span>{{ t("this_cycle") }} ${{ formatNum(row.cycle_cost_usd) }}</span>
+                                            <span>{{ t("total_balance") }} ${{ formatNum(row.balance) }}</span>
                                         </div>
                                     </div>
-                                    <div v-else class="text-[10px] text-gray-500 dark:text-slate-500 bg-white dark:bg-slate-800 px-2 py-1 rounded inline-block text-center w-full">无安全线拦截</div>
+                                    <div v-else class="text-[10px] text-gray-500 dark:text-slate-500 bg-white dark:bg-slate-800 px-2 py-1 rounded inline-block text-center w-full">{{ t("no_limit") }}</div>
                                 </td>
                                 <td class="px-6 py-4 text-right align-top pt-5">{{ formatToken(row.prompt_tokens + row.completion_tokens) }}</td>
                                 <td class="px-6 py-4 text-center align-top pt-5">
@@ -207,7 +207,7 @@
                                 </td>
                             </tr>
                             <tr v-if="groupedApiData.length === 0">
-                                <td colspan="5" class="px-6 py-8 text-center text-gray-500 dark:text-slate-500">所选日期范围内无流水数据。</td>
+                                <td colspan="5" class="px-6 py-8 text-center text-gray-500 dark:text-slate-500">{{ t("no_data_range") }}</td>
                             </tr>
                         </tbody>
                     </table>
@@ -216,19 +216,19 @@
                 <div v-else class="card rounded-xl shadow-lg overflow-hidden">
                     <div class="px-6 py-4 border-b border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800/30 flex items-center justify-between">
                         <h3 class="text-lg font-semibold text-blue-300">
-                            <span class="text-gray-500 dark:text-slate-400 text-sm font-normal mr-2">当前筛查节点:</span>
+                            <span class="text-gray-500 dark:text-slate-400 text-sm font-normal mr-2">{{ t("current_filtered_node") }}</span>
                             {{ selectedAccountLabel }}
                         </h3>
                     </div>
                     <table class="w-full text-sm text-left text-gray-700 dark:text-slate-300">
                         <thead class="text-xs text-gray-500 dark:text-slate-400 uppercase bg-white dark:bg-slate-800 border-b border-gray-300 dark:border-slate-700">
                             <tr>
-                                <th class="px-6 py-4">协议 (Platform)</th>
-                                <th class="px-6 py-4">客户端识别 (Client)</th>
-                                <th class="px-6 py-4">模型调用方法 (Method)</th>
-                                <th class="px-6 py-4 text-right">区间消耗 ($)</th>
+                                <th class="px-6 py-4">{{ t("detail_header_platform") }}</th>
+                                <th class="px-6 py-4">{{ t("detail_header_client") }}</th>
+                                <th class="px-6 py-4">{{ t("detail_header_method") }}</th>
+                                <th class="px-6 py-4 text-right">{{ t("detail_header_cost") }}</th>
                                 <th class="px-6 py-4 text-right">Prompt / Output</th>
-                                <th class="px-6 py-4 text-center">状态分布</th>
+                                <th class="px-6 py-4 text-center">{{ t("matrix_header_status") }}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -251,9 +251,9 @@
             <!-- Nodes Tab -->
             <div v-show="currentTab === 'nodes'" class="max-w-6xl mx-auto">
                 <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">节点管理</h2>
+                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">{{ t("tab_nodes_title") }}</h2>
                     <button @click="openNodeModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition font-medium text-sm flex items-center gap-2">
-                        <span>+</span> 添加新节点
+                        <span>+</span> {{ t("btn_add_new_node") }}
                     </button>
                 </div>
                 
@@ -261,12 +261,12 @@
                     <table class="w-full text-sm text-left text-gray-700 dark:text-slate-300">
                         <thead class="text-xs text-gray-500 dark:text-slate-400 uppercase bg-white dark:bg-slate-800 border-b border-gray-300 dark:border-slate-700">
                             <tr>
-                                <th class="px-4 py-3">平台</th>
+                                <th class="px-4 py-3">{{ t("table_platform") }}</th>
                                 <th class="px-4 py-3">{{ t("node_name") }}</th>
                                 <th class="px-4 py-3 w-16 text-center">{{ t("priority") }}</th>
-                                <th class="px-4 py-3">额度/用量</th>
+                                <th class="px-4 py-3">{{ t("table_limit_usage") }}</th>
                                 <th class="px-4 py-3">{{ t("valid_range") }}</th>
-                                <th class="px-4 py-3 text-center w-20">状态</th>
+                                <th class="px-4 py-3 text-center w-20">{{ t("table_status") }}</th>
                                 <th class="px-4 py-3 text-right w-24">{{ t("actions") }}</th>
                             </tr>
                         </thead>
@@ -288,7 +288,7 @@
                                             <div :class="usagePercent(node) >= node.limit_percent ? 'bg-red-500' : 'bg-emerald-500'" class="h-1.5 rounded-full transition-all" :style="{ width: Math.min(usagePercent(node), 100) + '%' }"></div>
                                         </div>
                                     </div>
-                                    <span v-else class="text-gray-500 dark:text-slate-500 text-xs">无上限</span>
+                                    <span v-else class="text-gray-500 dark:text-slate-500 text-xs">{{ t("no_limit_text") }}</span>
                                 </td>
                                 <td class="px-4 py-3 text-xs text-gray-500 dark:text-slate-400">
                                     <span v-if="node.valid_from && node.valid_to">
@@ -297,9 +297,9 @@
                                     <span v-else class="text-gray-400 dark:text-slate-600">-</span>
                                 </td>
                                 <td class="px-4 py-3 text-center">
-                                    <span v-if="node.status === 1" class="text-emerald-400 text-xs bg-emerald-400/10 px-2 py-1 rounded">启用</span>
-                                    <span v-else-if="node.status === 0" class="text-gray-500 dark:text-slate-500 text-xs bg-gray-200 dark:bg-slate-500/10 px-2 py-1 rounded">禁用</span>
-                                    <span v-else-if="node.status === -1" class="text-red-500 text-xs bg-red-500/10 px-2 py-1 rounded">已熔断</span>
+                                    <span v-if="node.status === 1" class="text-emerald-400 text-xs bg-emerald-400/10 px-2 py-1 rounded">{{ t("status_enabled_short") }}</span>
+                                    <span v-else-if="node.status === 0" class="text-gray-500 dark:text-slate-500 text-xs bg-gray-200 dark:bg-slate-500/10 px-2 py-1 rounded">{{ t("status_disabled_short") }}</span>
+                                    <span v-else-if="node.status === -1" class="text-red-500 text-xs bg-red-500/10 px-2 py-1 rounded">{{ t("status_exhausted_short") }}</span>
                                 </td>
                                 <td class="px-4 py-3 text-right space-x-2">
                                     <button @click="openNodeModal(node)" class="text-blue-400 hover:text-blue-300 text-xs">{{ t("edit") }}</button>
@@ -307,7 +307,7 @@
                                 </td>
                             </tr>
                             <tr v-if="nodes.length === 0">
-                                <td colspan="7" class="px-6 py-8 text-center text-gray-500 dark:text-slate-500">暂无节点配置，请添加。</td>
+                                <td colspan="7" class="px-6 py-8 text-center text-gray-500 dark:text-slate-500">{{ t("no_nodes") }}</td>
                             </tr>
                         </tbody>
                     </table>
@@ -318,11 +318,11 @@
             <div v-show="currentTab === 'routes'" class="max-w-6xl mx-auto">
                 <div class="flex justify-between items-center mb-6">
                     <div>
-                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">路由管理</h2>
-                        <p class="text-gray-500 dark:text-slate-400 text-sm mt-1">配置协议到协议的转换规则与多模型映射，系统将自动负载均衡选择目标节点</p>
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">{{ t("tab_routes_title") }}</h2>
+                        <p class="text-gray-500 dark:text-slate-400 text-sm mt-1">{{ t("routes_subtitle") }}</p>
                     </div>
                     <button @click="openRouteModal()" class="bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-lg transition font-medium text-sm flex items-center gap-2 shadow-lg shadow-pink-500/20">
-                        <span>+</span> 添加新路由
+                        <span>+</span> {{ t("btn_add_new_route") }}
                     </button>
                 </div>
                 
@@ -330,10 +330,10 @@
                     <table class="w-full text-sm text-left text-gray-700 dark:text-slate-300">
                         <thead class="text-xs text-gray-500 dark:text-slate-400 uppercase bg-white dark:bg-slate-800 border-b border-gray-300 dark:border-slate-700">
                             <tr>
-                                <th class="px-6 py-4">源协议 (接收)</th>
-                                <th class="px-6 py-4">目标协议 (转发)</th>
-                                <th class="px-6 py-4">模型映射 (Match → Target)</th>
-                                <th class="px-6 py-4 text-center">状态</th>
+                                <th class="px-6 py-4">{{ t("route_header_source") }}</th>
+                                <th class="px-6 py-4">{{ t("route_header_target") }}</th>
+                                <th class="px-6 py-4">{{ t("route_header_mapping") }}</th>
+                                <th class="px-6 py-4 text-center">{{ t("table_status") }}</th>
                                 <th class="px-6 py-4 text-right">{{ t("actions") }}</th>
                             </tr>
                         </thead>
@@ -345,12 +345,12 @@
                                 <td class="px-6 py-4">
                                     <div :class="'text-sm font-medium ' + protocolClass(route.target_protocol)">{{ protocolLabel(route.target_protocol) }}</div>
                                     <div class="text-xs text-gray-500 dark:text-slate-500 mt-0.5">{{ {
-                                        'anthropic_anthropic': '透传直通',
+                                        'anthropic_anthropic': t('route_direct'),
                                         'anthropic_google':    'Anthropic→Gemini/GEAP',
                                         'anthropic_openai':    'Anthropic→OpenAI',
-                                        'openai_openai':       '透传直通',
+                                        'openai_openai':       t('route_direct'),
                                         'openai_google':       'OpenAI→Vertex',
-                                        'google_google':       '透传直通',
+                                        'google_google':       t('route_direct'),
                                     }[route.source_protocol + '_' + route.target_protocol] || '' }}</div>
                                 </td>
                                 <td class="px-6 py-4">
@@ -361,12 +361,12 @@
                                             <span class="text-gray-500 dark:text-slate-500 mx-1">→</span>
                                             <span class="text-emerald-400 font-mono">{{ m.target }}</span>
                                         </span>
-                                        <span v-if="!route.model_mappings || route.model_mappings.length === 0" class="text-gray-500 dark:text-slate-500 text-xs">未配置映射</span>
+                                        <span v-if="!route.model_mappings || route.model_mappings.length === 0" class="text-gray-500 dark:text-slate-500 text-xs">{{ t("no_mapping") }}</span>
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 text-center">
-                                    <span v-if="route.status === 1" class="text-emerald-400 text-xs bg-emerald-400/10 px-2 py-1 rounded">启用</span>
-                                    <span v-else class="text-gray-500 dark:text-slate-500 text-xs bg-gray-200 dark:bg-slate-500/10 px-2 py-1 rounded">禁用</span>
+                                    <span v-if="route.status === 1" class="text-emerald-400 text-xs bg-emerald-400/10 px-2 py-1 rounded">{{ t("status_enabled_short") }}</span>
+                                    <span v-else class="text-gray-500 dark:text-slate-500 text-xs bg-gray-200 dark:bg-slate-500/10 px-2 py-1 rounded">{{ t("status_disabled_short") }}</span>
                                 </td>
                                 <td class="px-6 py-4 text-right space-x-2">
                                     <button @click="openRouteModal(route)" class="text-blue-400 hover:text-blue-300 text-xs">{{ t("edit") }}</button>
@@ -374,7 +374,7 @@
                                 </td>
                             </tr>
                             <tr v-if="routes.length === 0">
-                                <td colspan="5" class="px-6 py-8 text-center text-gray-500 dark:text-slate-500">暂无路由配置。请添加一条协议转换路由来开始使用。</td>
+                                <td colspan="5" class="px-6 py-8 text-center text-gray-500 dark:text-slate-500">{{ t("no_routes") }}</td>
                             </tr>
                         </tbody>
                     </table>
@@ -383,25 +383,25 @@
 
             <!-- Settings Tab -->
             <div v-show="currentTab === 'settings'" class="max-w-3xl mx-auto">
-                <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">系统设置</h2>
+                <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">{{ t("tab_settings_title") }}</h2>
                 
                 <div class="card rounded-xl p-6 shadow-lg space-y-6">
                     <div>
-                        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4 border-b border-gray-300 dark:border-slate-700 pb-2">基础配置</h3>
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4 border-b border-gray-300 dark:border-slate-700 pb-2">{{ t("settings_basic") }}</h3>
                         <div class="space-y-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">代理监听地址</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">{{ t("listen_addr_label") }}</label>
                                 <input v-model="settings.listen_addr" type="text" class="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg p-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none">
-                                <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">例如: :8080 或 127.0.0.1:8080</p>
+                                <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">{{ t("listen_addr_hint") }}</p>
                             </div>
                         </div>
                     </div>
 
                     <div>
-                        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4 border-b border-gray-300 dark:border-slate-700 pb-2">熔断器规则</h3>
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4 border-b border-gray-300 dark:border-slate-700 pb-2">{{ t("cb_rules") }}</h3>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">连续失败阈值 (次)</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">{{ t("cb_threshold_label") }}</label>
                                 <input v-model.number="settings.breaker.failure_threshold" type="number" min="0" class="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg p-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none">
                             </div>
                             <div>
@@ -421,28 +421,28 @@
 
                     <div class="pt-4 flex justify-end gap-3">
                         <button @click="resetSettings" class="bg-gray-200 dark:bg-slate-700 hover:bg-slate-600 text-white px-6 py-2 rounded-lg font-medium transition shadow-lg shadow-slate-500/20">
-                            恢复默认
+                            {{ t("btn_reset_default") }}
                         </button>
                         <button @click="saveSettings" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition shadow-lg shadow-blue-500/20">
-                            保存设置
+                            {{ t("btn_save_settings") }}
                         </button>
                     </div>
 
                     <div class="border-t border-gray-300 dark:border-slate-700 pt-6 mt-6">
-                        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Google OAuth 2.0 授权配置</h3>
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">{{ t("section_google_oauth") }}</h3>
                         <p class="text-xs text-gray-500 dark:text-slate-400 mb-4">
-                            如果使用 gcloud 内置凭据时遇到"此应用已被阻止"错误，请在<a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="text-blue-400 hover:underline"> Google Cloud Console → 凭据</a> 创建 OAuth 2.0 客户端 ID（桌面应用），并将 Client ID 和 Secret 填入下方。
-                            然后还需要在 Google Cloud Console 中将以下重定向 URI 加入"已获授权的重定向 URI"列表：
+                            {{ t("oauth_hint_1") }}<a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="text-blue-400 hover:underline">{{ t("oauth_hint_link") }}</a> {{ t("oauth_hint_2") }}
+                            {{ t("oauth_hint_3") }}
                             <code class="bg-white dark:bg-slate-800 px-1.5 py-0.5 rounded text-emerald-400 text-xs" id="redirectUriHint">http://127.0.0.1:28888/api/admin/oauth/google/callback</code>
                         </p>
                         <div class="space-y-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">OAuth 2.0 Client ID</label>
-                                <input v-model="settings.google_oauth_client_id" type="text" placeholder="留空使用 gcloud 内置 ID（可能被拦截）" class="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg p-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm font-mono">
+                                <input v-model="settings.google_oauth_client_id" type="text" placeholder="{{ t("placeholder_gcloud_id") }}" class="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg p-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm font-mono">
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">OAuth 2.0 Client Secret</label>
-                                <input v-model="settings.google_oauth_client_secret" type="password" placeholder="留空使用 gcloud 内置 Secret" class="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg p-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm font-mono">
+                                <input v-model="settings.google_oauth_client_secret" type="password" placeholder="{{ t("placeholder_gcloud_secret") }}" class="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg p-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm font-mono">
                             </div>
                         </div>
                     </div>
@@ -452,10 +452,10 @@
             <!-- Logs Tab -->
             <div v-show="currentTab === 'logs'" class="max-w-6xl mx-auto flex flex-col h-full">
                 <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">运行日志</h2>
+                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">{{ t("tab_logs_title") }}</h2>
                     <div class="flex gap-3">
                         <select v-model="logLevelFilter" @change="fetchLogs" class="bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 text-gray-700 dark:text-slate-300 text-sm rounded-lg block p-2 outline-none focus:ring-2 focus:ring-blue-500">
-                            <option value="all">所有级别 (All)</option>
+                            <option value="all">{{ t("log_level_all_desc") }}</option>
                             <option value="info">INFO</option>
                             <option value="warn">WARN</option>
                             <option value="error">ERROR</option>
@@ -467,10 +467,10 @@
                         </button>
                         <button @click="isAutoScroll = !isAutoScroll" :class="isAutoScroll ? 'bg-emerald-600/20 text-emerald-400 border-emerald-500/50' : 'bg-white dark:bg-slate-800 text-gray-500 dark:text-slate-400 border-gray-300 dark:border-slate-700'" class="px-4 py-2 rounded-lg text-sm border transition flex items-center gap-2">
                             <span v-if="isAutoScroll" class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span>
-                            <span>自动滚动 {{ isAutoScroll ? 'ON' : 'OFF' }}</span>
+                            <span>{{ t("auto_scroll_text") }} {{ isAutoScroll ? 'ON' : 'OFF' }}</span>
                         </button>
                         <button @click="fetchLogs" class="bg-white dark:bg-slate-800 hover:bg-gray-200 dark:bg-slate-700 text-white px-4 py-2 rounded-lg transition text-sm flex items-center gap-2">
-                            刷新
+                            {{ t("btn_refresh_logs") }}
                         </button>
                     </div>
                 </div>
@@ -494,16 +494,16 @@
             <div v-if="nodeModal.show" class="fixed inset-0 bg-gray-500/50 dark:bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                 <div class="bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
                     <div class="p-6 border-b border-gray-300 dark:border-slate-700 flex justify-between items-center">
-                        <h3 class="text-xl font-bold text-gray-900 dark:text-white">{{ nodeModal.isEdit ? '编辑节点' : '添加新节点' }}</h3>
+                        <h3 class="text-xl font-bold text-gray-900 dark:text-white">{{ nodeModal.isEdit ? t("edit_node") : t("add_new_node") }}</h3>
                         <button @click="nodeModal.show = false" class="text-gray-500 dark:text-slate-400 hover:text-white transition">✕</button>
                     </div>
                     <div class="p-6 overflow-y-auto flex-1 space-y-5">
                         <!-- 区块 1: 基本信息 -->
                         <div class="p-4 bg-gray-50 dark:bg-slate-900/40 rounded-lg border border-gray-300 dark:border-slate-700/60 space-y-4">
-                            <h4 class="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">基本信息</h4>
+                            <h4 class="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">{{ t("section_basic") }}</h4>
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">协议类型 <span class="text-red-400">*</span></label>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">{{ t("protocol_type_req") }} <span class="text-red-400">*</span></label>
                                     <select v-model="nodeForm.provider" class="w-full bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg p-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none">
                                         <option value="openai">OpenAI</option>
                                         <option value="google">Google Agent Platform</option>
@@ -511,48 +511,48 @@
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">节点名称 <span class="text-red-400">*</span></label>
-                                    <input v-model="nodeForm.name" type="text" placeholder="唯一标识，例如账号邮箱" class="w-full bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg p-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">{{ t("node_name_req") }} <span class="text-red-400">*</span></label>
+                                    <input v-model="nodeForm.name" type="text" placeholder="{{ t("placeholder_node_name") }}" class="w-full bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg p-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none">
                                 </div>
                             </div>
                             <div>
                                 <div class="flex justify-between items-center mb-1">
                                     <label class="block text-sm font-medium text-gray-700 dark:text-slate-300">
                                         API Key / ADC JSON <span class="text-red-400">*</span>
-                                        <span v-if="nodeForm.provider === 'google'" class="text-gray-500 dark:text-slate-500 font-normal text-xs ml-1">（支持直接粘贴 ADC JSON）</span>
-                                        <span v-else-if="nodeForm.provider === 'anthropic'" class="text-gray-500 dark:text-slate-500 font-normal text-xs ml-1">（sk-ant-... 格式）</span>
-                                        <span v-else class="text-gray-500 dark:text-slate-500 font-normal text-xs ml-1">（sk-... 或 Bearer Token）</span>
+                                        <span v-if="nodeForm.provider === 'google'" class="text-gray-500 dark:text-slate-500 font-normal text-xs ml-1">{{ t("hint_adc_paste") }}</span>
+                                        <span v-else-if="nodeForm.provider === 'anthropic'" class="text-gray-500 dark:text-slate-500 font-normal text-xs ml-1">{{ t("hint_anthropic_format") }}</span>
+                                        <span v-else class="text-gray-500 dark:text-slate-500 font-normal text-xs ml-1">{{ t("hint_sk_bearer") }}</span>
                                     </label>
-                                    <button v-if="nodeForm.provider === 'google'" @click="startGoogleAuth" title="一键获取 Google OAuth 凭证" class="text-xs bg-blue-600/20 text-blue-400 border border-blue-500/50 hover:bg-blue-600 hover:text-white px-2 py-1 rounded transition flex items-center gap-1">
-                                        <span>🔑</span>自动获取授权
+                                    <button v-if="nodeForm.provider === 'google'" @click="startGoogleAuth" title="{{ t("tooltip_google_oauth") }}" class="text-xs bg-blue-600/20 text-blue-400 border border-blue-500/50 hover:bg-blue-600 hover:text-white px-2 py-1 rounded transition flex items-center gap-1">
+                                        <span>🔑</span>{{ t("btn_oauth_auto") }}
                                     </button>
                                 </div>
                                 <textarea v-if="nodeForm.provider === 'google'" v-model="nodeForm.credentials" rows="3"
-                                    :placeholder="nodeModal.isEdit ? '留空则保持原样，支持直接粘贴 ADC JSON' : '请输入 API Key 或粘贴 ADC JSON'"
+                                    :placeholder="nodeModal.isEdit ? '{{ t("placeholder_adc_edit") }}' : '{{ t("placeholder_adc_new") }}'"
                                     class="w-full bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg p-2.5 text-gray-900 dark:text-white text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none resize-y"></textarea>
                                 <input v-else v-model="nodeForm.credentials" type="password"
-                                    :placeholder="nodeModal.isEdit ? '留空则保持原样，填写将覆盖旧值' : '请输入 API Key'"
+                                    :placeholder="nodeModal.isEdit ? '{{ t("placeholder_key_edit") }}' : '{{ t("placeholder_key_new") }}'"
                                     class="w-full bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg p-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none">
                             </div>
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">{{ t("priority") }}</label>
                                     <input v-model.number="nodeForm.priority" type="number" min="0" class="w-full bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg p-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none">
-                                    <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">数字越小越优先，同模型时优先选中</p>
+                                    <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">{{ t("priority_hint") }}</p>
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">最小请求间隔 (秒)</label>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">{{ t("min_interval_label") }}</label>
                                     <input v-model.number="nodeForm.min_request_interval_sec" type="number" min="0" class="w-full bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg p-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none">
-                                    <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">0=使用全局默认(6s)，防止触发上游 RPM 限流</p>
+                                    <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">{{ t("min_interval_hint") }}</p>
                                 </div>
                             </div>
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">{{ t("status") }}</label>
                                     <select v-model="nodeForm.status" class="w-full bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg p-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none">
-                                        <option :value="1">正常启用</option>
-                                        <option :value="0">手动禁用</option>
-                                        <option :value="-1">熔断/过期</option>
+                                        <option :value="1">{{ t("status_option_enable") }}</option>
+                                        <option :value="0">{{ t("status_option_disable") }}</option>
+                                        <option :value="-1">{{ t("status_option_exhaust") }}</option>
                                     </select>
                                 </div>
                             </div>
@@ -560,7 +560,7 @@
 
                         <!-- 区块 2: 供应商配置 -->
                         <div class="p-4 bg-gray-50 dark:bg-slate-900/40 rounded-lg border border-gray-300 dark:border-slate-700/60 space-y-4">
-                            <h4 class="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">供应商配置</h4>
+                            <h4 class="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">{{ t("section_provider") }}</h4>
                             <div v-if="nodeForm.provider === 'google'" class="grid grid-cols-2 gap-4">
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">GCP Project ID <span class="text-red-400">*</span></label>
@@ -569,40 +569,40 @@
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Location</label>
                                     <input v-model="nodeForm.location" type="text" placeholder="global" class="w-full bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg p-2 text-gray-900 dark:text-white outline-none focus:ring-1 focus:ring-blue-500">
-                                    <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">默认 global；Claude 模型可选 us-east5</p>
+                                    <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">{{ t("hint_location") }}</p>
                                 </div>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Base URL (可选)</label>
-                                <input v-model="nodeForm.base_url" type="text" placeholder="留空使用官方默认端点" class="w-full bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg p-2 text-gray-900 dark:text-white outline-none focus:ring-1 focus:ring-blue-500">
-                                <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">自定义 API 端点地址，留空则使用各协议官方默认地址</p>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">{{ t("base_url_optional") }}</label>
+                                <input v-model="nodeForm.base_url" type="text" placeholder="{{ t("placeholder_baseurl") }}" class="w-full bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg p-2 text-gray-900 dark:text-white outline-none focus:ring-1 focus:ring-blue-500">
+                                <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">{{ t("hint_custom_endpoint") }}</p>
                             </div>
                         </div>
 
                         <!-- 区块 3: 计费与有效期 -->
                         <div class="p-4 bg-gray-50 dark:bg-slate-900/40 rounded-lg border border-gray-300 dark:border-slate-700/60 space-y-4">
-                            <h4 class="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">计费与有效期</h4>
+                            <h4 class="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">{{ t("section_billing_validity") }}</h4>
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">总额度 ($)</label>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">{{ t("label_total_balance") }}</label>
                                     <input v-model.number="nodeForm.balance" type="number" min="0" step="0.01" placeholder="0.00" class="w-full bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg p-2 text-gray-900 dark:text-white outline-none focus:ring-1 focus:ring-blue-500">
-                                    <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">0 表示不限制</p>
+                                    <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">{{ t("hint_unlimited") }}</p>
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">熔断水位线 (%)</label>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">{{ t("label_limit_percent") }}</label>
                                     <input v-model.number="nodeForm.limit_percent" type="number" min="0" max="100" step="0.1" class="w-full bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg p-2 text-gray-900 dark:text-white outline-none focus:ring-1 focus:ring-blue-500">
-                                    <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">用量达到额度该百分比后熔断</p>
+                                    <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">{{ t("hint_limit_percent") }}</p>
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">起始有效时间</label>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">{{ t("label_valid_from") }}</label>
                                     <input v-model="nodeForm.valid_from" type="datetime-local" step="1" style="color-scheme:dark"
                                         class="w-full bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">截止有效时间</label>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">{{ t("label_valid_to") }}</label>
                                     <input v-model="nodeForm.valid_to" type="datetime-local" step="1" style="color-scheme:dark"
                                         class="w-full bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
-                                    <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">到期自动停用</p>
+                                    <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">{{ t("hint_expire_auto") }}</p>
                                 </div>
                             </div>
                         </div>
@@ -610,7 +610,7 @@
                     <div class="p-6 border-t border-gray-300 dark:border-slate-700 flex justify-end gap-3 bg-white dark:bg-slate-800/50">
                         <button @click="nodeModal.show = false" class="px-5 py-2 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:bg-slate-700 transition">{{ t("cancel") }}</button>
                         <button @click="saveNode" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition shadow-lg shadow-blue-500/20">
-                            保存
+                            {{ t("btn_save_simple") }}
                         </button>
                     </div>
                 </div>
@@ -620,52 +620,52 @@
             <div v-if="routeModal.show" class="fixed inset-0 bg-gray-500/50 dark:bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                 <div class="bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
                     <div class="p-6 border-b border-gray-300 dark:border-slate-700 flex justify-between items-center">
-                        <h3 class="text-xl font-bold text-gray-900 dark:text-white">{{ routeModal.isEdit ? '编辑路由' : '添加新路由' }}</h3>
+                        <h3 class="text-xl font-bold text-gray-900 dark:text-white">{{ routeModal.isEdit ? t("edit_route") : t("add_new_route") }}</h3>
                         <button @click="routeModal.show = false" class="text-gray-500 dark:text-slate-400 hover:text-white transition">✕</button>
                     </div>
                     <div class="p-6 overflow-y-auto flex-1 space-y-4">
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">源协议 (接收端) *</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">{{ t("label_source_req") }}</label>
                                 <select v-model="routeForm.source_protocol" @change="onSourceProtocolChange()" class="w-full bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg p-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none">
                                     <option value="anthropic">Anthropic — Messages API</option>
                                     <option value="openai">OpenAI — Chat Completions API</option>
-                                    <option value="google">Google — 原生 GEAP 协议</option>
+                                    <option value="google">{{ t("option_google_geap") }}</option>
                                 </select>
-                                <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">客户端通过哪个协议接入网关</p>
+                                <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">{{ t("hint_client_protocol") }}</p>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">目标协议 (转发端) *</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">{{ t("label_target_req") }}</label>
                                 <select v-model="routeForm.target_protocol" @change="onTargetProtocolChange()" class="w-full bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg p-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none">
                                     <option v-for="tp in availableTargetProtocols" :key="tp.value" :value="tp.value">{{ tp.label }}</option>
                                 </select>
                                 <p class="text-xs text-emerald-400/80 mt-1" v-if="routeTypeDesc">{{ routeTypeDesc }}</p>
-                                <p class="text-xs text-gray-500 dark:text-slate-500 mt-1" v-else>发给上游时的协议，系统自动选目标协议的节点</p>
+                                <p class="text-xs text-gray-500 dark:text-slate-500 mt-1" v-else>{{ t("hint_upstream_protocol") }}</p>
                             </div>
                         </div>
 
                         <div class="border-t border-gray-300 dark:border-slate-700 pt-4">
                             <div class="flex justify-between items-center mb-3">
-                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300">模型映射规则 (Model Mappings) *</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300">{{ t("label_mappings_req") }}</label>
                                 <button @click="addMapping" class="text-blue-400 hover:text-blue-300 text-xs px-2 py-1 rounded border border-blue-500/30 hover:border-blue-400 transition">
-                                    + 添加映射
+                                    {{ t("btn_add_mapping_simple") }}
                                 </button>
                             </div>
-                            <p class="text-xs text-gray-500 dark:text-slate-500 mb-3">当客户端请求的模型名匹配左侧规则时，自动替换为右侧的目标模型名并发往目标协议。输入框支持从预设模型列表中自动补全。</p>
+                            <p class="text-xs text-gray-500 dark:text-slate-500 mb-3">{{ t("hint_mapping_desc") }}</p>
                             
                             <div class="space-y-2">
                                 <div v-for="(mapping, index) in routeForm.model_mappings" :key="index"
                                     class="flex items-center gap-2 bg-gray-50 dark:bg-slate-900/50 rounded-lg p-2 border border-gray-300 dark:border-slate-700">
                                     <span class="text-gray-500 dark:text-slate-500 text-xs w-5">{{ index + 1 }}.</span>
-                                    <input v-model="mapping.match" type="text" placeholder="匹配模型 (如 gpt-4o, * 为全部)" 
+                                    <input v-model="mapping.match" type="text" placeholder="{{ t("placeholder_match_model") }}" 
                                         :list="'match-list-' + index"
                                         class="flex-1 bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded p-2 text-sm text-blue-400 font-mono outline-none focus:ring-1 focus:ring-blue-500">
                                     <datalist :id="'match-list-' + index">
-                                        <option value="*">全部模型(通配符)</option>
+                                        <option value="*">{{ t("option_all_models") }}</option>
                                         <option v-for="m in sourceModels" :key="m.name" :value="m.name">{{ m.display_name }}</option>
                                     </datalist>
                                     <span class="text-gray-400 dark:text-slate-600 text-sm">→</span>
-                                    <input v-model="mapping.target" type="text" placeholder="目标模型 (如 gemini-1.5-pro)" 
+                                    <input v-model="mapping.target" type="text" placeholder="{{ t("placeholder_target_model") }}" 
                                         :list="'target-list-' + index"
                                         class="flex-1 bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded p-2 text-sm text-emerald-400 font-mono outline-none focus:ring-1 focus:ring-emerald-500">
                                     <datalist :id="'target-list-' + index">
@@ -679,17 +679,17 @@
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">路由状态</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">{{ t("label_route_status") }}</label>
                             <select v-model="routeForm.status" class="w-full bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg p-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none">
-                                <option :value="1">启用</option>
-                                <option :value="0">禁用</option>
+                                <option :value="1">{{ t("status_enabled_short") }}</option>
+                                <option :value="0">{{ t("status_disabled_short") }}</option>
                             </select>
                         </div>
                     </div>
                     <div class="p-6 border-t border-gray-300 dark:border-slate-700 flex justify-end gap-3 bg-white dark:bg-slate-800/50">
                         <button @click="routeModal.show = false" class="px-5 py-2 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:bg-slate-700 transition">{{ t("cancel") }}</button>
                         <button @click="saveRoute" class="bg-pink-600 hover:bg-pink-700 text-white px-6 py-2 rounded-lg font-medium transition shadow-lg shadow-pink-500/20">
-                            保存
+                            {{ t("btn_save_simple") }}
                         </button>
                     </div>
                 </div>

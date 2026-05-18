@@ -117,12 +117,12 @@ createApp({
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ target_version: latestVersion.value })
             }).then(r => r.json()).then(d => {
-                showToast(d.message || "更新已启动，系统将在几秒内自动重启", "success");
+                showToast(d.message || t("update_started"), "success");
                 setTimeout(() => {
                     window.location.reload();
                 }, 3500);
             }).catch(e => {
-                showToast("更新触发失败", "error");
+                showToast(t("update_failed"), "error");
                 isUpdating.value = false;
             });
         };
@@ -250,7 +250,7 @@ createApp({
                 availableAccounts.value = Array.from(accSet).map(a => ({ account: a, label: a, value: a }));
                 concurrency.value = { active: json.active_count || 0, waiting: json.waiting_count || 0, max: json.max_limit || 0 };
             } catch (e) {
-                console.error("Dashboard数据抓取失败", e);
+                console.error(t("dashboard_fetch_failed"), e);
             }
         };
 
@@ -440,7 +440,7 @@ createApp({
         const startGoogleAuth = () => {
             const isLocal = window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost';
             if (!isLocal) {
-                alert('⚠️ 限制提醒：\n\nGoogle OAuth 强制要求回调地址必须为 127.0.0.1 本地端口。\n\n由于当前 Polaris 网关部署在远程服务器（非本地访问），自动跳转授权将无法把令牌返回给服务器。\n\n请在您的本地电脑上运行最新版 Polaris 附带的 adc-gen (Mac/Windows/Linux) 授权小工具，或者在本地安装 gcloud 后运行 `gcloud auth application-default login`，然后将生成的完整 JSON 粘贴到下方的输入框中。');
+                alert(t("oauth_alert"));
                 return;
             }
             
@@ -574,7 +574,7 @@ createApp({
                 debugEnabled.value = json.debug;
                 showToast(debugEnabled.value ? t('debug_enabled') : t('debug_disabled'));
             } catch(e) {
-                showToast('切换 Debug 失败', 'error');
+                showToast(t("debug_switch_failed"), 'error');
             }
         };
 
