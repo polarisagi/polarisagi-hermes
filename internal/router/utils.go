@@ -30,6 +30,18 @@ var (
 //	/v1/gemini/models/...          → "google" (旧路径，向后兼容)
 //	/v1/chat/completions (旧格式)  → 自动识别为 "openai"
 func getIncomingProtocol(path string) string {
+	// 无论前缀是什么，如果路径中包含明确的特征端点，优先判定！
+	// 这样可以兼容用户配错 BaseURL（例如把 OpenAI 客户端指向 /v1/google，但依然发送 /chat/completions）
+	if strings.Contains(path, "chat/completions") || strings.Contains(path, "embeddings") {
+		return "openai"
+	}
+	if strings.Contains(path, "messages") {
+		return "anthropic"
+	}
+	if strings.Contains(path, "generateContent") || strings.Contains(path, "streamGenerateContent") || strings.Contains(path, "publishers/google/") {
+		return "google"
+	}
+
 	parts := strings.SplitN(path, "/", 4)
 	if len(parts) >= 3 && strings.HasPrefix(parts[1], "v") {
 		segment := parts[2]
@@ -43,16 +55,6 @@ func getIncomingProtocol(path string) string {
 		}
 	}
 
-	// 旧式路径：从路径内容自动推断（向后兼容）
-	if strings.Contains(path, "chat/completions") || strings.Contains(path, "embeddings") {
-		return "openai"
-	}
-	if strings.Contains(path, "messages") {
-		return "anthropic"
-	}
-	if strings.Contains(path, "generateContent") || strings.Contains(path, "streamGenerateContent") || strings.Contains(path, "publishers/google/") {
-		return "google"
-	}
 	return "unknown"
 }
 
