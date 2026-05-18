@@ -57,8 +57,10 @@ type RouteDetail struct {
 // Config 全局配置结构，对应数据库 sys_settings + sys_nodes + sys_routes 三张表
 // 在网关启动时从 SQLite 加载，运行期间可通过管理后台热重载
 type Config struct {
-	ListenAddr string `json:"listen_addr"` // HTTP 监听地址，如 "127.0.0.1:28888"
-	DebugMode  bool   `json:"debug_mode"`  // Debug 日志开关
+	ListenAddr             string `json:"listen_addr"`              // HTTP 监听地址，如 "127.0.0.1:28888"
+	DebugMode              bool   `json:"debug_mode"`               // Debug 日志开关
+	GoogleOAuthClientID    string `json:"google_oauth_client_id"`    // Google OAuth 2.0 客户端 ID（可选，留空用 gcloud 内置 ID）
+	GoogleOAuthClientSecret string `json:"google_oauth_client_secret"` // Google OAuth 2.0 客户端密钥（可选）
 	Breaker    struct {
 		InitialCooldownSeconds int `json:"initial_cooldown_seconds"` // 熔断初始冷却时间（秒），每次失败翻倍
 		MaxCooldownSeconds     int `json:"max_cooldown_seconds"`     // 熔断最大冷却时间上限（秒）
@@ -98,12 +100,14 @@ func ReloadFromDB() error {
 	}()
 
 	// Load Settings
-	err := db.DB().QueryRow("SELECT listen_addr, breaker_initial_cooldown_seconds, breaker_max_cooldown_seconds, breaker_failure_threshold, breaker_failure_window_seconds FROM sys_settings WHERE id = 1").Scan(
+	err := db.DB().QueryRow("SELECT listen_addr, breaker_initial_cooldown_seconds, breaker_max_cooldown_seconds, breaker_failure_threshold, breaker_failure_window_seconds, COALESCE(google_oauth_client_id, '') AS google_oauth_client_id, COALESCE(google_oauth_client_secret, '') AS google_oauth_client_secret FROM sys_settings WHERE id = 1").Scan(
 		&AppConfig.ListenAddr,
 		&AppConfig.Breaker.InitialCooldownSeconds,
 		&AppConfig.Breaker.MaxCooldownSeconds,
 		&AppConfig.Breaker.FailureThreshold,
 		&AppConfig.Breaker.FailureWindowSeconds,
+		&AppConfig.GoogleOAuthClientID,
+		&AppConfig.GoogleOAuthClientSecret,
 	)
 	if err != nil {
 		slog.Error("读取系统配置失败，将使用默认值", "error", err)

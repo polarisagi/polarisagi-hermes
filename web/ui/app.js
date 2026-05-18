@@ -68,7 +68,9 @@ createApp({
                 max_cooldown_seconds: 3600,
                 failure_threshold: 3,
                 failure_window_seconds: 120
-            }
+            },
+            google_oauth_client_id: '',
+            google_oauth_client_secret: ''
         });
         
         const logLevelFilter = ref('all');
@@ -272,7 +274,9 @@ createApp({
                     initial_cooldown_seconds: settings.value.breaker.initial_cooldown_seconds,
                     max_cooldown_seconds: settings.value.breaker.max_cooldown_seconds,
                     failure_threshold: settings.value.breaker.failure_threshold,
-                    failure_window_seconds: settings.value.breaker.failure_window_seconds
+                    failure_window_seconds: settings.value.breaker.failure_window_seconds,
+                    google_oauth_client_id: settings.value.google_oauth_client_id || '',
+                    google_oauth_client_secret: settings.value.google_oauth_client_secret || ''
                 };
                 const res = await fetch('/api/admin/settings', {
                     method: 'POST',
@@ -298,7 +302,9 @@ createApp({
                     max_cooldown_seconds: 3600,
                     failure_threshold: 3,
                     failure_window_seconds: 120
-                }
+                },
+                google_oauth_client_id: '',
+                google_oauth_client_secret: ''
             };
         };
 

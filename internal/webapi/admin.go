@@ -77,19 +77,21 @@ func AdminSettingsHandler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodPost {
 		var req struct {
-			ListenAddr             string `json:"listen_addr"`
-			InitialCooldownSeconds int    `json:"initial_cooldown_seconds"`
-			MaxCooldownSeconds     int    `json:"max_cooldown_seconds"`
-			FailureThreshold       int    `json:"failure_threshold"`
-			FailureWindowSeconds   int    `json:"failure_window_seconds"`
+			ListenAddr               string `json:"listen_addr"`
+			InitialCooldownSeconds   int    `json:"initial_cooldown_seconds"`
+			MaxCooldownSeconds       int    `json:"max_cooldown_seconds"`
+			FailureThreshold         int    `json:"failure_threshold"`
+			FailureWindowSeconds     int    `json:"failure_window_seconds"`
+			GoogleOAuthClientID      string `json:"google_oauth_client_id"`
+			GoogleOAuthClientSecret  string `json:"google_oauth_client_secret"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		_, err := db.DB().Exec("UPDATE sys_settings SET listen_addr=?, breaker_initial_cooldown_seconds=?, breaker_max_cooldown_seconds=?, breaker_failure_threshold=?, breaker_failure_window_seconds=? WHERE id=1",
-			req.ListenAddr, req.InitialCooldownSeconds, req.MaxCooldownSeconds, req.FailureThreshold, req.FailureWindowSeconds)
+		_, err := db.DB().Exec("UPDATE sys_settings SET listen_addr=?, breaker_initial_cooldown_seconds=?, breaker_max_cooldown_seconds=?, breaker_failure_threshold=?, breaker_failure_window_seconds=?, google_oauth_client_id=?, google_oauth_client_secret=? WHERE id=1",
+			req.ListenAddr, req.InitialCooldownSeconds, req.MaxCooldownSeconds, req.FailureThreshold, req.FailureWindowSeconds, req.GoogleOAuthClientID, req.GoogleOAuthClientSecret)
 		
 		if err != nil {
 			slog.Error("Failed to update settings", "error", err)

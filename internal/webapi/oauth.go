@@ -11,14 +11,32 @@ import (
 	"sync"
 	"time"
 
+	"polaris-gateway/internal/config"
+
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
 
 const (
-	googleClientID     = "764086051850-6qr4p6gpi6hn506pt8ejuq83di341hur.apps.googleusercontent.com"
-	googleClientSecret = "d-qshared-pb-base"
+	// gcloud CLI 内置的公共 Client ID 和 Secret（Desktop App）
+	// 注意：Google 现在对第三方程序使用 gcloud Client ID 做严格来源检查，可能被直接拦截
+	// 用户如果遇到"此应用已被阻止"错误，请在 Google Cloud Console 创建自己的 OAuth 客户端，
+	// 并将 Client ID 和 Secret 填入系统设置
+	gcloudClientID     = "764086051850-6qr4p6gpi6hn506pt8ejuq83di341hur.apps.googleusercontent.com"
+	gcloudClientSecret = "d-qshared-pb-base"
 )
+
+func getOAuthCredentials() (clientID, clientSecret string) {
+	clientID = config.AppConfig.GoogleOAuthClientID
+	clientSecret = config.AppConfig.GoogleOAuthClientSecret
+	if clientID == "" {
+		clientID = gcloudClientID
+	}
+	if clientSecret == "" {
+		clientSecret = gcloudClientSecret
+	}
+	return
+}
 
 var (
 	oauthStates sync.Map
@@ -33,9 +51,11 @@ func getOAuthConfig(r *http.Request) *oauth2.Config {
 	parts := strings.Split(host, ":")
 	redirectURL := fmt.Sprintf("http://127.0.0.1:%s/api/admin/oauth/google/callback", parts[1])
 
+	clientID, clientSecret := getOAuthCredentials()
+
 	return &oauth2.Config{
-		ClientID:     googleClientID,
-		ClientSecret: googleClientSecret,
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
 		RedirectURL:  redirectURL,
 		Scopes: []string{
 			"https://www.googleapis.com/auth/cloud-platform",
@@ -92,9 +112,11 @@ func AdminOAuthGoogleCallbackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	clientID, clientSecret := getOAuthCredentials()
+
 	adc := map[string]interface{}{
-		"client_id":     googleClientID,
-		"client_secret": googleClientSecret,
+		"client_id":     clientID,
+		"client_secret": clientSecret,
 		"refresh_token": tok.RefreshToken,
 		"type":          "authorized_user",
 	}

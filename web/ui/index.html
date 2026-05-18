@@ -398,6 +398,25 @@
                             保存设置
                         </button>
                     </div>
+
+                    <div class="border-t border-slate-700 pt-6 mt-6">
+                        <h3 class="text-lg font-medium text-white mb-4">Google OAuth 2.0 授权配置</h3>
+                        <p class="text-xs text-slate-400 mb-4">
+                            如果使用 gcloud 内置凭据时遇到"此应用已被阻止"错误，请在<a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="text-blue-400 hover:underline"> Google Cloud Console → 凭据</a> 创建 OAuth 2.0 客户端 ID（桌面应用），并将 Client ID 和 Secret 填入下方。
+                            然后还需要在 Google Cloud Console 中将以下重定向 URI 加入"已获授权的重定向 URI"列表：
+                            <code class="bg-slate-800 px-1.5 py-0.5 rounded text-emerald-400 text-xs" id="redirectUriHint">http://127.0.0.1:28888/api/admin/oauth/google/callback</code>
+                        </p>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-300 mb-1">OAuth 2.0 Client ID</label>
+                                <input v-model="settings.google_oauth_client_id" type="text" placeholder="留空使用 gcloud 内置 ID（可能被拦截）" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm font-mono">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-300 mb-1">OAuth 2.0 Client Secret</label>
+                                <input v-model="settings.google_oauth_client_secret" type="password" placeholder="留空使用 gcloud 内置 Secret" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm font-mono">
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -643,6 +662,15 @@
         </div>
     </div>
 
+    <script>
+        // 动态更新 OAuth 重定向 URI 提示，匹配当前网关端口
+        document.addEventListener('DOMContentLoaded', () => {
+            const el = document.getElementById('redirectUriHint');
+            if (el) {
+                el.textContent = 'http://127.0.0.1:' + window.location.port + '/api/admin/oauth/google/callback';
+            }
+        });
+    </script>
     <script src="app.js"></script>
 </body>
 </html>
