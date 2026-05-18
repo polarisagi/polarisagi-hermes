@@ -198,7 +198,7 @@ func ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// 极端窗口保护：客户端可能在 tryAcquire 成功的瞬间断开
 	// 此时节点已被标记 Busy，但实际请求不会发起。立即归还避免节点空转锁定
 	if ctx.Err() != nil {
-		ReleaseNode(dest.Node.ID)
+		ReleaseNode(dest)
 		slog.Debug("🔌 [入口] 客户端在 acquire 节点的瞬间断开，立即归还", "trace_id", traceID, "node", dest.Node.Name)
 		return
 	}
@@ -206,7 +206,7 @@ func ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// 步骤7：节点已分配，增加活跃连接计数
 	atomic.AddInt32(&webapi.ActiveCount, 1)
 	defer atomic.AddInt32(&webapi.ActiveCount, -1)
-	defer ReleaseNode(dest.Node.ID)
+	defer ReleaseNode(dest)
 
 	// 步骤8：查找协议转换器 (如 "anthropic_to_google")
 	translatorKey := fmt.Sprintf("%s_to_%s", sourceProtocol, dest.TargetProtocol)

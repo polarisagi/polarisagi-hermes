@@ -102,7 +102,7 @@ createApp({
 
         const nodeForm = ref({
             id: 0, provider: 'openai', name: '', credentials: '', project_id: '', location: 'global', base_url: '',
-            priority: 10, limit_percent: 90.0, balance: 0.0,
+            priority: 10, limit_percent: 90.0, balance: 0.0, min_request_interval_sec: 0,
             valid_from: `${todayPrefix()}T00:00:00`, valid_to: `2099-12-31T23:59:59`, status: 1
         });
 
@@ -321,7 +321,7 @@ createApp({
                 const today = todayPrefix();
                 nodeForm.value = {
                     id: 0, provider: 'openai', name: '', credentials: '', project_id: '', location: 'global', base_url: '',
-                    priority: 10, limit_percent: 90.0, balance: 0.0,
+                    priority: 10, limit_percent: 90.0, balance: 0.0, min_request_interval_sec: 0,
                     valid_from: `${today}T00:00:00`, valid_to: `2099-12-31T23:59:59`, status: 1
                 };
                 nodeModal.value = { show: true, isEdit: false };

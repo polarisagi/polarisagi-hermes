@@ -509,8 +509,15 @@
                                 <div>
                                     <label class="block text-sm font-medium text-slate-300 mb-1">优先级</label>
                                     <input v-model.number="nodeForm.priority" type="number" min="0" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
-                                    <p class="text-xs text-slate-500 mt-1">数字越大越优先，同模型时优先选中</p>
+                                    <p class="text-xs text-slate-500 mt-1">数字越小越优先，同模型时优先选中</p>
                                 </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-300 mb-1">最小请求间隔 (秒)</label>
+                                    <input v-model.number="nodeForm.min_request_interval_sec" type="number" min="0" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                                    <p class="text-xs text-slate-500 mt-1">0=使用全局默认(6s)，防止触发上游 RPM 限流</p>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
                                 <div>
                                     <label class="block text-sm font-medium text-slate-300 mb-1">运行状态</label>
                                     <select v-model="nodeForm.status" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none">

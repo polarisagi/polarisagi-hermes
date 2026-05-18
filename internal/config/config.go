@@ -18,17 +18,18 @@ type AccountDetail struct {
 	Provider     string  `json:"provider"`        // 上游协议类型: anthropic | openai | google
 	// Provider 与路由 target_protocol 必须一致，路由引擎依此选节点
 	// google 节点对应 Google Agent Platform (GEAP)，需要 ProjectID + Location + Credentials(API Key)
-	BaseURL      string  `json:"base_url"`       // 自定义 API 端点（空则使用官方默认地址）
-	Credentials  string  `json:"-"`              // API Key / JSON 凭证（JSON 序列化时隐藏）
-	ProjectID    string  `json:"project_id"`     // GCP 项目 ID（仅 Google Agent Platform 节点使用）
-	Location     string  `json:"location"`       // GCP 区域（仅 Google Agent Platform 节点使用，默认 global）
-	Priority     int     `json:"priority"`       // 优先级，数字越大越优先被选中
-	Balance      float64 `json:"balance"`        // 总额度上限（美元）
-	UsedAmount   float64 `json:"used_amount"`    // 已使用金额
-	LimitPercent float64 `json:"limit_percent"`  // 熔断水位线百分比，超过后自动隔离节点
-	ValidFrom    string  `json:"valid_from"`     // 有效期起始时间
-	ValidTo      string  `json:"valid_to"`       // 有效期截止时间
-	Status       int     `json:"status"`         // 1=正常, 0=手动禁用, -1=熔断/过期
+	BaseURL              string  `json:"base_url"`                // 自定义 API 端点（空则使用官方默认地址）
+	Credentials          string  `json:"-"`                       // API Key / JSON 凭证（JSON 序列化时隐藏）
+	ProjectID            string  `json:"project_id"`              // GCP 项目 ID（仅 Google Agent Platform 节点使用）
+	Location             string  `json:"location"`                // GCP 区域（仅 Google Agent Platform 节点使用，默认 global）
+	Priority             int     `json:"priority"`                // 优先级，数字越小越优先被选中
+	Balance              float64 `json:"balance"`                 // 总额度上限（美元）
+	UsedAmount           float64 `json:"used_amount"`             // 已使用金额
+	LimitPercent         float64 `json:"limit_percent"`           // 熔断水位线百分比，超过后自动隔离节点
+	MinRequestIntervalMs   int     `json:"min_request_interval_sec"` // 同节点两次请求最小间隔（秒），0=使用全局默认，防上游 RPM 429
+	ValidFrom            string  `json:"valid_from"`              // 有效期起始时间
+	ValidTo              string  `json:"valid_to"`                // 有效期截止时间
+	Status               int     `json:"status"`                  // 1=正常, 0=手动禁用, -1=熔断/过期
 }
 
 // ModelMapping 模型名映射规则，定义请求模型到目标模型的转换关系
@@ -66,6 +67,7 @@ type Config struct {
 		MaxCooldownSeconds     int `json:"max_cooldown_seconds"`     // 熔断最大冷却时间上限（秒）
 		FailureThreshold       int `json:"failure_threshold"`        // 连续失败阈值，超过后触发熔断
 		FailureWindowSeconds   int `json:"failure_window_seconds"`   // 失败统计窗口（秒）
+		MinRequestIntervalMs   int `json:"min_request_interval_sec"`  // 同一节点两次请求的最小间隔（秒），防止上游 RPM 429
 	} `json:"breaker"`
 	Providers map[string][]AccountDetail `json:"providers"` // 按协议类型分组的节点池
 	Routes    []RouteDetail              `json:"routes"`    // 路由表
@@ -116,6 +118,7 @@ func ReloadFromDB() error {
 		AppConfig.Breaker.MaxCooldownSeconds = 3600
 		AppConfig.Breaker.FailureThreshold = 3
 		AppConfig.Breaker.FailureWindowSeconds = 120
+		AppConfig.Breaker.MinRequestIntervalMs = 6
 	}
 
 	if AppConfig.ListenAddr == "" {
@@ -123,7 +126,7 @@ func ReloadFromDB() error {
 	}
 
 	// Load Nodes
-	rows, err := db.DB().Query("SELECT id, name, provider, base_url, credentials, project_id, location, priority, balance, used_amount, limit_percent, valid_from, valid_to, status FROM sys_nodes")
+	rows, err := db.DB().Query("SELECT id, name, provider, base_url, credentials, project_id, location, priority, balance, used_amount, limit_percent, COALESCE(min_request_interval_sec, 0), valid_from, valid_to, status FROM sys_nodes")
 	if err != nil {
 		return fmt.Errorf("读取节点列表失败: %v", err)
 	}
@@ -133,7 +136,7 @@ func ReloadFromDB() error {
 
 	for rows.Next() {
 		var acc AccountDetail
-		if err := rows.Scan(&acc.ID, &acc.Name, &acc.Provider, &acc.BaseURL, &acc.Credentials, &acc.ProjectID, &acc.Location, &acc.Priority, &acc.Balance, &acc.UsedAmount, &acc.LimitPercent, &acc.ValidFrom, &acc.ValidTo, &acc.Status); err != nil {
+		if err := rows.Scan(&acc.ID, &acc.Name, &acc.Provider, &acc.BaseURL, &acc.Credentials, &acc.ProjectID, &acc.Location, &acc.Priority, &acc.Balance, &acc.UsedAmount, &acc.LimitPercent, &acc.MinRequestIntervalMs, &acc.ValidFrom, &acc.ValidTo, &acc.Status); err != nil {
 			slog.Error("扫描节点数据失败", "error", err)
 			continue
 		}

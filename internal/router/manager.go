@@ -8,7 +8,7 @@
 //   1. MatchAndAcquireRoute() 轮询等待可用路由和节点
 //   2. tryAcquire() 遍历路由 → 匹配模型映射 → 选择 Idle/Probation 的节点
 //   3. 按优先级排序选择最优节点 → 标记为 Busy → 交给协议转换器处理
-//   4. 请求完成后调用 ReleaseNode() 归还节点到 Idle 状态
+//   4. 请求完成后通过 FinalizeNodeState() 结算节点状态，ReleaseNode 为异常兜底
 package router
 
 import (
@@ -139,6 +139,14 @@ type MatchedDestination struct {
 	TargetModel    string     // 映射后的目标模型名
 	TargetProtocol string     // 目标协议类型 (openai/vertex/gemini)
 	IsProbationRun bool       // 是否为试用运行 (节点刚从冷却恢复)
+	finalized      bool       // 节点生命周期是否已结算（防止 ReleaseNode 竞态二次释放）
+}
+
+// MarkFinalized 标记节点生命周期已结算，防止 ReleaseNode 竞态二次释放
+func (d *MatchedDestination) MarkFinalized() {
+	if d != nil {
+		d.finalized = true
+	}
 }
 
 // modelMatches 检查请求的模型名是否匹配路由映射规则
@@ -282,6 +290,17 @@ func tryAcquire(sourceProtocol, reqModel string) (dest *MatchedDestination, reas
 
 			state.mu.Lock()
 			isIdleOrProb := (state.Status == StatusIdle || state.Status == StatusProbation)
+			// 强制最小请求间隔：优先用节点自身配置，0 则回退到全局 Breaker 默认，防止上游 RPM 429
+			if isIdleOrProb && !state.LastAcquireTime.IsZero() {
+				nodeInterval := state.MinRequestIntervalMs
+				if nodeInterval <= 0 {
+					nodeInterval = config.AppConfig.Breaker.MinRequestIntervalMs
+				}
+				if nodeInterval > 0 && time.Since(state.LastAcquireTime) < time.Duration(nodeInterval)*time.Second {
+					isIdleOrProb = false
+					slog.Debug("⏱️ [请求间隔] 节点距上次请求间隔过短，跳过", "node", state.Name, "since_last_sec", time.Since(state.LastAcquireTime).Seconds(), "node_interval_sec", state.MinRequestIntervalMs, "global_interval_sec", config.AppConfig.Breaker.MinRequestIntervalMs)
+				}
+			}
 			state.mu.Unlock()
 
 			if isIdleOrProb {
@@ -330,9 +349,9 @@ func tryAcquire(sourceProtocol, reqModel string) (dest *MatchedDestination, reas
 		validCandidates[i], validCandidates[j] = validCandidates[j], validCandidates[i]
 	})
 
-	// Sort by Priority Descending -> auto load balancing
+	// 按优先级升序排列：数字越小优先级越高（Priority=1 最先被选中）
 	sort.SliceStable(validCandidates, func(i, j int) bool {
-		return validCandidates[i].State.Priority > validCandidates[j].State.Priority
+		return validCandidates[i].State.Priority < validCandidates[j].State.Priority
 	})
 
 	// CAS 抢占：候选筛选时的状态检查与最终 Busy 设置存在时间窗口，必须在持锁内重新验证
@@ -349,6 +368,7 @@ func tryAcquire(sourceProtocol, reqModel string) (dest *MatchedDestination, reas
 		}
 		isProbationRun := (candidate.State.Status == StatusProbation)
 		candidate.State.Status = StatusBusy
+		candidate.State.LastAcquireTime = time.Now()
 		candidate.State.mu.Unlock()
 
 		slog.Debug("🎯 [负载均衡] 自动选择目标节点",
@@ -369,12 +389,20 @@ func tryAcquire(sourceProtocol, reqModel string) (dest *MatchedDestination, reas
 	return nil, fmt.Sprintf("all %d candidates raced by concurrent requests", racedCount), false
 }
 
-// ReleaseNode 释放节点：将 Busy 状态的节点恢复为 Idle，供后续请求使用
-func ReleaseNode(nodeID int) {
+// ReleaseNode 释放节点：仅当节点仍处于 Busy 且生命周期尚未结算时才恢复为 Idle
+// 如果 FinalizeNodeState 或 HandleNetworkError 已结算节点状态，则跳过以避免竞态二次释放
+func ReleaseNode(dest *MatchedDestination) {
 	poolMutex.RLock()
 	defer poolMutex.RUnlock()
 
-	if state, exists := nodesMap[nodeID]; exists {
+	if dest == nil {
+		return
+	}
+	if dest.finalized {
+		return // 生命周期已结算，无需二次释放
+	}
+
+	if state, exists := nodesMap[dest.Node.ID]; exists {
 		state.mu.Lock()
 		if state.Status == StatusBusy {
 			state.Status = StatusIdle

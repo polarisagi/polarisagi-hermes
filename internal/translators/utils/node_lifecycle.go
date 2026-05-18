@@ -15,6 +15,7 @@ import (
 // HandleNetworkError 处理向上游代理时的网络级错误，直接向客户端返回 502 并触发节点惩罚
 func HandleNetworkError(w http.ResponseWriter, err error, dest *router.MatchedDestination, platform, clientType, methodName, traceID, logPrefix string) {
 	errMsg := err.Error()
+	dest.MarkFinalized()
 	db.SaveUsage(platform, dest.Node.Name, clientType, methodName, 0, 0, 0, http.StatusBadGateway)
 	dest.Node.UpdateOnFailure(dest.IsProbationRun, traceID)
 	slog.Error(fmt.Sprintf("%s 物理网络断联", logPrefix), "trace_id", traceID, "account", dest.Node.Name, "error", errMsg)
@@ -52,6 +53,7 @@ func CheckResponseStatus(finalResp *http.Response, dest *router.MatchedDestinati
 
 // FinalizeNodeState 在流式输出结束后，根据探测到的错误情况更新节点的状态（成功、失败或永久封禁）
 func FinalizeNodeState(dest *router.MatchedDestination, isNodeFailure, isQuotaExhausted bool, traceID string) {
+	dest.MarkFinalized()
 	if isNodeFailure {
 		if isQuotaExhausted {
 			dest.Node.MarkAsExhausted("Quota Exceeded", traceID)

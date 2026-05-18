@@ -36,6 +36,7 @@ type NodeState struct {
 	CurrentCooldown       time.Duration                      // 当前冷却时长（失败后翻倍增长）
 	CooldownUntil         time.Time                          // 冷却结束时间
 	TotalConsumed         float64                            // 当前账期累计消费金额
+	LastAcquireTime       time.Time                          // 上次被分配的时间，用于强制最小请求间隔防 RPM 429
 	mu                    sync.Mutex                         // 保护并发状态修改
 }
 
