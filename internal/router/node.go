@@ -151,17 +151,9 @@ func (s *NodeState) InjectGoogleAuth(req *http.Request) error {
 		return nil
 	}
 
-	// 如果没有 TokenSource（即填的是普通 API Key）
-	// Vertex AI 端点（ProjectID != ""）通常使用 Bearer Token
-	// Gemini 端点（ProjectID == ""）使用 Bearer 或者 x-goog-api-key 或 ?key=
-	// 这里统一：如果没有配置 TokenSource，则视作普通的 API Key
-	if s.ProjectID == "" {
-		q := req.URL.Query()
-		q.Set("key", s.Credentials)
-		req.URL.RawQuery = q.Encode()
-	} else {
-		// 部分 Vertex AI 支持 Bearer 形式传入服务号 Token，如果用户强行在后台填 Token 文本的话：
-		req.Header.Set("Authorization", "Bearer "+s.Credentials)
-	}
+	// API Key 模式：通过 ?key= 查询参数注入，GEAP 和 generic Gemini API 均支持
+	q := req.URL.Query()
+	q.Set("key", s.Credentials)
+	req.URL.RawQuery = q.Encode()
 	return nil
 }
