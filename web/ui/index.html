@@ -96,7 +96,7 @@
             <div v-show="currentTab === 'dashboard'" class="max-w-6xl mx-auto">
                 <div class="flex justify-between items-start mb-8 border-b border-gray-300 dark:border-slate-700 pb-6">
                     <div>
-                        <h2 class="text-2xl font-bold text-white">监控大盘</h2>
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">监控大盘</h2>
                         <p class="text-gray-500 dark:text-slate-400 mt-1">计费与多协议排队中心</p>
                     </div>
                     <div class="flex gap-4">
@@ -141,7 +141,7 @@
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                     <div class="card rounded-xl p-6 shadow-lg border-l-4 border-emerald-500">
                         <p class="text-gray-500 dark:text-slate-400 text-sm mb-1">区间账单预估 (USD)</p>
-                        <h3 class="text-3xl font-bold text-white">$ {{ formatNum(aggregatedData.totalCost) }}</h3>
+                        <h3 class="text-3xl font-bold text-gray-900 dark:text-white">$ {{ formatNum(aggregatedData.totalCost) }}</h3>
                     </div>
                     <div class="card rounded-xl p-6 shadow-lg border-l-4 border-blue-500">
                         <p class="text-gray-500 dark:text-slate-400 text-sm mb-1">提示词消耗 (Tokens)</p>
@@ -154,7 +154,7 @@
                     <div class="card rounded-xl p-6 shadow-lg border-l-4" :class="successRateColor(aggregatedData.successRate)">
                         <p class="text-gray-500 dark:text-slate-400 text-sm mb-1">请求成功率</p>
                         <div class="flex items-end gap-2">
-                            <h3 class="text-2xl font-bold text-white">{{ aggregatedData.successRate }}%</h3>
+                            <h3 class="text-2xl font-bold text-gray-900 dark:text-white">{{ aggregatedData.successRate }}%</h3>
                         </div>
                     </div>
                 </div>
@@ -251,7 +251,7 @@
             <!-- Nodes Tab -->
             <div v-show="currentTab === 'nodes'" class="max-w-6xl mx-auto">
                 <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-2xl font-bold text-white">节点管理</h2>
+                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">节点管理</h2>
                     <button @click="openNodeModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition font-medium text-sm flex items-center gap-2">
                         <span>+</span> 添加新节点
                     </button>
@@ -274,9 +274,9 @@
                             <tr v-for="node in nodes" :key="node.id" class="border-b border-gray-300 dark:border-slate-700 hover:bg-gray-200 dark:bg-slate-700/50">
                                 <td class="px-4 py-3">
                                     <span :class="protocolBadge(node.provider)"
-                                        class="text-white text-[10px] px-2 py-0.5 rounded-full font-bold uppercase border">{{ protocolLabel(node.provider) }}</span>
+                                        class="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase border">{{ protocolLabel(node.provider) }}</span>
                                 </td>
-                                <td class="px-4 py-3 font-medium text-white">{{ node.name }}</td>
+                                <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{{ node.name }}</td>
                                 <td class="px-4 py-3 text-center">{{ node.priority }}</td>
                                 <td class="px-4 py-3">
                                     <div v-if="node.balance > 0" class="space-y-1">
@@ -318,7 +318,7 @@
             <div v-show="currentTab === 'routes'" class="max-w-6xl mx-auto">
                 <div class="flex justify-between items-center mb-6">
                     <div>
-                        <h2 class="text-2xl font-bold text-white">路由管理</h2>
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">路由管理</h2>
                         <p class="text-gray-500 dark:text-slate-400 text-sm mt-1">配置协议到协议的转换规则与多模型映射，系统将自动负载均衡选择目标节点</p>
                     </div>
                     <button @click="openRouteModal()" class="bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-lg transition font-medium text-sm flex items-center gap-2 shadow-lg shadow-pink-500/20">
@@ -340,7 +340,7 @@
                         <tbody>
                             <tr v-for="route in routes" :key="route.id" class="border-b border-gray-300 dark:border-slate-700 hover:bg-gray-200 dark:bg-slate-700/50">
                                 <td class="px-6 py-4">
-                                    <span :class="protocolBadge(route.source_protocol)" class="text-white text-[10px] px-2 py-0.5 rounded-full font-bold uppercase border">{{ protocolLabel(route.source_protocol) }}</span>
+                                    <span :class="protocolBadge(route.source_protocol)" class="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase border">{{ protocolLabel(route.source_protocol) }}</span>
                                 </td>
                                 <td class="px-6 py-4">
                                     <div :class="'text-sm font-medium ' + protocolClass(route.target_protocol)">{{ protocolLabel(route.target_protocol) }}</div>
@@ -383,11 +383,11 @@
 
             <!-- Settings Tab -->
             <div v-show="currentTab === 'settings'" class="max-w-3xl mx-auto">
-                <h2 class="text-2xl font-bold text-white mb-6">系统设置</h2>
+                <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">系统设置</h2>
                 
                 <div class="card rounded-xl p-6 shadow-lg space-y-6">
                     <div>
-                        <h3 class="text-lg font-medium text-white mb-4 border-b border-gray-300 dark:border-slate-700 pb-2">基础配置</h3>
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4 border-b border-gray-300 dark:border-slate-700 pb-2">基础配置</h3>
                         <div class="space-y-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">代理监听地址</label>
@@ -398,7 +398,7 @@
                     </div>
 
                     <div>
-                        <h3 class="text-lg font-medium text-white mb-4 border-b border-gray-300 dark:border-slate-700 pb-2">熔断器规则</h3>
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4 border-b border-gray-300 dark:border-slate-700 pb-2">熔断器规则</h3>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">连续失败阈值 (次)</label>
@@ -429,7 +429,7 @@
                     </div>
 
                     <div class="border-t border-gray-300 dark:border-slate-700 pt-6 mt-6">
-                        <h3 class="text-lg font-medium text-white mb-4">Google OAuth 2.0 授权配置</h3>
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Google OAuth 2.0 授权配置</h3>
                         <p class="text-xs text-gray-500 dark:text-slate-400 mb-4">
                             如果使用 gcloud 内置凭据时遇到"此应用已被阻止"错误，请在<a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="text-blue-400 hover:underline"> Google Cloud Console → 凭据</a> 创建 OAuth 2.0 客户端 ID（桌面应用），并将 Client ID 和 Secret 填入下方。
                             然后还需要在 Google Cloud Console 中将以下重定向 URI 加入"已获授权的重定向 URI"列表：
@@ -452,7 +452,7 @@
             <!-- Logs Tab -->
             <div v-show="currentTab === 'logs'" class="max-w-6xl mx-auto flex flex-col h-full">
                 <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-2xl font-bold text-white">运行日志</h2>
+                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">运行日志</h2>
                     <div class="flex gap-3">
                         <select v-model="logLevelFilter" @change="fetchLogs" class="bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 text-gray-700 dark:text-slate-300 text-sm rounded-lg block p-2 outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="all">所有级别 (All)</option>
@@ -494,7 +494,7 @@
             <div v-if="nodeModal.show" class="fixed inset-0 bg-gray-500/50 dark:bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                 <div class="bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
                     <div class="p-6 border-b border-gray-300 dark:border-slate-700 flex justify-between items-center">
-                        <h3 class="text-xl font-bold text-white">{{ nodeModal.isEdit ? '编辑节点' : '添加新节点' }}</h3>
+                        <h3 class="text-xl font-bold text-gray-900 dark:text-white">{{ nodeModal.isEdit ? '编辑节点' : '添加新节点' }}</h3>
                         <button @click="nodeModal.show = false" class="text-gray-500 dark:text-slate-400 hover:text-white transition">✕</button>
                     </div>
                     <div class="p-6 overflow-y-auto flex-1 space-y-5">
@@ -620,7 +620,7 @@
             <div v-if="routeModal.show" class="fixed inset-0 bg-gray-500/50 dark:bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                 <div class="bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
                     <div class="p-6 border-b border-gray-300 dark:border-slate-700 flex justify-between items-center">
-                        <h3 class="text-xl font-bold text-white">{{ routeModal.isEdit ? '编辑路由' : '添加新路由' }}</h3>
+                        <h3 class="text-xl font-bold text-gray-900 dark:text-white">{{ routeModal.isEdit ? '编辑路由' : '添加新路由' }}</h3>
                         <button @click="routeModal.show = false" class="text-gray-500 dark:text-slate-400 hover:text-white transition">✕</button>
                     </div>
                     <div class="p-6 overflow-y-auto flex-1 space-y-4">

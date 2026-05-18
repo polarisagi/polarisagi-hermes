@@ -1,5 +1,3 @@
-body { background-color: #0f172a; color: #f8fafc; }
-.card { background-color: #1e293b; border: 1px solid #334155; }
 .pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
 @keyframes pulse {
     0%, 100% { opacity: 1; }
