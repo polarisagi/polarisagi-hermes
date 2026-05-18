@@ -90,83 +90,43 @@ func streamGoogleResponse(w http.ResponseWriter, finalResp *http.Response, dest 
 
 // buildGoogleTargetURL 构建 Google Agent Platform (GEAP) 端点 URL
 // 官方文档：https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest
-// 支持三种入站路径：
-//  1. 短路径 `/models/X:method`              → 自动套用 publishers/google 前缀（向后兼容）
-//  2. 完整路径 `/publishers/{pub}/models/X:method` → 保留客户端指定的发布者（google/anthropic 等）
-//  3. 完整路径 `/projects/.../locations/.../publishers/...` → 视为绝对 GEAP 路径，直接拼接到 host
-//
-// 当 ProjectID 为空时退化为旧式 BaseURL + /v1 + path 拼接（用于非 GEAP 的 Gemini API 兼容端点）
+// 完全忽略客户端传递的乱七八糟的路径，直接提取 method 和 model，
+// 按照后台配置的自己的 URL 规则重新拼接，确保代理的请求格式永远是正确一致的。
 func buildGoogleTargetURL(node *router.NodeState, incomingPath string, targetModel string) string {
 	if targetModel != "" {
 		targetModel = strings.TrimPrefix(targetModel, "google/")
-		incomingPath = router.ReplaceGoogleModelInPath(incomingPath, targetModel)
 	}
 
-	versionPrefix := "/v1"
-	if strings.HasPrefix(incomingPath, "/v1beta") {
-		versionPrefix = "/v1beta"
-	} else if strings.HasPrefix(incomingPath, "/v1alpha") {
-		versionPrefix = "/v1alpha"
+	// 提取请求方法 (如 generateContent, streamGenerateContent)
+	method := "generateContent"
+	if idx := strings.LastIndex(incomingPath, ":"); idx >= 0 {
+		method = incomingPath[idx+1:]
+	} else if strings.HasSuffix(incomingPath, "generateContent") {
+		method = "generateContent"
+	} else if strings.HasSuffix(incomingPath, "streamGenerateContent") {
+		method = "streamGenerateContent"
+	} else if strings.HasSuffix(incomingPath, "countTokens") {
+		method = "countTokens"
 	}
 
-	if node.ProjectID == "" && versionPrefix == "/v1" {
-		if strings.Contains(targetModel, "preview") || strings.Contains(targetModel, "3.1") || strings.Contains(targetModel, "2.5") || strings.Contains(targetModel, "2.0") || strings.Contains(targetModel, "lite") {
-			versionPrefix = "/v1beta"
-		}
+	location := node.Location
+	if location == "" {
+		location = "global"
 	}
 
-	subPath := strings.TrimPrefix(incomingPath, "/v1beta")
-	subPath = strings.TrimPrefix(subPath, "/v1alpha")
-	subPath = strings.TrimPrefix(subPath, "/v1")
-
-	if !strings.HasPrefix(subPath, "/") {
-		subPath = "/" + subPath
-	}
-	trimmedSub := strings.TrimPrefix(subPath, "/")
-
-	if node.ProjectID != "" {
-		location := node.Location
-		if location == "" {
-			location = "global"
-		}
-
-		// 客户端已写完整 /projects/.../locations/.../publishers/... 路径：直接套到 GEAP host 上
-		if strings.HasPrefix(trimmedSub, "projects/") {
-			host := node.BaseURL
-			if host == "" {
-				host = inferGEAPHost(location)
-			} else {
-				// 用户在 BaseURL 配置了 host 占位的模板时，提取 host 部分
-				host = stripTemplatePath(host)
-			}
-			return strings.TrimSuffix(host, "/") + "/v1/" + trimmedSub
-		}
-
-		template := node.BaseURL
-		if template == "" {
-			template = inferGEAPHost(location) + "/v1/projects/{project_id}/locations/{location}/{publisher_subpath}"
-		}
-
-		// 客户端路径已包含 publishers/{pub}/... → 整体作为 publisher_subpath
-		// 否则默认套用 publishers/google/ 前缀（向后兼容 Gemini 模型短路径）
-		var publisherSubpath string
-		if strings.HasPrefix(trimmedSub, "publishers/") {
-			publisherSubpath = trimmedSub
-		} else {
-			publisherSubpath = "publishers/google/" + trimmedSub
-		}
-
-		resURL := strings.ReplaceAll(template, "{project_id}", node.ProjectID)
-		resURL = strings.ReplaceAll(resURL, "{location}", location)
-		// 同时兼容旧的 {subpath} 占位（自动加 publishers/google/ 前缀）
-		resURL = strings.ReplaceAll(resURL, "{subpath}", trimmedSub)
-		resURL = strings.ReplaceAll(resURL, "{publisher_subpath}", publisherSubpath)
-
-		return resURL
+	template := node.BaseURL
+	if template == "" {
+		template = inferGEAPHost(location) + "/v1/projects/{project_id}/locations/{location}/{publisher_subpath}"
 	}
 
-	baseURL := strings.TrimSuffix(node.BaseURL, "/")
-	return baseURL + versionPrefix + subPath
+	publisherSubpath := "publishers/google/models/" + targetModel + ":" + method
+
+	resURL := strings.ReplaceAll(template, "{project_id}", node.ProjectID)
+	resURL = strings.ReplaceAll(resURL, "{location}", location)
+	resURL = strings.ReplaceAll(resURL, "{publisher_subpath}", publisherSubpath)
+	resURL = strings.ReplaceAll(resURL, "{subpath}", "models/"+targetModel+":"+method)
+
+	return resURL
 }
 
 // inferGEAPHost 根据 location 推断 Google Agent Platform API host
