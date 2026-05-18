@@ -21,8 +21,37 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/pkoukk/tiktoken-go"
 	"polaris-gateway/internal/router"
 )
+
+func init() {
+	router.RegisterCountTokensHandler("anthropic", handleCountTokensLocal)
+}
+
+// 惰性加载 tiktoken 实例以提供高精度内存分词计算
+var tke *tiktoken.Tiktoken
+
+func getTiktoken() *tiktoken.Tiktoken {
+	if tke == nil {
+		var err error
+		// Claude 的 token 密度类似 openai 的 cl100k_base 或 o200k_base
+		tke, err = tiktoken.GetEncoding("cl100k_base")
+		if err != nil {
+			slog.Error("⚠️ [CountTokens] 初始化 tiktoken 失败，可能会影响 token 计算精度", "error", err)
+		}
+	}
+	return tke
+}
+
+func countTextTokens(text string) int {
+	tk := getTiktoken()
+	if tk != nil {
+		return len(tk.Encode(text, nil, nil))
+	}
+	// fallback，尽管这种情况极少出现
+	return len(text) / 4
+}
 
 // isCountTokensPath 判断请求路径是否为 count_tokens 端点
 // 路由层已剥离协议前缀，此处看到的路径形如 /v1/messages/count_tokens
@@ -31,20 +60,20 @@ func isCountTokensPath(path string) bool {
 }
 
 // estimateAnthropicTokens 本地估算 Anthropic Messages 请求的 input token 数
-// 经验法则：英文文本约 4 字节/token、图片基线 1500、工具 schema 序列化后按文本估算
-// 估算误差对 Claude Code 的 /context 显示与 /compact 触发判断完全可接受
+// 使用 tiktoken (cl100k_base) 提供高精度的精确内存估算
+// 此计算能够支撑 Claude Code 准确判断上下文并触发 /compact，避免超限报错。
 func estimateAnthropicTokens(req MessageRequest) int {
 	total := 0
 
 	// System prompt：支持字符串或内容块数组
 	switch sys := req.System.(type) {
 	case string:
-		total += len(sys) / 4
+		total += countTextTokens(sys)
 	case []interface{}:
 		for _, item := range sys {
 			if m, ok := item.(map[string]interface{}); ok {
 				if t, ok := m["text"].(string); ok {
-					total += len(t) / 4
+					total += countTextTokens(t)
 				}
 			}
 		}
@@ -54,7 +83,7 @@ func estimateAnthropicTokens(req MessageRequest) int {
 	for _, msg := range req.Messages {
 		switch v := msg.Content.(type) {
 		case string:
-			total += len(v) / 4
+			total += countTextTokens(v)
 		case []interface{}:
 			for _, item := range v {
 				m, ok := item.(map[string]interface{})
@@ -64,7 +93,7 @@ func estimateAnthropicTokens(req MessageRequest) int {
 				switch m["type"] {
 				case "text":
 					if t, ok := m["text"].(string); ok {
-						total += len(t) / 4
+						total += countTextTokens(t)
 					}
 				case "image", "document":
 					// 图片/PDF 按 Anthropic 官方经验值近似
@@ -72,19 +101,19 @@ func estimateAnthropicTokens(req MessageRequest) int {
 				case "tool_use":
 					if input, ok := m["input"]; ok {
 						b, _ := json.Marshal(input)
-						total += len(b) / 4
+						total += countTextTokens(string(b))
 					}
 					if name, ok := m["name"].(string); ok {
-						total += len(name) / 4
+						total += countTextTokens(name)
 					}
 				case "tool_result":
 					if c, ok := m["content"].(string); ok {
-						total += len(c) / 4
+						total += countTextTokens(c)
 					} else if arr, ok := m["content"].([]interface{}); ok {
 						for _, ci := range arr {
 							if cm, ok := ci.(map[string]interface{}); ok {
 								if t, ok := cm["text"].(string); ok {
-									total += len(t) / 4
+									total += countTextTokens(t)
 								}
 							}
 						}
@@ -92,7 +121,7 @@ func estimateAnthropicTokens(req MessageRequest) int {
 				case "thinking":
 					// Claude Code 历史中保留的思考块仍计入上下文
 					if t, ok := m["thinking"].(string); ok {
-						total += len(t) / 4
+						total += countTextTokens(t)
 					}
 				}
 			}
@@ -102,11 +131,11 @@ func estimateAnthropicTokens(req MessageRequest) int {
 
 	// Tools：name + description + input_schema
 	for _, tool := range req.Tools {
-		total += len(tool.Name) / 4
-		total += len(tool.Description) / 4
+		total += countTextTokens(tool.Name)
+		total += countTextTokens(tool.Description)
 		if tool.InputSchema != nil {
 			b, _ := json.Marshal(tool.InputSchema)
-			total += len(b) / 4
+			total += countTextTokens(string(b))
 		}
 	}
 
@@ -214,6 +243,8 @@ func handleVertexCountTokens(ctx context.Context, w http.ResponseWriter, bodyByt
 	// countTokens 端点只接受 contents/systemInstruction/tools，其余字段均不支持
 	delete(vReq, "generationConfig")
 	delete(vReq, "safetySettings")
+	delete(vReq, "toolConfig")
+	delete(vReq, "labels")
 	vReqBytes, _ := json.Marshal(vReq)
 
 	targetURL := buildGEAPURL(dest.Node, "google", fmt.Sprintf("models/%s:countTokens", model), "global")

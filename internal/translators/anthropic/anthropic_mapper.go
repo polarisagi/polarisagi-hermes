@@ -3,6 +3,7 @@
 package anthropic
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 )
@@ -167,8 +168,7 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 						
 						isError, _ := m["is_error"].(bool)
 						
-						// Vertex functionResponse expects a JSON object
-						var respContent interface{}
+						var respContent map[string]interface{}
 						if contentStr, ok := m["content"].(string); ok {
 							if isError {
 								contentStr = fmt.Sprintf("Error: %s", contentStr)
@@ -183,6 +183,7 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 											textContents = append(textContents, textStr)
 										}
 									} else if t, ok := cMap["type"].(string); ok && (t == "image" || t == "document" || t == "audio" || t == "video" || t == "media") {
+										// 多媒体块放在 functionResponse 之外作为独立 part，让 Gemini 能同时处理文本结果和媒体文件
 										if source, ok := cMap["source"].(map[string]interface{}); ok {
 											if source["type"] == "base64" {
 												parts = append(parts, map[string]interface{}{
@@ -210,11 +211,13 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 							}
 							respContent = map[string]interface{}{"content": combinedText}
 						} else {
+							// 非 string、非数组的 content：序列化为 JSON 字符串嵌入
+							rawBytes, _ := json.Marshal(m["content"])
+							contentStr := string(rawBytes)
 							if isError {
-								respContent = map[string]interface{}{"error": true, "content": m["content"]}
-							} else {
-								respContent = map[string]interface{}{"content": m["content"]}
+								contentStr = fmt.Sprintf("Error: %s", contentStr)
 							}
+							respContent = map[string]interface{}{"content": contentStr}
 						}
 						
 						parts = append(parts, map[string]interface{}{
@@ -303,9 +306,13 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 	if len(req.Tools) > 0 {
 		var functionDeclarations []map[string]interface{}
 		for _, t := range req.Tools {
-			// 跳过 Anthropic 内置工具类型（computer use / bash / text_editor / web_search）
-			// 这些工具在 Gemini 侧无对等 functionDeclaration，强行透传会导致 400
 			if t.Type != "" {
+				// Anthropic 内置工具（bash、text_editor、computer、web_search 等）在 Gemini 侧无对等执行环境，
+				// 但 Claude Code 依赖这些工具的函数签名来完成工具调用循环。
+				// 将其转换为普通 functionDeclaration 透传，让 LLM 能看到函数签名并做出调用决策。
+				if decl := builtinToolToFunctionDecl(t); decl != nil {
+					functionDeclarations = append(functionDeclarations, decl)
+				}
 				continue
 			}
 			var params map[string]interface{}
@@ -319,8 +326,6 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 			}
 			functionDeclarations = append(functionDeclarations, decl)
 		}
-		// 仅在有有效的 functionDeclarations 时才设置 tools 字段
-		// 若所有 tool 都是内置类型（Type != ""）被跳过，不发送空的 tools 数组
 		if len(functionDeclarations) > 0 {
 			vertexReq["tools"] = []map[string]interface{}{
 				{
@@ -380,6 +385,118 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 	}
 
 	return vertexReq, nil
+}
+
+// builtinToolToFunctionDecl 将 Anthropic 内置工具类型（bash、text_editor 等）转换为 Gemini functionDeclaration
+// Claude Code 依赖这些工具的函数签名来完成工具调用循环。
+// 由于 Gemini 无对等内置执行环境，仅保留函数签名供 LLM 做出调用决策，
+// 实际执行由 Claude Code 在客户端完成，网关只负责透传调用/响应。
+func builtinToolToFunctionDecl(t Tool) map[string]interface{} {
+	name := t.Name
+	desc := t.Description
+	var params map[string]interface{}
+
+	// 优先使用工具自带的 InputSchema
+	if t.InputSchema != nil {
+		params = sanitizeSchema(t.InputSchema)
+	} else {
+		// 无 schema 时为常见内置工具提供基础参数定义，确保 functionCall 格式合法
+		switch {
+		case strings.Contains(t.Type, "bash") || strings.Contains(name, "bash"):
+			params = map[string]interface{}{
+				"type": "OBJECT",
+				"properties": map[string]interface{}{
+					"command": map[string]interface{}{
+						"type":        "STRING",
+						"description": "The bash command to run",
+					},
+				},
+				"required": []interface{}{"command"},
+			}
+		case strings.Contains(t.Type, "text_editor") || strings.Contains(name, "text_editor"):
+			params = map[string]interface{}{
+				"type": "OBJECT",
+				"properties": map[string]interface{}{
+					"command": map[string]interface{}{
+						"type":        "STRING",
+						"description": "The command to run: view, create, str_replace, or insert",
+					},
+					"path": map[string]interface{}{
+						"type":        "STRING",
+						"description": "Absolute path to file or directory",
+					},
+					"file_text": map[string]interface{}{
+						"type":        "STRING",
+						"description": "Required for create command — the new file content",
+					},
+					"insert_line": map[string]interface{}{
+						"type":        "INTEGER",
+						"description": "Required for insert command — the line number after which to insert",
+					},
+					"new_str": map[string]interface{}{
+						"type":        "STRING",
+						"description": "Required for str_replace command — the text to replace with",
+					},
+					"old_str": map[string]interface{}{
+						"type":        "STRING",
+						"description": "Required for str_replace command — the text to replace",
+					},
+				},
+				"required": []interface{}{"command", "path"},
+			}
+		case strings.Contains(t.Type, "computer") || strings.Contains(name, "computer"):
+			params = map[string]interface{}{
+				"type": "OBJECT",
+				"properties": map[string]interface{}{
+					"action": map[string]interface{}{
+						"type":        "STRING",
+						"description": "The computer action: key, type, mouse_move, left_click, screenshot, cursor_position",
+					},
+					"coordinate": map[string]interface{}{
+						"type":        "ARRAY",
+						"description": "(x, y) coordinates for mouse actions",
+					},
+					"text": map[string]interface{}{
+						"type":        "STRING",
+						"description": "Text to type or key sequence",
+					},
+				},
+				"required": []interface{}{"action"},
+			}
+		case strings.Contains(t.Type, "web_search") || strings.Contains(name, "web_search"):
+			params = map[string]interface{}{
+				"type": "OBJECT",
+				"properties": map[string]interface{}{
+					"query": map[string]interface{}{
+						"type":        "STRING",
+						"description": "The search query",
+					},
+					"explanation": map[string]interface{}{
+						"type":        "STRING",
+						"description": "One sentence explanation as to why this tool is being used",
+					},
+				},
+				"required": []interface{}{"query", "explanation"},
+			}
+		default:
+			// 未知内置工具类型，生成通用 object 参数
+			params = map[string]interface{}{
+				"type": "OBJECT",
+				"properties": map[string]interface{}{
+					"input": map[string]interface{}{
+						"type":        "OBJECT",
+						"description": "Tool input parameters",
+					},
+				},
+			}
+		}
+	}
+
+	return map[string]interface{}{
+		"name":        name,
+		"description": desc,
+		"parameters":  params,
+	}
 }
 
 // sanitizeLabelValue 将任意字符串截断并清洗为合法的 GEAP label value

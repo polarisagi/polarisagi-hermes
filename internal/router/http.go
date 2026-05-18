@@ -41,6 +41,14 @@ func RegisterTranslator(incomingProtocol, targetProvider string, f TranslatorFun
 	Translators[key] = f
 }
 
+// CountTokensHandlers 独立处理 count_tokens 请求的短路处理器
+var CountTokensHandlers = make(map[string]func(w http.ResponseWriter, bodyBytes []byte, traceID string))
+
+// RegisterCountTokensHandler 注册 count_tokens 本地计算器
+func RegisterCountTokensHandler(protocol string, f func(w http.ResponseWriter, bodyBytes []byte, traceID string)) {
+	CountTokensHandlers[protocol] = f
+}
+
 // ServeHTTP 是所有 API 请求的统一入口处理函数
 // 完整请求处理流程:
 //  1. 读取请求体 → 2. 检测源协议 → 3. 清洗 URL 路径
@@ -142,6 +150,15 @@ func ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// 步骤4：从请求体或 URL 路径提取模型名
 	// Google Agent Platform 原生协议：先从 body JSON 的 model 字段提取，失败则从 URL 路径提取
 	modelName := extractModelName(bodyBytes, sourceProtocol)
+
+	// 短路拦截：如果是 Anthropic 的 count_tokens 请求，直接在内存中计算并返回，不消耗任何上游节点锁
+	if sourceProtocol == "anthropic" && strings.Contains(r.URL.Path, "/count_tokens") {
+		if handler, ok := CountTokensHandlers["anthropic"]; ok {
+			slog.Debug("🚀 [入口] 拦截 count_tokens 请求，执行本地纯内存计算", "trace_id", traceID, "model", modelName)
+			handler(w, bodyBytes, traceID)
+			return
+		}
+	}
 
 	// Google Agent Platform 原生协议的特殊处理：body 中可能没有 model 字段，需要从 URL 路径提取
 	if sourceProtocol == "google" && (modelName == "" || modelName == "_google_native_") {

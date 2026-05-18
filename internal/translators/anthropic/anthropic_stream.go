@@ -274,6 +274,10 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 				}
 
 				name, _ := fc["name"].(string)
+				if name == "" {
+					slog.Warn("⚠️ [Stream] functionCall 缺少 name 字段，跳过", "trace_id", traceID)
+					continue
+				}
 				toolID = fmt.Sprintf("toolu_%s_%d", traceID, blockIndex)
 				
 				writeSSE(w, flusher, "content_block_start", StreamEvent{
@@ -287,20 +291,7 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 					},
 				})
 				
-				var argsBytes []byte
-				if args, ok := fc["args"].(map[string]interface{}); ok {
-					buffer := &bytes.Buffer{}
-					encoder := json.NewEncoder(buffer)
-					encoder.SetEscapeHTML(false)
-					_ = encoder.Encode(args)
-					argsBytes = buffer.Bytes()
-					if len(argsBytes) > 0 && argsBytes[len(argsBytes)-1] == '\n' {
-						argsBytes = argsBytes[:len(argsBytes)-1]
-					}
-				}
-				if len(argsBytes) == 0 || string(argsBytes) == "null" {
-					argsBytes = []byte("{}")
-				}
+				argsBytes := normalizeFunctionCallArgs(fc["args"])
 				
 				argsRunes := []rune(string(argsBytes))
 				chunkSize := 40
@@ -534,8 +525,13 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 						}
 						if fc, ok := part["functionCall"].(map[string]interface{}); ok {
 							name, _ := fc["name"].(string)
-							args, _ := fc["args"].(map[string]interface{})
-							if args == nil {
+							if name == "" {
+								slog.Warn("⚠️ [NonStream] functionCall 缺少 name 字段，跳过", "trace_id", traceID)
+								continue
+							}
+							argsBytes := normalizeFunctionCallArgs(fc["args"])
+							var args map[string]interface{}
+							if err := json.Unmarshal(argsBytes, &args); err != nil {
 								args = make(map[string]interface{})
 							}
 							contents = append(contents, Content{
@@ -605,4 +601,54 @@ func writeSSE(w http.ResponseWriter, flusher http.Flusher, eventType string, dat
 
 func ptrInt(i int) *int {
 	return &i
+}
+
+// normalizeFunctionCallArgs 统一将 Gemini functionCall.args 转换为规范的 JSON 字节。
+// Gemini 可能将 args 返回为 map[string]interface{}、JSON 字符串或其他类型，
+// 此函数负责将所有可能的形式归一化为紧凑的 JSON 字节数组。
+func normalizeFunctionCallArgs(args interface{}) []byte {
+	if args == nil {
+		return []byte("{}")
+	}
+
+	switch v := args.(type) {
+	case map[string]interface{}:
+		buffer := &bytes.Buffer{}
+		encoder := json.NewEncoder(buffer)
+		encoder.SetEscapeHTML(false)
+		_ = encoder.Encode(v)
+		result := buffer.Bytes()
+		if len(result) > 0 && result[len(result)-1] == '\n' {
+			result = result[:len(result)-1]
+		}
+		if len(result) == 0 || string(result) == "null" {
+			return []byte("{}")
+		}
+		return result
+	case string:
+		if v == "" || v == "null" {
+			return []byte("{}")
+		}
+		// args 可能是 JSON 字符串，尝试解析后再序列化以规范化格式
+		var parsed map[string]interface{}
+		if err := json.Unmarshal([]byte(v), &parsed); err == nil {
+			buffer := &bytes.Buffer{}
+			encoder := json.NewEncoder(buffer)
+			encoder.SetEscapeHTML(false)
+			_ = encoder.Encode(parsed)
+			result := buffer.Bytes()
+			if len(result) > 0 && result[len(result)-1] == '\n' {
+				result = result[:len(result)-1]
+			}
+			return result
+		}
+		// 不是合法 JSON，直接当纯文本返回
+		return []byte(v)
+	default:
+		raw, _ := json.Marshal(v)
+		if len(raw) == 0 || string(raw) == "null" {
+			return []byte("{}")
+		}
+		return raw
+	}
 }
