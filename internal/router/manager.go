@@ -74,6 +74,14 @@ func ReloadFromConfig() {
 				} else {
 					slog.Warn("⚠️ [ADC JSON] 节点 Credentials 疑似 JSON，但解析 OAuth2 失败", "node", acc.Name, "err", err)
 				}
+			} else if strings.ToUpper(strings.TrimSpace(acc.Credentials)) == "ADC" {
+				creds, err := google.FindDefaultCredentials(context.Background(), "https://www.googleapis.com/auth/cloud-platform")
+				if err == nil && creds != nil {
+					state.TokenSource = creds.TokenSource
+					slog.Info("🔑 [ADC Global] 成功为节点加载系统全局默认 OAuth2 TokenSource", "node", acc.Name)
+				} else {
+					slog.Warn("⚠️ [ADC Global] 节点配置为 ADC，但未在系统中找到默认凭证", "node", acc.Name, "err", err)
+				}
 			}
 
 			if state.Balance > 0 && state.LimitPercent > 0 {
