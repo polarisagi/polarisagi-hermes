@@ -6,8 +6,11 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
+	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"polaris-gateway/internal/config"
 	"polaris-gateway/internal/db"
@@ -30,7 +33,8 @@ func normalizeDatetime(dt, defaultTime string) string {
 }
 
 // Version can be injected via build flags (-ldflags="-X 'polaris-gateway/internal/webapi.Version=vX.Y.Z'")
-var Version = "dev"
+// Default to config.Version
+var Version = config.Version
 
 func AdminInfoHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
@@ -103,8 +107,84 @@ func AdminSettingsHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"status": "success"}`))
 		return
 	}
-
+	
 	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+}
+
+func AdminUpdateHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		TargetVersion string `json:"target_version"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.TargetVersion == "" {
+		http.Error(w, "invalid request or missing target_version", http.StatusBadRequest)
+		return
+	}
+
+	goos := runtime.GOOS
+	goarch := runtime.GOARCH
+	if goarch == "x86_64" {
+		goarch = "amd64" // Go reports amd64, but just in case
+	}
+	
+	downloadURL := fmt.Sprintf("https://github.com/mrlaoliai/polaris-gateway/releases/download/%s/polaris-gateway-%s-%s", req.TargetVersion, goos, goarch)
+
+	slog.Info("🔄 开始热更新程序...", "url", downloadURL)
+
+	go func() {
+		// 延迟执行以确保 HTTP 响应先返回给客户端
+		time.Sleep(1 * time.Second)
+
+		resp, err := http.Get(downloadURL)
+		if err != nil {
+			slog.Error("更新失败: 下载错误", "error", err)
+			return
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			slog.Error("更新失败: 非 200 响应", "status", resp.StatusCode)
+			return
+		}
+
+		exePath, err := os.Executable()
+		if err != nil {
+			slog.Error("更新失败: 无法获取可执行文件路径", "error", err)
+			return
+		}
+
+		tmpPath := exePath + ".new"
+		out, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
+		if err != nil {
+			slog.Error("更新失败: 无法创建临时文件", "error", err)
+			return
+		}
+
+		if _, err := io.Copy(out, resp.Body); err != nil {
+			out.Close()
+			os.Remove(tmpPath)
+			slog.Error("更新失败: 写入文件错误", "error", err)
+			return
+		}
+		out.Close()
+
+		if err := os.Rename(tmpPath, exePath); err != nil {
+			os.Remove(tmpPath)
+			slog.Error("更新失败: 替换可执行文件错误", "error", err)
+			return
+		}
+
+		slog.Info("✅ 更新成功，准备退出并由守护进程自动重启...")
+		os.Exit(0)
+	}()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"status": "success", "message": "正在后台更新，系统将在几秒内自动重启"}`))
 }
 
 // AdminModelsHandler 返回指定协议的可用模型列表，用于后台路由配置页面的模型选择下拉框

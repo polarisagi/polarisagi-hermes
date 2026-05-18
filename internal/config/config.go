@@ -10,6 +10,9 @@ import (
 	"polaris-gateway/internal/db"
 )
 
+// Version 记录网关当前的发布版本，用于自动更新机制
+const Version = "v2.4.26"
+
 // AccountDetail 上游节点配置，对应数据库 sys_nodes 表中的一条记录
 // 每个节点代表一个可用的上游 API 账号
 type AccountDetail struct {

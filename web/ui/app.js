@@ -76,6 +76,41 @@ createApp({
         const logLevelFilter = ref('all');
         const debugEnabled = ref(false);
         const version = ref('');
+        const latestVersion = ref('');
+        const updateAvailable = ref(false);
+        const isUpdating = ref(false);
+
+        const checkForUpdates = (currentVer) => {
+            if (currentVer === 'dev' || !currentVer.startsWith('v')) return;
+            fetch('https://api.github.com/repos/mrlaoliai/polaris-gateway/releases/latest')
+                .then(r => r.json())
+                .then(d => {
+                    if (d.tag_name && d.tag_name !== currentVer) {
+                        latestVersion.value = d.tag_name;
+                        updateAvailable.value = true;
+                    }
+                }).catch(console.error);
+        };
+
+        const triggerUpdate = () => {
+            if (!confirm(`确定要平滑热更新到 ${latestVersion.value} 吗？\n整个过程完全自动化，并且不会中断正在处理的流量。`)) return;
+            
+            isUpdating.value = true;
+            fetch('/api/admin/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ target_version: latestVersion.value })
+            }).then(r => r.json()).then(d => {
+                showToast(d.message || "更新已启动，系统将在几秒内自动重启", "success");
+                setTimeout(() => {
+                    window.location.reload();
+                }, 3500);
+            }).catch(e => {
+                showToast("更新触发失败", "error");
+                isUpdating.value = false;
+            });
+        };
+
         const toast = ref({ show: false, message: '', type: 'success' });
         const showToast = (msg, type = 'success') => {
             toast.value = { show: true, message: msg, type };
@@ -605,6 +640,7 @@ createApp({
                 .then(d => {
                     version.value = d.version;
                     debugEnabled.value = d.debug;
+                    checkForUpdates(d.version);
                 })
                 .catch(e => console.error(e));
 
@@ -634,7 +670,7 @@ createApp({
             nodeModal, nodeForm, openNodeModal, saveNode, deleteNode, startGoogleAuth,
             routeModal, routeForm, openRouteModal, saveRoute, deleteRoute, toast,
             addMapping, removeMapping, protocolLabel, protocolClass, protocolBadge,
-            logsText, isAutoScroll, logLevelFilter, debugEnabled, toggleDebug, fetchLogs, version,
+            logsText, isAutoScroll, logLevelFilter, debugEnabled, toggleDebug, fetchLogs, version, latestVersion, updateAvailable, isUpdating, triggerUpdate,
             allModels, sourceModels, targetModels, fetchAllModels, onSourceProtocolChange, onTargetProtocolChange,
             availableTargetProtocols, routeTypeDesc
         };

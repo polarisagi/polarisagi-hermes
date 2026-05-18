@@ -22,6 +22,17 @@
                     Polaris
                 </h1>
                 <p class="text-slate-500 text-xs mt-1 uppercase tracking-wider">Gateway Admin <span v-if="version" class="ml-2 lowercase text-slate-400 font-mono">{{ version }}</span></p>
+                
+                <!-- 一键更新按钮 -->
+                <div v-if="updateAvailable" class="mt-4">
+                    <button @click="triggerUpdate" class="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white text-xs font-bold py-2 px-3 rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all transform hover:scale-[1.02]" :disabled="isUpdating">
+                        <span v-if="!isUpdating">✨ 发现新版本 {{ latestVersion }}</span>
+                        <span v-else class="flex items-center gap-2">
+                            <svg class="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                            正在自动更新...
+                        </span>
+                    </button>
+                </div>
             </div>
             <nav class="flex-1 p-4 space-y-2">
                 <a @click="currentTab = 'dashboard'" :class="currentTab === 'dashboard' ? 'bg-blue-600/20 text-blue-400 border-blue-500/50' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200 border-transparent'" class="block px-4 py-3 rounded-lg cursor-pointer transition border">

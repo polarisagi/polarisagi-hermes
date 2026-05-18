@@ -3,9 +3,10 @@ set -e
 
 REPO="mrlaoliai/polaris-gateway"
 BIN_NAME="polaris-gateway"
-INSTALL_DIR="/usr/local/bin"
+INSTALL_DIR="$HOME/.polaris-gateway/bin"
+PLIST_PATH="$HOME/Library/LaunchAgents/com.polaris.gateway.plist"
 
-echo "🌌 正在安装/更新 Polaris Gateway..."
+echo "🌌 正在安装/更新 Polaris Gateway (用户态模式)..."
 
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
@@ -29,13 +30,21 @@ curl -sSL -f -o /tmp/${BIN_NAME} "$DL_URL" || {
 
 chmod +x /tmp/${BIN_NAME}
 
+# 停止旧服务
 if [ "$OS" = "linux" ] && command -v systemctl >/dev/null; then
-    if systemctl is-active --quiet polaris-gateway 2>/dev/null; then
-        echo "🛑 正在停止运行中的 Linux 服务..."
-        sudo systemctl stop polaris-gateway || true
+    if systemctl --user is-active --quiet polaris-gateway 2>/dev/null; then
+        echo "🛑 正在停止运行中的 Linux 用户级服务..."
+        systemctl --user stop polaris-gateway || true
+    fi
+    # 清理遗留的全局系统服务（如果之前用 sudo 安装过）
+    if systemctl is-active --quiet polaris-gateway 2>/dev/null || [ -f "/etc/systemd/system/polaris-gateway.service" ]; then
+        echo "🧹 发现旧的全局 Systemd 服务，尝试停止并清理 (可能需要 sudo 密码)..."
+        sudo systemctl stop polaris-gateway 2>/dev/null || true
+        sudo systemctl disable polaris-gateway 2>/dev/null || true
+        sudo rm -f /etc/systemd/system/polaris-gateway.service
+        sudo systemctl daemon-reload
     fi
 elif [ "$OS" = "darwin" ]; then
-    PLIST_PATH="$HOME/Library/LaunchAgents/com.polaris.gateway.plist"
     if launchctl list | grep -q "com.polaris.gateway"; then
         echo "🛑 正在停止运行中的 macOS 服务..."
         launchctl unload "$PLIST_PATH" 2>/dev/null || true
@@ -43,40 +52,45 @@ elif [ "$OS" = "darwin" ]; then
     pkill -f "${BIN_NAME}" 2>/dev/null || true
 fi
 
-sudo mkdir -p ${INSTALL_DIR}
-sudo mv -f /tmp/${BIN_NAME} ${INSTALL_DIR}/${BIN_NAME}
+# 安装文件
+mkdir -p "${INSTALL_DIR}"
+mv -f /tmp/${BIN_NAME} "${INSTALL_DIR}/${BIN_NAME}"
 
 echo "✅ 二进制文件已安装至: ${INSTALL_DIR}/${BIN_NAME}"
 
-# Setup Service
+# 配置服务
 if [ "$OS" = "linux" ] && command -v systemctl >/dev/null; then
-    echo "⚙️ 正在配置 systemd 后台服务..."
-    cat <<EOF | sudo tee /etc/systemd/system/polaris-gateway.service > /dev/null
+    echo "⚙️ 正在配置 Linux 用户级 Systemd 后台服务..."
+    
+    SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
+    mkdir -p "$SYSTEMD_USER_DIR"
+    
+    cat <<EOF > "$SYSTEMD_USER_DIR/polaris-gateway.service"
 [Unit]
-Description=Polaris AI Gateway
+Description=Polaris AI Gateway (User Service)
 After=network.target
 
 [Service]
 ExecStart=${INSTALL_DIR}/${BIN_NAME}
 Restart=always
-User=root
-WorkingDirectory=/root
+WorkingDirectory=${HOME}
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
 EOF
-    sudo systemctl daemon-reload
-    sudo systemctl enable polaris-gateway
-    sudo systemctl restart polaris-gateway
-    echo "✅ Systemd 服务已启动。可通过 systemctl status polaris-gateway 查看状态。"
+
+    # 启用 lingering 使得用户退出登录后服务仍继续运行（可选，部分系统可能需要 root 权限，不强求）
+    loginctl enable-linger $USER 2>/dev/null || true
+
+    systemctl --user daemon-reload
+    systemctl --user enable polaris-gateway
+    systemctl --user restart polaris-gateway
+    echo "✅ Systemd 服务已启动。可通过 systemctl --user status polaris-gateway 查看状态。"
+
 elif [ "$OS" = "darwin" ]; then
     echo "⚙️ 正在配置 macOS launchd 后台服务..."
-    PLIST_PATH="$HOME/Library/LaunchAgents/com.polaris.gateway.plist"
     
-    # 卸载旧服务以支持无缝更新重启
-    if launchctl list | grep -q "com.polaris.gateway"; then
-        launchctl unload "$PLIST_PATH" 2>/dev/null || true
-    fi
+    mkdir -p "$HOME/Library/LaunchAgents"
 
     cat <<EOF > "$PLIST_PATH"
 <?xml version="1.0" encoding="UTF-8"?>
@@ -94,7 +108,7 @@ elif [ "$OS" = "darwin" ]; then
     <key>KeepAlive</key>
     <true/>
     <key>WorkingDirectory</key>
-    <string>$HOME</string>
+    <string>${HOME}</string>
 </dict>
 </plist>
 EOF
@@ -103,3 +117,4 @@ EOF
 fi
 
 echo "🎉 安装完成！请打开浏览器访问 http://127.0.0.1:28888/dashboard 进入控制台。"
+echo "💡 提示：如果需要在命令行直接使用 polaris-gateway，请将 ${INSTALL_DIR} 加入环境变量。"
