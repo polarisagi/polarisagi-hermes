@@ -75,6 +75,23 @@ func ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// 步骤2：从 URL 路径检测源协议类型
 	sourceProtocol := getIncomingProtocol(r.URL.Path)
 
+	// 严格校验：如果识别到的协议与路径中包含的业务端点特征不匹配，直接拦截报错，拒绝妥协适配
+	if sourceProtocol == "google" && (strings.Contains(r.URL.Path, "chat/completions") || strings.Contains(r.URL.Path, "embeddings") || strings.Contains(r.URL.Path, "messages")) {
+		slog.Warn("⚠️ [入口] 客户端请求协议与端点方法不匹配", "trace_id", traceID, "source_protocol", sourceProtocol, "path", r.URL.Path)
+		http.Error(w, `{"error": {"message": "Protocol mismatch: The requested endpoint (e.g. chat/completions) is not supported by the Google protocol. Please check your client's BaseURL configuration.", "type": "invalid_request_error", "code": "protocol_mismatch"}}`, http.StatusBadRequest)
+		return
+	}
+	if sourceProtocol == "openai" && (strings.Contains(r.URL.Path, "messages") || strings.Contains(r.URL.Path, "generateContent")) {
+		slog.Warn("⚠️ [入口] 客户端请求协议与端点方法不匹配", "trace_id", traceID, "source_protocol", sourceProtocol, "path", r.URL.Path)
+		http.Error(w, `{"error": {"message": "Protocol mismatch: The requested endpoint is not supported by the OpenAI protocol. Please check your client's BaseURL configuration.", "type": "invalid_request_error", "code": "protocol_mismatch"}}`, http.StatusBadRequest)
+		return
+	}
+	if sourceProtocol == "anthropic" && (strings.Contains(r.URL.Path, "chat/completions") || strings.Contains(r.URL.Path, "generateContent")) {
+		slog.Warn("⚠️ [入口] 客户端请求协议与端点方法不匹配", "trace_id", traceID, "source_protocol", sourceProtocol, "path", r.URL.Path)
+		http.Error(w, `{"error": {"message": "Protocol mismatch: The requested endpoint is not supported by the Anthropic protocol. Please check your client's BaseURL configuration.", "type": "invalid_request_error", "code": "protocol_mismatch"}}`, http.StatusBadRequest)
+		return
+	}
+
 	// 步骤3：清洗 URL 路径 — 移除协议前缀段 (/v1/vertex/models/... → /v1/models/...)
 	// 这样下游转换器接收到的是干净的路径，无需关心协议前缀
 	r.URL.Path = stripProtocolPrefix(r.URL.Path)
