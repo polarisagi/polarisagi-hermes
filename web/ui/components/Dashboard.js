@@ -266,8 +266,8 @@ export default {
                                 </td>
                                 <td class="px-6 py-4 text-right align-top pt-5">{{ formatToken(row.prompt_tokens + row.completion_tokens) }}</td>
                                 <td class="px-6 py-4 text-center align-top pt-5">
-                                    <span class="bg-emerald-900 text-emerald-300 text-xs px-2 py-1 rounded mr-1">√ {{ row.success_count }}</span>
-                                    <span class="bg-red-900 text-red-300 text-xs px-2 py-1 rounded">x {{ row.error_count }}</span>
+                                    <span class="bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 text-xs px-2 py-1 rounded mr-1">√ {{ row.success_count }}</span>
+                                    <span class="bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 text-xs px-2 py-1 rounded">x {{ row.error_count }}</span>
                                 </td>
                             </tr>
                             <tr v-if="groupedApiData.length === 0">
@@ -303,8 +303,8 @@ export default {
                                 <td class="px-6 py-4 text-right font-bold text-emerald-400">$ {{ formatNum(row.period_cost_usd) }}</td>
                                 <td class="px-6 py-4 text-right text-gray-500 dark:text-slate-400 text-xs">{{ formatToken(row.prompt_tokens) }} / {{ formatToken(row.completion_tokens) }}</td>
                                 <td class="px-6 py-4 text-center">
-                                    <span class="bg-emerald-900 text-emerald-300 text-xs px-2 py-1 rounded mr-1">√ {{ row.success_count }}</span>
-                                    <span class="bg-red-900 text-red-300 text-xs px-2 py-1 rounded">x {{ row.error_count }}</span>
+                                    <span class="bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 text-xs px-2 py-1 rounded mr-1">√ {{ row.success_count }}</span>
+                                    <span class="bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 text-xs px-2 py-1 rounded">x {{ row.error_count }}</span>
                                 </td>
                             </tr>
                         </tbody>

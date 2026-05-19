@@ -470,10 +470,16 @@ function getSystemTheme() {
 
 function applyTheme(theme) {
     localStorage.setItem('polaris_theme', theme);
-    if (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+    const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    
+    if (isDark) {
         document.documentElement.classList.add('dark');
+        const fpDark = document.getElementById('flatpickr-dark-theme');
+        if (fpDark) fpDark.removeAttribute('disabled');
     } else {
         document.documentElement.classList.remove('dark');
+        const fpDark = document.getElementById('flatpickr-dark-theme');
+        if (fpDark) fpDark.setAttribute('disabled', 'true');
     }
 }
 
