@@ -208,7 +208,7 @@ func mapToVertexRequest(req MessageRequest, model string) (map[string]interface{
 						// 回退1：使用同一个 message 中的前一个 thinking 块的 signature
 						if thoughtSig == "" && lastSignature != "" {
 							thoughtSig = lastSignature
-							lastSignature = ""
+							// 移除 lastSignature = ""，保留给可能存在的平行工具调用
 						}
 						
 						if thoughtSig != "" {

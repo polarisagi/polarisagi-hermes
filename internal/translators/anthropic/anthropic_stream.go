@@ -311,6 +311,7 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 				// 存入缓存以便下一轮请求回填（否则 API 返回 400）
 				// 并将其编码到 toolID 中，确保服务重启后客户端历史依然能带回 signature
 				if sig, ok := part["thoughtSignature"].(string); ok && sig != "" {
+					thoughtSig = sig // 保存给后续平行的 functionCall 使用
 					toolID = fmt.Sprintf("%s_sig_%s", toolID, sig)
 					toolThoughtSigCache.Store(toolID, sig)
 				} else if thoughtSig != "" {
