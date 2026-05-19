@@ -901,6 +901,23 @@ func sanitizeSchema(schema map[string]interface{}) map[string]interface{} {
 		}
 	}
 
+	// 自动推断缺失的 type（Vertex AI 强制要求属性必须有 type，除了 anyOf 场景）
+	if _, hasType := result["type"]; !hasType {
+		if _, hasAnyOf := result["anyOf"]; !hasAnyOf {
+			if _, hasProps := result["properties"]; hasProps {
+				result["type"] = "OBJECT"
+			} else if _, hasItems := result["items"]; hasItems {
+				result["type"] = "ARRAY"
+			} else if _, hasEnum := result["enum"]; hasEnum {
+				result["type"] = "STRING" // enum 兜底推断为字符串
+			} else {
+				// 兜底为 STRING 以防止 Vertex 报 400 "type must be specified"
+				// 但要注意只对最内层的属性兜底，这里简单应用
+				result["type"] = "STRING"
+			}
+		}
+	}
+
 	// 专门处理 Vertex AI 极其严格的 Type 字段限制
 	if typeVal, ok := result["type"]; ok {
 		if tStr, ok := typeVal.(string); ok {
