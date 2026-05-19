@@ -250,7 +250,7 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 							Signature: thoughtSig,
 						},
 					})
-					thoughtSig = ""
+					// 不清空 thoughtSig，保留给后续的 functionCall 使用
 				}
 				writeSSEContentBlockStop(w, flusher, blockIndex)
 				inThinking = false
@@ -313,6 +313,9 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 				if sig, ok := part["thoughtSignature"].(string); ok && sig != "" {
 					toolID = fmt.Sprintf("%s_sig_%s", toolID, sig)
 					toolThoughtSigCache.Store(toolID, sig)
+				} else if thoughtSig != "" {
+					toolID = fmt.Sprintf("%s_sig_%s", toolID, thoughtSig)
+					toolThoughtSigCache.Store(toolID, thoughtSig)
 				}
 				
 				writeSSE(w, flusher, "content_block_start", StreamEvent{
@@ -563,6 +566,7 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 			if content, ok := cand["content"].(map[string]interface{}); ok {
 				if parts, ok := content["parts"].([]interface{}); ok && len(parts) > 0 {
 					toolIdx := 0
+					var lastSig string
 					for _, partIntf := range parts {
 						part, _ := partIntf.(map[string]interface{})
 						// Gemini thought 部分 → Anthropic thinking 内容块
@@ -571,6 +575,9 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 						if isThought, _ := part["thought"].(bool); isThought {
 							thinkText, _ := part["text"].(string)
 							sig, _ := part["thoughtSignature"].(string)
+							if sig != "" {
+								lastSig = sig
+							}
 							if thinkText != "" {
 								contents = append(contents, Content{
 									Type:      "thinking",
@@ -613,6 +620,9 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 							if sig, ok := part["thoughtSignature"].(string); ok && sig != "" {
 								toolID = fmt.Sprintf("%s_sig_%s", toolID, sig)
 								toolThoughtSigCache.Store(toolID, sig)
+							} else if lastSig != "" {
+								toolID = fmt.Sprintf("%s_sig_%s", toolID, lastSig)
+								toolThoughtSigCache.Store(toolID, lastSig)
 							}
 							contents = append(contents, Content{
 								Type:  "tool_use",

@@ -146,7 +146,12 @@ func mapToVertexRequest(req MessageRequest, model string) (map[string]interface{
 				if m, ok := item.(map[string]interface{}); ok {
 					switch m["type"] {
 					case "text":
-						parts = append(parts, map[string]interface{}{"text": m["text"]})
+						textPart := map[string]interface{}{"text": m["text"]}
+						if lastSignature != "" {
+							textPart["thoughtSignature"] = lastSignature
+							lastSignature = ""
+						}
+						parts = append(parts, textPart)
 					case "thinking":
 						// 根据规则：思考块（thinking）请求丢弃
 						// 提取 signature 供后续可能存在的 tool_use 块使用，但不将此块发送给 Gemini
@@ -203,13 +208,10 @@ func mapToVertexRequest(req MessageRequest, model string) (map[string]interface{
 						// 回退1：使用同一个 message 中的前一个 thinking 块的 signature
 						if thoughtSig == "" && lastSignature != "" {
 							thoughtSig = lastSignature
-						}
-						// 回退2：若是 Gemini 3.x，必须提供 thoughtSignature，否则上游直接 400
-						if thoughtSig == "" && isGemini3Model(model) {
-							thoughtSig = "CvMDAY89a1/f2vyEsKoCEmpZvUiJ4trV0B3A3K4I171tJ8CnwVvcFZHRrfvEwerszM/nvLuO7RxLpLR+LZBcnCYfuJ8ZvwupJmeIXO3yc9BMEqHl1VUV8Rpi3H+Pg/jUB9jRbx59Beb4KSDEGedYaPrFQkzOygCORYZb6SjZkWJTP4XFtXOE0imQmY/Vf67Xpmqo5FdKE/bFlEVYBCYs4/HcfI72QCQteWVz5vMzlsP+T6v3mbjjiDjcFE6zBD+Kei2ugFbnxrNhd+wYiJ/AXPmY+akDLcGa/Ko1zojsbSeZNhl+37dCvk9D2WYnZiIW3Axt/KY3Dy7B0hnRkO2OrTwySwnS2WU1Lco79gmnxWDItZ70bF34bj3BxbS+P4SH/JHYZKjhU6nlR8ADOQn+Xi1pRF45X6buL7gyE6vFSG5ohwdsWId3IDiuQ4/Q24rmBiAS88IgQe9oeYVB8oUnXXFN4/+to1fiiT9ObkIbeNE+zINsK6stZSHqfvuNiND8kEXLdCl1LLVKwzvPHFY2iEGcqAlSUprBnwuV77a7FVtZ4poS1ePNsBGPwJbBchzGUxDH/xNLqOK9QsyLByd7xw1BMJv/DHSwFFa/J2CfgCGZKen0BT7Y5oPwbK+SaHdHeIXC2421mO2yM79WQpH0o67jZlfFiA=="
+							lastSignature = ""
 						}
 						
-						if thoughtSig != "" || isGemini3Model(model) {
+						if thoughtSig != "" {
 							partObj["thoughtSignature"] = thoughtSig
 						}
 
