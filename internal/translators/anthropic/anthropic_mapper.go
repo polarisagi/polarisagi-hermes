@@ -135,6 +135,8 @@ func mapToVertexRequest(req MessageRequest, model string) (map[string]interface{
 			role = "model"
 		}
 
+		// Keep track of the signature from a thinking block in the same message
+		var lastSignature string
 		var parts []map[string]interface{}
 		switch v := msg.Content.(type) {
 		case string:
@@ -151,6 +153,9 @@ func mapToVertexRequest(req MessageRequest, model string) (map[string]interface{
 						// 原样传回以维持多轮对话中的思考连贯性（Gemini 校验签名匹配）
 						thinkText, _ := m["thinking"].(string)
 						sig, _ := m["signature"].(string)
+						if sig != "" {
+							lastSignature = sig
+						}
 						thoughtPart := map[string]interface{}{
 							"text":    thinkText,
 							"thought": true,
@@ -227,6 +232,18 @@ func mapToVertexRequest(req MessageRequest, model string) (map[string]interface{
 								fc["thoughtSignature"] = id[idx+5:]
 							}
 						}
+						
+						// 回退1：使用同一个 message 中的前一个 thinking 块的 signature
+						if _, ok := fc["thoughtSignature"]; !ok && lastSignature != "" {
+							fc["thoughtSignature"] = lastSignature
+						}
+						// 回退2：若是 Gemini 3.x，必须提供 thoughtSignature，否则上游直接 400
+						if _, ok := fc["thoughtSignature"]; !ok && isGemini3Model(model) {
+							// 提供一个伪造的 signature，避免 Vertex 拒绝请求。
+							// Claude Code 可能会传入其他模型（如 Gemini 2.5 / Claude 3.5）生成的历史记录，其中不包含 signature。
+							fc["thoughtSignature"] = "00000000000000000000000000000000"
+						}
+
 						parts = append(parts, map[string]interface{}{
 							"functionCall": fc,
 						})
