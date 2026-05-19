@@ -137,8 +137,10 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 		if safetyRatings, ok := cand["safetyRatings"].([]interface{}); ok {
 			for _, sr := range safetyRatings {
 				if srm, ok := sr.(map[string]interface{}); ok {
-					if prob, ok := srm["probability"].(string); ok && prob != "NEGLIGIBLE" {
+					isBlocked, _ := srm["blocked"].(bool)
+					if isBlocked {
 						cat, _ := srm["category"].(string)
+						prob, _ := srm["probability"].(string)
 						streamError = fmt.Sprintf("content blocked by GEAP safety filter: category=%s probability=%s", cat, prob)
 						slog.Error("❌ [Stream] GEAP safetyRatings 触发安全拦截", "trace_id", traceID, "account", dest.Node.Name, "category", cat, "probability", prob)
 						break
@@ -518,8 +520,10 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 			if safetyRatings, ok := cand["safetyRatings"].([]interface{}); ok {
 				for _, sr := range safetyRatings {
 					if srm, ok := sr.(map[string]interface{}); ok {
-						if prob, ok := srm["probability"].(string); ok && prob != "NEGLIGIBLE" {
+						isBlocked, _ := srm["blocked"].(bool)
+						if isBlocked {
 							cat, _ := srm["category"].(string)
+							prob, _ := srm["probability"].(string)
 							slog.Error("❌ [NonStream] GEAP safetyRatings 触发安全拦截", "trace_id", traceID, "account", dest.Node.Name, "category", cat, "probability", prob)
 							w.Header().Set("Content-Type", "application/json")
 							w.WriteHeader(http.StatusBadGateway)
