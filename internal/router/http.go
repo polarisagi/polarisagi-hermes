@@ -169,6 +169,13 @@ func ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("📥 [入口] 模型提取结果", "trace_id", traceID, "source_protocol", sourceProtocol, "model", modelName)
 
 	if modelName == "" || modelName == "_google_native_" {
+		if len(bodyBytes) == 0 {
+			// 空 body 请求是客户端连通性探测（如 Claude Code 启动时 POST /v1/anthropic），静默返回 200
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"status": "ok"}`))
+			return
+		}
 		slog.Warn("⚠️ [入口] 无法提取模型名", "trace_id", traceID, "source_protocol", sourceProtocol, "path", r.URL.Path, "body_preview", string(bodyBytes[:min(len(bodyBytes), 200)]))
 		http.Error(w, `{"error": "Missing model field in request"}`, http.StatusBadRequest)
 		return

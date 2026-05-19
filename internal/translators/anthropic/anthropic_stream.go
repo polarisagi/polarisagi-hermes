@@ -20,7 +20,9 @@ import (
 // 事件序列: message_start → content_block_start → content_block_delta* → content_block_stop → message_delta → message_stop
 // 同时在最后解析 usageMetadata 完成计费结算
 // 返回 streamOK: false 表示流式传输中发生不可恢复错误（Vertex 返回错误、IO 断联等），调用方应标记节点失败
-func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexResp *http.Response, req MessageRequest, traceID string, dest *router.MatchedDestination, clientType, modelName string, reqBody []byte) (streamOK bool) {
+// streamAnthropicResponse 从 Vertex 后端读取流式 SSE 响应，边读边转为 Anthropic SSE 格式
+// isCompact=true 时将文本块输出为 compaction 内容块（Claude Code /compact 协议）
+func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexResp *http.Response, req MessageRequest, traceID string, dest *router.MatchedDestination, clientType, modelName string, reqBody []byte, isCompact bool) (streamOK bool) {
 	defer vertexResp.Body.Close()
 
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -255,12 +257,17 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 
 			if text, ok := part["text"].(string); ok {
 				if !inText {
+					blockType := "text"
+					if isCompact {
+						// /compact 请求：用 compaction 内容块替代普通文本块
+						// Anthropic 协议要求响应含 compaction 块才能触发真正的上下文截断
+						blockType = "compaction"
+					}
 					writeSSE(w, flusher, "content_block_start", StreamEvent{
 						Type:  "content_block_start",
 						Index: ptrInt(blockIndex),
 						ContentBlock: &Content{
-							Type: "text",
-							Text: "",
+							Type: blockType,
 						},
 					})
 					inText = true
@@ -268,13 +275,16 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 
 				if text != "" {
 					emittedText = true
+					var delta *Delta
+					if isCompact {
+						delta = &Delta{Type: "compaction_delta", Content: text}
+					} else {
+						delta = &Delta{Type: "text_delta", Text: text}
+					}
 					writeSSE(w, flusher, "content_block_delta", StreamEvent{
 						Type:  "content_block_delta",
 						Index: ptrInt(blockIndex),
-						Delta: &Delta{
-							Type: "text_delta",
-							Text: text,
-						},
+						Delta: delta,
 					})
 				}
 			}
@@ -295,6 +305,11 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 					continue
 				}
 				toolID = fmt.Sprintf("toolu_%s_%d", traceID, blockIndex)
+				// Gemini 3.x 在 functionCall part 携带 thoughtSignature，
+				// 存入缓存以便下一轮请求回填（否则 API 返回 400）
+				if sig, ok := fc["thoughtSignature"].(string); ok && sig != "" {
+					toolThoughtSigCache.Store(toolID, sig)
+				}
 				
 				writeSSE(w, flusher, "content_block_start", StreamEvent{
 					Type:  "content_block_start",
@@ -427,7 +442,8 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 }
 
 // handleAnthropicNonStreamResponse 处理 Google Agent Platform 非流式响应，提取文本和用量，转为 Anthropic JSON 格式返回
-func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Response, req MessageRequest, traceID string, dest *router.MatchedDestination, clientType, modelName string, reqBody []byte) {
+// isCompact=true 时将文本块转换为 compaction 内容块（Claude Code /compact 协议）
+func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Response, req MessageRequest, traceID string, dest *router.MatchedDestination, clientType, modelName string, reqBody []byte, isCompact bool) {
 	defer vertexResp.Body.Close()
 	bodyBytes, err := io.ReadAll(vertexResp.Body)
 	if err != nil {
@@ -559,11 +575,19 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 							continue
 						}
 						if t, ok := part["text"].(string); ok {
-							// 允许空字符串，避免 contents 为空导致 Claude Code /compact 报错 "empty response"
-							contents = append(contents, Content{
-								Type: "text",
-								Text: t,
-							})
+							if isCompact {
+								// /compact 请求：将文本转为 compaction 内容块
+								// Anthropic 协议要求响应含 compaction 块才能触发真正的上下文截断
+								contents = append(contents, Content{
+									Type:    "compaction",
+									Content: t,
+								})
+							} else {
+								contents = append(contents, Content{
+									Type: "text",
+									Text: t,
+								})
+							}
 						}
 						if fc, ok := part["functionCall"].(map[string]interface{}); ok {
 							name, _ := fc["name"].(string)
@@ -576,9 +600,15 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 							if err := json.Unmarshal(argsBytes, &args); err != nil {
 								args = make(map[string]interface{})
 							}
+							toolID := fmt.Sprintf("toolu_%s_%d", traceID, toolIdx)
+							// Gemini 3.x 在 functionCall part 携带 thoughtSignature，
+							// 存入缓存以便下一轮请求回填（否则 API 返回 400）
+							if sig, ok := fc["thoughtSignature"].(string); ok && sig != "" {
+								toolThoughtSigCache.Store(toolID, sig)
+							}
 							contents = append(contents, Content{
 								Type:  "tool_use",
-								ID:    fmt.Sprintf("toolu_%s_%d", traceID, toolIdx),
+								ID:    toolID,
 								Name:  name,
 								Input: args,
 							})

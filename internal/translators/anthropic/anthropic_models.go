@@ -114,4 +114,5 @@ type Delta struct {
 	StopReason   string `json:"stop_reason,omitempty"`
 	StopSequence string `json:"stop_sequence,omitempty"` // 触发停止的序列
 	PartialJson  string `json:"partial_json,omitempty"`  // for input_json_delta (tool_use)
+	Content      string `json:"content,omitempty"`       // for compaction_delta（/compact 上下文压缩摘要块）
 }

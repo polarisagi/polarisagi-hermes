@@ -35,8 +35,8 @@ var tke *tiktoken.Tiktoken
 func getTiktoken() *tiktoken.Tiktoken {
 	if tke == nil {
 		var err error
-		// Claude 的 token 密度类似 openai 的 cl100k_base 或 o200k_base
-		tke, err = tiktoken.GetEncoding("cl100k_base")
+		// o200k_base 是 OpenAI 最新分词器，对 CJK 字符密度更接近 Claude 实际分词
+		tke, err = tiktoken.GetEncoding("o200k_base")
 		if err != nil {
 			slog.Error("⚠️ [CountTokens] 初始化 tiktoken 失败，可能会影响 token 计算精度", "error", err)
 		}
@@ -60,7 +60,7 @@ func isCountTokensPath(path string) bool {
 }
 
 // estimateAnthropicTokens 本地估算 Anthropic Messages 请求的 input token 数
-// 使用 tiktoken (cl100k_base) 提供高精度的精确内存估算
+// 使用 tiktoken (o200k_base) 提供高精度的精确内存估算
 // 此计算能够支撑 Claude Code 准确判断上下文并触发 /compact，避免超限报错。
 func estimateAnthropicTokens(req MessageRequest) int {
 	total := 0
@@ -123,6 +123,14 @@ func estimateAnthropicTokens(req MessageRequest) int {
 					if t, ok := m["thinking"].(string); ok {
 						total += countTextTokens(t)
 					}
+				case "redacted_thinking":
+					// 加密 thinking blob，固定开销估算
+					total += 50
+				case "compaction":
+					// /compact 产生的历史摘要检查点
+					if c, ok := m["content"].(string); ok {
+						total += countTextTokens(c)
+					}
 				}
 			}
 		}
@@ -130,7 +138,14 @@ func estimateAnthropicTokens(req MessageRequest) int {
 	}
 
 	// Tools：name + description + input_schema
+	// Anthropic 对内置工具类型有固定 token 开销（官方统计）：
+	//   bash: ~245 tokens, text_editor: ~700 tokens, computer: ~735 tokens
 	for _, tool := range req.Tools {
+		if tool.Type != "" {
+			// 内置工具按类型计固定开销，无需序列化 schema（schema 内置于模型中）
+			total += builtinToolTokenCost(tool.Type)
+			continue
+		}
 		total += countTextTokens(tool.Name)
 		total += countTextTokens(tool.Description)
 		if tool.InputSchema != nil {
@@ -140,6 +155,29 @@ func estimateAnthropicTokens(req MessageRequest) int {
 	}
 
 	return total
+}
+
+// builtinToolTokenCost 返回 Anthropic 内置工具的固定 token 开销估算
+// 参考 Anthropic 官方文档的 token overhead 数据
+func builtinToolTokenCost(toolType string) int {
+	switch {
+	case strings.Contains(toolType, "bash"):
+		return 245
+	case strings.Contains(toolType, "text_editor"), strings.Contains(toolType, "str_replace_based_edit_tool"):
+		return 700
+	case strings.Contains(toolType, "computer"):
+		return 735
+	case strings.Contains(toolType, "web_search"):
+		return 100
+	case strings.Contains(toolType, "web_fetch"):
+		return 100
+	case strings.Contains(toolType, "code_execution"):
+		return 150
+	case strings.Contains(toolType, "memory"):
+		return 600
+	default:
+		return 100
+	}
 }
 
 // handleCountTokensLocal 在网关本地估算后直接返回 Anthropic 格式响应
@@ -236,10 +274,10 @@ func handleVertexCountTokens(ctx context.Context, w http.ResponseWriter, bodyByt
 	if dest.TargetModel != "" {
 		model = dest.TargetModel
 	} else if model == "" || strings.Contains(model, "claude") {
-		model = "gemini-1.5-pro"
+		model = "gemini-3.1-pro-preview" // 与实际使用的模型系列一致
 	}
 
-	vReq, _ := mapToVertexRequest(req)
+	vReq, _ := mapToVertexRequest(req, model)
 	// countTokens 端点只接受 contents/systemInstruction/tools，其余字段均不支持
 	delete(vReq, "generationConfig")
 	delete(vReq, "safetySettings")

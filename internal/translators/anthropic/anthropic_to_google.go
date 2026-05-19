@@ -95,10 +95,20 @@ func AnthropicToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// 检测 compact-2026-01-12 beta：Claude Code /compact 触发的上下文压缩请求
+	// Gemini 不原生支持 compaction 块，由网关在响应侧合成正确的 compaction 内容块格式
+	isCompact := false
+	for _, betaVal := range r.Header["Anthropic-Beta"] {
+		if strings.Contains(betaVal, "compact-2026-01-12") {
+			isCompact = true
+			break
+		}
+	}
+
 	if useGEAPClaude {
 		handleGEAPClaude(ctx, w, r, bodyBytes, dest, traceID, finalModel, req.Stream)
 	} else {
-		handleGemini(ctx, w, bodyBytes, dest, traceID, finalModel, req)
+		handleGemini(ctx, w, bodyBytes, dest, traceID, finalModel, req, isCompact)
 	}
 }
 
@@ -299,14 +309,14 @@ func handleGEAPClaudeCountTokens(ctx context.Context, w http.ResponseWriter, r *
 // 响应体：Gemini 格式 → Anthropic 格式（streamAnthropicResponse / handleAnthropicNonStreamResponse）
 
 // handleGemini 将 Anthropic 请求转换为 Gemini GenerateContent 格式后转发
-func handleGemini(ctx context.Context, w http.ResponseWriter, bodyBytes []byte, dest *router.MatchedDestination, traceID, model string, req MessageRequest) {
+func handleGemini(ctx context.Context, w http.ResponseWriter, bodyBytes []byte, dest *router.MatchedDestination, traceID, model string, req MessageRequest, isCompact bool) {
 	const clientType = "Anthropic-Adapter"
 
-	vReq, _ := mapToVertexRequest(req)
+	vReq, _ := mapToVertexRequest(req, model)
 	vReqBytes, _ := json.Marshal(vReq)
 
 	if model == "" {
-		model = "gemini-1.5-pro"
+		model = "gemini-3.1-pro-preview"
 	}
 
 	var subpath string
@@ -356,12 +366,12 @@ func handleGemini(ctx context.Context, w http.ResponseWriter, bodyBytes []byte, 
 	}
 
 	if req.Stream {
-		streamOK := streamAnthropicResponse(ctx, w, finalResp, req, traceID, dest, clientType, model, bodyBytes)
+		streamOK := streamAnthropicResponse(ctx, w, finalResp, req, traceID, dest, clientType, model, bodyBytes, isCompact)
 		if !streamOK {
 			isNodeFailure = true
 		}
 	} else {
-		handleAnthropicNonStreamResponse(w, finalResp, req, traceID, dest, clientType, model, bodyBytes)
+		handleAnthropicNonStreamResponse(w, finalResp, req, traceID, dest, clientType, model, bodyBytes, isCompact)
 	}
 	utils.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
 }

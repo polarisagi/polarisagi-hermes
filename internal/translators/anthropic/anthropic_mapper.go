@@ -6,7 +6,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 )
+
+// toolThoughtSigCache 跨请求保存 Gemini 3.x functionCall 携带的 thoughtSignature。
+// key: tool_use_id（Anthropic 格式）→ value: thoughtSignature（Gemini 格式）
+// Gemini 3.x 要求多轮 function calling 时在历史中带回 thoughtSignature，
+// 否则返回 400 "Function call is missing a thought_signature"。
+var toolThoughtSigCache sync.Map
 
 // geapSafetySettings BLOCK_NONE 安全配置，针对所有文本内容类别
 // 原因：Claude Code 频繁发送含代码、安全研究、命令行等内容，Gemini 默认阈值会误触安全过滤器
@@ -19,7 +26,47 @@ var geapSafetySettings = []map[string]interface{}{
 	{"category": "HARM_CATEGORY_JAILBREAK", "threshold": "BLOCK_NONE"},
 }
 
+// findLastCompactionIndex 返回 messages 中最后一个包含 compaction 块的消息下标，
+// 未找到时返回 -1。
+// compaction 块是 Claude Code /compact 产生的检查点，Anthropic API 规定其之前的消息全部丢弃。
+func findLastCompactionIndex(messages []Message) int {
+	for i := len(messages) - 1; i >= 0; i-- {
+		if arr, ok := messages[i].Content.([]interface{}); ok {
+			for _, item := range arr {
+				if m, ok := item.(map[string]interface{}); ok {
+					if m["type"] == "compaction" {
+						return i
+					}
+				}
+			}
+		}
+	}
+	return -1
+}
+
+// isGemini3Model 判断目标模型是否为 Gemini 3.x 系列
+// Gemini 3.x 的 thinkingConfig 使用 thinkingLevel（LOW/MEDIUM/HIGH）替代 thinkingBudget（整数）
+func isGemini3Model(model string) bool {
+	return strings.HasPrefix(strings.ToLower(model), "gemini-3")
+}
+
+// budgetToThinkingLevel 将 Anthropic thinking.budget_tokens 映射到 Gemini 3.x thinkingLevel 枚举值
+// Claude Code /effort 默认 budget 约 16000，映射到 HIGH
+func budgetToThinkingLevel(budgetTokens int) string {
+	switch {
+	case budgetTokens <= 0:
+		return "MEDIUM" // 未指定时取中档，兼顾质量与速度
+	case budgetTokens <= 5000:
+		return "LOW"
+	case budgetTokens <= 16000:
+		return "MEDIUM"
+	default:
+		return "HIGH"
+	}
+}
+
 // mapToVertexRequest 将 Anthropic Messages 请求转换为 GEAP 原生的 generateContent 请求体
+// model 参数用于区分 Gemini 2.5（thinkingBudget）与 Gemini 3.x（thinkingLevel）的 thinking API 差异
 // 转换规则:
 //   - Anthropic system → GEAP systemInstruction
 //   - Anthropic user/assistant → GEAP user/model 角色
@@ -30,7 +77,7 @@ var geapSafetySettings = []map[string]interface{}{
 //   - Anthropic tool_choice → GEAP toolConfig
 //   - Anthropic metadata.user_id → GEAP labels（用于计费追踪）
 //   - 默认附加 safetySettings=BLOCK_NONE 避免安全过滤器误杀代码内容
-func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
+func mapToVertexRequest(req MessageRequest, model string) (map[string]interface{}, error) {
 	vertexReq := make(map[string]interface{})
 
 	if req.System != nil {
@@ -56,9 +103,16 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 		}
 	}
 
+	// 预处理：若消息链中含有 compaction 块（来自上一次 /compact），
+	// 截断其之前的所有消息（Anthropic API 的行为：compaction 块是历史检查点，之前内容已被摘要替代）
+	messages := req.Messages
+	if lastIdx := findLastCompactionIndex(messages); lastIdx >= 0 {
+		messages = messages[lastIdx:]
+	}
+
 	// Build a map of tool_use_id to tool name for mapping tool_results later
 	toolMap := make(map[string]string)
-	for _, msg := range req.Messages {
+	for _, msg := range messages {
 		if arr, ok := msg.Content.([]interface{}); ok {
 			for _, item := range arr {
 				if m, ok := item.(map[string]interface{}); ok {
@@ -75,7 +129,7 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 	}
 
 	var contents []map[string]interface{}
-	for _, msg := range req.Messages {
+	for _, msg := range messages {
 		role := "user"
 		if msg.Role == "assistant" {
 			role = "model"
@@ -105,6 +159,12 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 							thoughtPart["thoughtSignature"] = sig
 						}
 						parts = append(parts, thoughtPart)
+					case "compaction":
+						// compaction 块是 /compact 产生的历史摘要检查点
+						// 将摘要内容作为普通文本传给 Gemini，让模型知晓之前对话的要点
+						if content, ok := m["content"].(string); ok && content != "" {
+							parts = append(parts, map[string]interface{}{"text": content})
+						}
 					case "redacted_thinking":
 						// redacted_thinking 存储 Anthropic 加密的 blob（data 字段），Gemini 无对等概念
 						// Gemini 通过 thoughtSignature 机制维持思考连贯性，无需加密 blob，安全丢弃
@@ -152,12 +212,20 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 							}
 						}
 					case "tool_use":
+						fc := map[string]interface{}{
+							"name": m["name"],
+							"args": m["input"],
+						}
+						// Gemini 3.x 要求多轮 function calling 时在历史中带回 thoughtSignature，
+						// 否则返回 400 "Function call is missing a thought_signature"。
+						// 网关在收到 Gemini 响应时把 signature 存入 toolThoughtSigCache，此处回填。
+						if id, ok := m["id"].(string); ok && id != "" {
+							if sig, ok := toolThoughtSigCache.Load(id); ok {
+								fc["thoughtSignature"] = sig
+							}
+						}
 						parts = append(parts, map[string]interface{}{
-							"functionCall": map[string]interface{}{
-								"name": m["name"],
-								"args": m["input"],
-							},
-							"thoughtSignature": "skip_thought_signature_validator",
+							"functionCall": fc,
 						})
 					case "tool_result":
 						toolUseID, _ := m["tool_use_id"].(string)
@@ -298,16 +366,27 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 		genConfig["stopSequences"] = req.StopSequences
 	}
 	// 扩展思考映射：Anthropic thinking.budget_tokens → Gemini thinkingConfig
+	// Gemini 2.5：thinkingBudget（整数 token 数）
+	// Gemini 3.x：thinkingLevel（LOW/MEDIUM/HIGH），两者不可同时使用（API 会返回 400）
 	// includeThoughts:true 让 Gemini 在响应中返回 thought 标记的 parts，
-	// 流式处理器会将其转换为 Anthropic thinking 内容块
+	// 流式/非流式处理器会将其转换为 Anthropic thinking 内容块 + signature_delta
 	if req.Thinking != nil && req.Thinking.Type == "enabled" {
-		thinkingCfg := map[string]interface{}{
-			"includeThoughts": true,
+		if isGemini3Model(model) {
+			// Gemini 3.x：使用 thinkingLevel 枚举，不接受 thinkingBudget 整数
+			genConfig["thinkingConfig"] = map[string]interface{}{
+				"includeThoughts": true,
+				"thinkingMode":    budgetToThinkingLevel(req.Thinking.BudgetTokens),
+			}
+		} else {
+			// Gemini 2.5：使用 thinkingBudget 整数
+			thinkingCfg := map[string]interface{}{
+				"includeThoughts": true,
+			}
+			if req.Thinking.BudgetTokens > 0 {
+				thinkingCfg["thinkingBudget"] = req.Thinking.BudgetTokens
+			}
+			genConfig["thinkingConfig"] = thinkingCfg
 		}
-		if req.Thinking.BudgetTokens > 0 {
-			thinkingCfg["thinkingBudget"] = req.Thinking.BudgetTokens
-		}
-		genConfig["thinkingConfig"] = thinkingCfg
 	}
 	if len(genConfig) > 0 {
 		vertexReq["generationConfig"] = genConfig
@@ -341,6 +420,14 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 				{
 					"functionDeclarations": functionDeclarations,
 				},
+			}
+			// Gemini 2.5 自动 thinking（未显式配置 thinkingConfig）与 function calling 存在已知冲突：
+			// 模型会生成 name="thought" 的非法 functionCall，导致 MALFORMED_FUNCTION_CALL。
+			// 仅在未显式配置 thinking 时禁用自动 thinking；用户通过 /effort 显式开启的 thinking 保留，
+			// 因为显式 includeThoughts:true 可与工具调用正确共存（Gemini 2.5 支持 thinking + tools 混合模式）。
+			if _, hasExplicitThinking := genConfig["thinkingConfig"]; !hasExplicitThinking {
+				genConfig["thinkingConfig"] = map[string]interface{}{"thinkingBudget": 0}
+				vertexReq["generationConfig"] = genConfig
 			}
 		}
 	}
@@ -420,58 +507,114 @@ func builtinToolToFunctionDecl(t Tool) map[string]interface{} {
 						"type":        "STRING",
 						"description": "The bash command to run",
 					},
+					"restart": map[string]interface{}{
+						"type":        "BOOLEAN",
+						"description": "Restart the bash shell session, clearing environment and history",
+					},
+					"timeout": map[string]interface{}{
+						"type":        "INTEGER",
+						"description": "Timeout in milliseconds for the command",
+					},
 				},
 				"required": []interface{}{"command"},
 			}
-		case strings.Contains(t.Type, "text_editor") || strings.Contains(name, "text_editor"):
-			params = map[string]interface{}{
-				"type": "OBJECT",
-				"properties": map[string]interface{}{
-					"command": map[string]interface{}{
-						"type":        "STRING",
-						"description": "The command to run: view, create, str_replace, or insert",
-					},
-					"path": map[string]interface{}{
-						"type":        "STRING",
-						"description": "Absolute path to file or directory",
-					},
-					"file_text": map[string]interface{}{
-						"type":        "STRING",
-						"description": "Required for create command — the new file content",
-					},
-					"insert_line": map[string]interface{}{
-						"type":        "INTEGER",
-						"description": "Required for insert command — the line number after which to insert",
-					},
-					"new_str": map[string]interface{}{
-						"type":        "STRING",
-						"description": "Required for str_replace command — the text to replace with",
-					},
-					"old_str": map[string]interface{}{
-						"type":        "STRING",
-						"description": "Required for str_replace command — the text to replace",
-					},
+		case strings.Contains(t.Type, "str_replace_based_edit_tool") || strings.Contains(name, "str_replace_based_edit_tool"),
+			strings.Contains(t.Type, "text_editor") || strings.Contains(name, "text_editor"):
+			// text_editor_20250728 新增 view_range（view 命令的行范围）和 insert_text（insert 命令使用，替换旧版 new_str）
+			// str_replace_based_edit_tool_20250124 / text_editor_20250124 命名等价，schema 相同
+			isNewEditor := strings.Contains(t.Type, "20250728") || strings.Contains(name, "20250728")
+			editorProps := map[string]interface{}{
+				"command": map[string]interface{}{
+					"type":        "STRING",
+					"description": "The command to run: view, create, str_replace, insert, undo_edit",
 				},
-				"required": []interface{}{"command", "path"},
+				"path": map[string]interface{}{
+					"type":        "STRING",
+					"description": "Absolute path to file or directory",
+				},
+				"file_text": map[string]interface{}{
+					"type":        "STRING",
+					"description": "Required for create command — the new file content",
+				},
+				"old_str": map[string]interface{}{
+					"type":        "STRING",
+					"description": "Required for str_replace command — the text to be replaced",
+				},
+				"new_str": map[string]interface{}{
+					"type":        "STRING",
+					"description": "Required for str_replace command — the replacement text",
+				},
+				"insert_line": map[string]interface{}{
+					"type":        "INTEGER",
+					"description": "Required for insert command — line number after which to insert",
+				},
+			}
+			if isNewEditor {
+				editorProps["view_range"] = map[string]interface{}{
+					"type":        "ARRAY",
+					"description": "Optional [start_line, end_line] for view command",
+					"items":       map[string]interface{}{"type": "INTEGER"},
+				}
+				editorProps["insert_text"] = map[string]interface{}{
+					"type":        "STRING",
+					"description": "Required for insert command — the text to insert (20250728+)",
+				}
+			}
+			params = map[string]interface{}{
+				"type":       "OBJECT",
+				"properties": editorProps,
+				"required":   []interface{}{"command", "path"},
 			}
 		case strings.Contains(t.Type, "computer") || strings.Contains(name, "computer"):
-			params = map[string]interface{}{
-				"type": "OBJECT",
-				"properties": map[string]interface{}{
-					"action": map[string]interface{}{
-						"type":        "STRING",
-						"description": "The computer action: key, type, mouse_move, left_click, screenshot, cursor_position",
-					},
-					"coordinate": map[string]interface{}{
-						"type":        "ARRAY",
-						"description": "(x, y) coordinates for mouse actions",
-					},
-					"text": map[string]interface{}{
-						"type":        "STRING",
-						"description": "Text to type or key sequence",
-					},
+			// computer_20251124 新增 zoom 动作（带 region 参数）；20250124 起支持 scroll/drag/多键鼠标
+			isNewComputer := strings.Contains(t.Type, "20251124") || strings.Contains(name, "20251124")
+			actionDesc := "The computer action: screenshot, key, type, mouse_move, left_click, right_click, middle_click, double_click, triple_click, left_click_drag, left_mouse_down, left_mouse_up, scroll, hold_key, wait, cursor_position"
+			if isNewComputer {
+				actionDesc += ", zoom"
+			}
+			computerProps := map[string]interface{}{
+				"action": map[string]interface{}{
+					"type":        "STRING",
+					"description": actionDesc,
 				},
-				"required": []interface{}{"action"},
+				"coordinate": map[string]interface{}{
+					"type":        "ARRAY",
+					"description": "[x, y] pixel coordinates for mouse actions",
+					"items":       map[string]interface{}{"type": "INTEGER"},
+				},
+				"text": map[string]interface{}{
+					"type":        "STRING",
+					"description": "Text to type or key sequence (e.g. 'Return', 'ctrl+c')",
+				},
+				"direction": map[string]interface{}{
+					"type":        "STRING",
+					"description": "Scroll direction: up, down, left, right",
+				},
+				"amount": map[string]interface{}{
+					"type":        "INTEGER",
+					"description": "Number of scroll clicks",
+				},
+				"start_coordinate": map[string]interface{}{
+					"type":        "ARRAY",
+					"description": "[x, y] drag start coordinates for left_click_drag",
+					"items":       map[string]interface{}{"type": "INTEGER"},
+				},
+				"duration": map[string]interface{}{
+					"type":        "NUMBER",
+					"description": "Duration in seconds for hold_key or wait actions",
+				},
+			}
+			if isNewComputer {
+				computerProps["region"] = map[string]interface{}{
+					"type":        "ARRAY",
+					"description": "[x, y, width, height] region for zoom action (20251124+)",
+					"items":       map[string]interface{}{"type": "INTEGER"},
+				}
+			}
+			params = map[string]interface{}{
+				"type":       "OBJECT",
+				"properties": computerProps,
+				"required":   []interface{}{"action"},
 			}
 		case strings.Contains(t.Type, "web_search") || strings.Contains(name, "web_search"):
 			params = map[string]interface{}{
@@ -487,6 +630,95 @@ func builtinToolToFunctionDecl(t Tool) map[string]interface{} {
 					},
 				},
 				"required": []interface{}{"query", "explanation"},
+			}
+		case strings.Contains(t.Type, "web_fetch") || strings.Contains(name, "web_fetch"):
+			// web_fetch_20250910 / web_fetch_20260209 — 抓取指定 URL 页面内容
+			params = map[string]interface{}{
+				"type": "OBJECT",
+				"properties": map[string]interface{}{
+					"url": map[string]interface{}{
+						"type":        "STRING",
+						"description": "The URL to fetch",
+					},
+					"prompt": map[string]interface{}{
+						"type":        "STRING",
+						"description": "Optional prompt describing what to extract from the page",
+					},
+					"max_length": map[string]interface{}{
+						"type":        "INTEGER",
+						"description": "Maximum number of characters to return from the response",
+					},
+					"raw": map[string]interface{}{
+						"type":        "BOOLEAN",
+						"description": "Return raw HTML/content instead of processed text",
+					},
+				},
+				"required": []interface{}{"url"},
+			}
+		case strings.Contains(t.Type, "code_execution") || strings.Contains(name, "code_execution"):
+			// code_execution_20250825 / code_execution_20260120 — 执行代码片段
+			params = map[string]interface{}{
+				"type": "OBJECT",
+				"properties": map[string]interface{}{
+					"language": map[string]interface{}{
+						"type":        "STRING",
+						"description": "Programming language: python, javascript, typescript, bash, etc.",
+					},
+					"code": map[string]interface{}{
+						"type":        "STRING",
+						"description": "The code to execute",
+					},
+					"session_id": map[string]interface{}{
+						"type":        "STRING",
+						"description": "Optional session ID to reuse an existing execution environment",
+					},
+					"timeout_ms": map[string]interface{}{
+						"type":        "INTEGER",
+						"description": "Timeout in milliseconds (default 10000)",
+					},
+				},
+				"required": []interface{}{"language", "code"},
+			}
+		case strings.Contains(t.Type, "memory") || strings.Contains(name, "memory"):
+			// memory_20250818 — 读写 /memories 文件，命令集类似 text_editor，
+			// 额外支持 delete（删除文件）和 rename（重命名文件）
+			params = map[string]interface{}{
+				"type": "OBJECT",
+				"properties": map[string]interface{}{
+					"command": map[string]interface{}{
+						"type":        "STRING",
+						"description": "The command: view, create, str_replace, insert, delete, rename",
+					},
+					"path": map[string]interface{}{
+						"type":        "STRING",
+						"description": "Path within the memories store (always required)",
+					},
+					"file_text": map[string]interface{}{
+						"type":        "STRING",
+						"description": "Required for create command — initial file content",
+					},
+					"old_str": map[string]interface{}{
+						"type":        "STRING",
+						"description": "Required for str_replace — text to be replaced",
+					},
+					"new_str": map[string]interface{}{
+						"type":        "STRING",
+						"description": "Required for str_replace — replacement text",
+					},
+					"insert_line": map[string]interface{}{
+						"type":        "INTEGER",
+						"description": "Required for insert — line number after which to insert",
+					},
+					"insert_text": map[string]interface{}{
+						"type":        "STRING",
+						"description": "Required for insert — text to insert",
+					},
+					"new_path": map[string]interface{}{
+						"type":        "STRING",
+						"description": "Required for rename — the new path/name",
+					},
+				},
+				"required": []interface{}{"command", "path"},
 			}
 		default:
 			// 未知内置工具类型，生成通用 object 参数
