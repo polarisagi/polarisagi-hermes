@@ -18,7 +18,7 @@ func HandleNetworkError(w http.ResponseWriter, err error, dest *router.MatchedDe
 	dest.MarkFinalized()
 	db.SaveUsage(platform, dest.Node.Name, clientType, methodName, 0, 0, 0, http.StatusBadGateway)
 	dest.Node.UpdateOnFailure(dest.IsProbationRun, traceID)
-	slog.Error(fmt.Sprintf("%s 物理网络断联", logPrefix), "trace_id", traceID, "account", dest.Node.Name, "error", errMsg)
+	slog.Error("物理网络断联", "prefix", logPrefix, "trace_id", traceID, "account", dest.Node.Name, "error", errMsg)
 	http.Error(w, fmt.Sprintf("Polaris Gateway Network Error: %s", errMsg), http.StatusBadGateway)
 }
 
@@ -38,14 +38,14 @@ func CheckResponseStatus(finalResp *http.Response, dest *router.MatchedDestinati
 		}
 
 		db.SaveUsage(platform, dest.Node.Name, clientType, methodName, 0, 0, 0, statusCode)
-		slog.Warn(fmt.Sprintf("%s 节点异常/限流，记入熔断惩罚队列", logPrefix), "trace_id", traceID, "account", dest.Node.Name, "status", statusCode)
+		slog.Warn("节点异常/限流，记入熔断惩罚队列", "prefix", logPrefix, "trace_id", traceID, "account", dest.Node.Name, "status", statusCode)
 	} else if statusCode >= 400 {
 		errBody, _ := io.ReadAll(finalResp.Body)
 		finalResp.Body.Close()
 		finalResp.Body = io.NopCloser(bytes.NewReader(errBody))
 
 		db.SaveUsage(platform, dest.Node.Name, clientType, methodName, 0, 0, 0, statusCode)
-		slog.Warn(fmt.Sprintf("%s 客户端业务请求参数错误", logPrefix), "trace_id", traceID, "account", dest.Node.Name, "status", statusCode, "body", string(errBody))
+		slog.Warn("客户端业务请求参数错误", "prefix", logPrefix, "trace_id", traceID, "account", dest.Node.Name, "status", statusCode, "body", string(errBody))
 	}
 
 	return isNodeFailure, isQuotaExhausted
@@ -89,7 +89,7 @@ func ExecuteAndStream(
 	streamHandler StreamHandler,
 ) {
 	if dest.IsProbationRun {
-		slog.Warn(fmt.Sprintf("⚠️ 启用 🟠 Probation 账号执行流量探路 (%s)", logPrefix), "trace_id", traceID, "account", dest.Node.Name)
+		slog.Warn("⚠️ 启用 🟠 Probation 账号执行流量探路", "prefix", logPrefix, "trace_id", traceID, "account", dest.Node.Name)
 	}
 
 	startTime := time.Now()

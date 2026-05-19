@@ -12,7 +12,7 @@ import (
 func DashboardHandler() http.Handler {
 	uiSub, err := fs.Sub(web.FS, "ui")
 	if err != nil {
-		slog.Error("Failed to mount UI filesystem", "error", err)
+		slog.Error("前端 UI 静态文件系统挂载失败", "error", err)
 		return http.NotFoundHandler()
 	}
 	

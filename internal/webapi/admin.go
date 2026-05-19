@@ -101,7 +101,7 @@ func AdminSettingsHandler(w http.ResponseWriter, r *http.Request) {
 			req.ListenAddr, req.InitialCooldownSeconds, req.MaxCooldownSeconds, req.FailureThreshold, req.FailureWindowSeconds, req.GoogleOAuthClientID, req.GoogleOAuthClientSecret)
 		
 		if err != nil {
-			slog.Error("Failed to update settings", "error", err)
+			slog.Error("更新系统配置失败", "error", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -314,7 +314,7 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 			req.Name, req.Provider, req.BaseURL, req.Credentials, req.ProjectID, req.Location, req.Priority, req.Balance, req.LimitPercent, req.MinRequestIntervalSec, req.ValidFrom, req.ValidTo, req.Status)
 		
 		if err != nil {
-			slog.Error("Failed to insert node", "error", err)
+			slog.Error("节点写入数据库失败", "error", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -491,7 +491,7 @@ func AdminRoutesHandler(w http.ResponseWriter, r *http.Request) {
 			req.SourceProtocol, req.TargetProtocol, string(modelMappingsJSON), req.Status)
 		
 		if err != nil {
-			slog.Error("Failed to insert route", "error", err)
+			slog.Error("路由写入数据库失败", "error", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
