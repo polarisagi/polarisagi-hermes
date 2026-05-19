@@ -34,8 +34,9 @@ type oaiRequest struct {
 	Temperature *float64                 `json:"temperature,omitempty"`
 	TopP        *float64                 `json:"top_p,omitempty"`
 	Stream      bool                     `json:"stream,omitempty"`
-	Tools       []map[string]interface{} `json:"tools,omitempty"`
-	ToolChoice  interface{}              `json:"tool_choice,omitempty"`
+	Tools           []map[string]interface{} `json:"tools,omitempty"`
+	ToolChoice      interface{}              `json:"tool_choice,omitempty"`
+	ReasoningEffort string                   `json:"reasoning_effort,omitempty"`
 }
 
 // AnthropicToOpenAI 主入口：解析 Anthropic 请求 → 构造 OpenAI 请求 → 发送 → 流式/非流式回写 Anthropic 格式
@@ -128,6 +129,18 @@ func buildOpenAIRequest(req MessageRequest, dest *router.MatchedDestination) oai
 	// 转换工具选择策略
 	if req.ToolChoice != nil {
 		oaiReq.ToolChoice = convertAnthropicToolChoice(req.ToolChoice)
+	}
+
+	// 转换思考配置 (Claude Code /effort -> OpenAI reasoning_effort)
+	if req.Thinking != nil && req.Thinking.Type == "enabled" {
+		budget := req.Thinking.BudgetTokens
+		if budget <= 5000 {
+			oaiReq.ReasoningEffort = "low"
+		} else if budget <= 16000 {
+			oaiReq.ReasoningEffort = "medium"
+		} else {
+			oaiReq.ReasoningEffort = "high"
+		}
 	}
 
 	return oaiReq
@@ -374,9 +387,13 @@ func anthropicStreamOpenAI(ctx context.Context, w http.ResponseWriter, oaiResp *
 
 	// 状态机：
 	//   - textOpen 标记是否已 emit text content_block_start
+	//   - thinkingOpen 标记是否已 emit thinking content_block_start
 	//   - toolBlocks 映射 OpenAI tool_call.index → Anthropic block index
 	//   - nextBlockIndex 下一个可用 Anthropic block index
 	textOpen := false
+	textBlockIndex := 0
+	thinkingOpen := false
+	thinkingBlockIndex := 0
 	toolBlocks := make(map[int]int)
 	nextBlockIndex := 0
 	stopReason := "end_turn"
@@ -413,7 +430,7 @@ func anthropicStreamOpenAI(ctx context.Context, w http.ResponseWriter, oaiResp *
 				line := make([]byte, idx)
 				copy(line, lineBuf.Bytes()[:idx])
 				lineBuf.Next(idx + 1)
-				processOAIStreamLine(line, w, flusher, &textOpen, toolBlocks, &nextBlockIndex, &stopReason)
+				processOAIStreamLine(line, w, flusher, &textOpen, &textBlockIndex, &thinkingOpen, &thinkingBlockIndex, toolBlocks, &nextBlockIndex, &stopReason)
 			}
 		}
 		if readErr != nil {
@@ -422,12 +439,20 @@ func anthropicStreamOpenAI(ctx context.Context, w http.ResponseWriter, oaiResp *
 	}
 	// 处理 buffer 残留（最后一行可能无换行）
 	if rest := lineBuf.Bytes(); len(rest) > 0 {
-		processOAIStreamLine(rest, w, flusher, &textOpen, toolBlocks, &nextBlockIndex, &stopReason)
+		processOAIStreamLine(rest, w, flusher, &textOpen, &textBlockIndex, &thinkingOpen, &thinkingBlockIndex, toolBlocks, &nextBlockIndex, &stopReason)
 	}
 
 	// 关闭所有打开的 content block
+	if thinkingOpen {
+		writeSSE(w, flusher, "content_block_delta", StreamEvent{
+			Type:  "content_block_delta",
+			Index: ptrInt(thinkingBlockIndex),
+			Delta: &Delta{Type: "signature_delta", Signature: "oai_reasoning"},
+		})
+		writeSSEContentBlockStop(w, flusher, thinkingBlockIndex)
+	}
 	if textOpen {
-		writeSSEContentBlockStop(w, flusher, 0)
+		writeSSEContentBlockStop(w, flusher, textBlockIndex)
 	}
 	for _, blockIdx := range toolBlocks {
 		writeSSEContentBlockStop(w, flusher, blockIdx)
@@ -459,7 +484,7 @@ func anthropicStreamOpenAI(ctx context.Context, w http.ResponseWriter, oaiResp *
 // processOAIStreamLine 解析单行 OpenAI SSE 数据，emit 对应 Anthropic SSE 事件
 // 出参通过指针修改：textOpen、nextBlockIndex、stopReason
 // toolBlocks 是引用类型可直接修改
-func processOAIStreamLine(line []byte, w http.ResponseWriter, flusher http.Flusher, textOpen *bool, toolBlocks map[int]int, nextBlockIndex *int, stopReason *string) {
+func processOAIStreamLine(line []byte, w http.ResponseWriter, flusher http.Flusher, textOpen *bool, textBlockIndex *int, thinkingOpen *bool, thinkingBlockIndex *int, toolBlocks map[int]int, nextBlockIndex *int, stopReason *string) {
 	line = bytes.TrimSpace(line)
 	if !bytes.HasPrefix(line, []byte("data: ")) {
 		return
@@ -499,24 +524,56 @@ func processOAIStreamLine(line []byte, w http.ResponseWriter, flusher http.Flush
 		return
 	}
 
-	// 文本增量
-	if content, ok := delta["content"].(string); ok && content != "" {
-		if !*textOpen {
-			// emit text content_block_start
+	// 推理内容增量 (OpenAI o1/o3-mini reasoning_content)
+	if reasoning, ok := delta["reasoning_content"].(string); ok && reasoning != "" {
+		if *textOpen {
+			// 如果文本块已开，规范上不应再有 thinking，但为了防御性编程，先关掉文本块
+			writeSSEContentBlockStop(w, flusher, *textBlockIndex)
+			*textOpen = false
+		}
+		if !*thinkingOpen {
+			*thinkingBlockIndex = *nextBlockIndex
+			*nextBlockIndex++
 			writeSSE(w, flusher, "content_block_start", StreamEvent{
 				Type:         "content_block_start",
-				Index:        ptrInt(0),
-				ContentBlock: &Content{Type: "text", Text: ""},
+				Index:        ptrInt(*thinkingBlockIndex),
+				ContentBlock: &Content{Type: "thinking", Thinking: ""},
 			})
-			*textOpen = true
-			// text 占用 block index 0；保留 nextBlockIndex>=1 给 tool_use
-			if *nextBlockIndex < 1 {
-				*nextBlockIndex = 1
-			}
+			*thinkingOpen = true
 		}
 		writeSSE(w, flusher, "content_block_delta", StreamEvent{
 			Type:  "content_block_delta",
-			Index: ptrInt(0),
+			Index: ptrInt(*thinkingBlockIndex),
+			Delta: &Delta{Type: "thinking_delta", Thinking: reasoning},
+		})
+	}
+
+	// 文本增量
+	if content, ok := delta["content"].(string); ok && content != "" {
+		if *thinkingOpen {
+			// 关闭前先发签名
+			writeSSE(w, flusher, "content_block_delta", StreamEvent{
+				Type:  "content_block_delta",
+				Index: ptrInt(*thinkingBlockIndex),
+				Delta: &Delta{Type: "signature_delta", Signature: "oai_reasoning"},
+			})
+			writeSSEContentBlockStop(w, flusher, *thinkingBlockIndex)
+			*thinkingOpen = false
+		}
+		if !*textOpen {
+			*textBlockIndex = *nextBlockIndex
+			*nextBlockIndex++
+			// emit text content_block_start
+			writeSSE(w, flusher, "content_block_start", StreamEvent{
+				Type:         "content_block_start",
+				Index:        ptrInt(*textBlockIndex),
+				ContentBlock: &Content{Type: "text", Text: ""},
+			})
+			*textOpen = true
+		}
+		writeSSE(w, flusher, "content_block_delta", StreamEvent{
+			Type:  "content_block_delta",
+			Index: ptrInt(*textBlockIndex),
 			Delta: &Delta{Type: "text_delta", Text: content},
 		})
 	}
@@ -536,9 +593,18 @@ func processOAIStreamLine(line []byte, w http.ResponseWriter, flusher http.Flush
 		// 首次见到该 index：emit content_block_start (tool_use)
 		blockIdx, exists := toolBlocks[oaiIndex]
 		if !exists {
-			// 文本块若已开，需要先关掉再开 tool_use（Anthropic 协议要求块按顺序开关）
+			// 文本块或思考块若已开，需要先关掉再开 tool_use（Anthropic 协议要求块按顺序开关）
+			if *thinkingOpen {
+				writeSSE(w, flusher, "content_block_delta", StreamEvent{
+					Type:  "content_block_delta",
+					Index: ptrInt(*thinkingBlockIndex),
+					Delta: &Delta{Type: "signature_delta", Signature: "oai_reasoning"},
+				})
+				writeSSEContentBlockStop(w, flusher, *thinkingBlockIndex)
+				*thinkingOpen = false
+			}
 			if *textOpen {
-				writeSSEContentBlockStop(w, flusher, 0)
+				writeSSEContentBlockStop(w, flusher, *textBlockIndex)
 				*textOpen = false
 			}
 
@@ -591,8 +657,9 @@ func anthropicNonStreamOpenAI(w http.ResponseWriter, oaiResp *http.Response, tra
 		Model   string `json:"model"`
 		Choices []struct {
 			Message struct {
-				Content   string `json:"content"`
-				ToolCalls []struct {
+				Content          string `json:"content"`
+				ReasoningContent string `json:"reasoning_content"`
+				ToolCalls        []struct {
 					ID       string `json:"id"`
 					Type     string `json:"type"`
 					Function struct {
@@ -619,6 +686,15 @@ func anthropicNonStreamOpenAI(w http.ResponseWriter, oaiResp *http.Response, tra
 
 	if len(oaiResponse.Choices) > 0 {
 		choice := oaiResponse.Choices[0]
+
+		// 推理内容
+		if choice.Message.ReasoningContent != "" {
+			contents = append(contents, Content{
+				Type:      "thinking",
+				Thinking:  choice.Message.ReasoningContent,
+				Signature: "oai_reasoning",
+			})
+		}
 
 		// 文本内容
 		if choice.Message.Content != "" {
