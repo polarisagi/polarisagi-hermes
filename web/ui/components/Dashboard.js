@@ -291,7 +291,7 @@ export default {
                                 <th class="px-6 py-4">{{ t("detail_header_client") }}</th>
                                 <th class="px-6 py-4">{{ t("detail_header_method") }}</th>
                                 <th class="px-6 py-4 text-right">{{ t("detail_header_cost") }}</th>
-                                <th class="px-6 py-4 text-right">Prompt / Output</th>
+                                <th class="px-6 py-4 text-right">{{ t("prompt_output") }}</th>
                                 <th class="px-6 py-4 text-center">{{ t("matrix_header_status") }}</th>
                             </tr>
                         </thead>

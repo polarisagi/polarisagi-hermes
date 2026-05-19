@@ -294,11 +294,11 @@ export default {
                             <h4 class="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">{{ t("section_provider") }}</h4>
                             <div v-if="nodeForm.provider === 'google'" class="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">GCP Project ID <span class="text-red-400">*</span></label>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">{{ t("gcp_project_id") }} <span class="text-red-400">*</span></label>
                                     <input v-model="nodeForm.project_id" type="text" placeholder="your-gcp-project-id" class="w-full bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg p-2 text-gray-900 dark:text-white outline-none focus:ring-1 focus:ring-blue-500">
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Location</label>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">{{ t("gcp_location") }}</label>
                                     <input v-model="nodeForm.location" type="text" placeholder="global" class="w-full bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg p-2 text-gray-900 dark:text-white outline-none focus:ring-1 focus:ring-blue-500">
                                     <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">{{ t("hint_location") }}</p>
                                 </div>

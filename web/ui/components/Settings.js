@@ -112,7 +112,7 @@ export default {
                     </div>
 
                     <div class="pt-4 flex justify-end gap-3">
-                        <button @click="resetSettings" class="bg-gray-200 dark:bg-slate-700 hover:bg-slate-600 text-white px-6 py-2 rounded-lg font-medium transition shadow-lg shadow-slate-500/20">
+                        <button @click="resetSettings" class="bg-gray-200 dark:bg-slate-700 hover:bg-gray-300 dark:hover:bg-slate-600 text-gray-700 dark:text-white px-6 py-2 rounded-lg font-medium transition shadow-lg shadow-slate-500/20">
                             {{ t("btn_reset_default") }}
                         </button>
                         <button @click="saveSettings" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition shadow-lg shadow-blue-500/20">
@@ -129,11 +129,11 @@ export default {
                         </p>
                         <div class="space-y-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">OAuth 2.0 Client ID</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">{{ t("oauth_client_id") }}</label>
                                 <input v-model="state.settings.google_oauth_client_id" type="text" :placeholder="t('placeholder_gcloud_id')" class="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg p-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm font-mono">
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">OAuth 2.0 Client Secret</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">{{ t("oauth_client_secret") }}</label>
                                 <input v-model="state.settings.google_oauth_client_secret" type="password" :placeholder="t('placeholder_gcloud_secret')" class="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg p-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm font-mono">
                             </div>
                         </div>
