@@ -176,44 +176,16 @@ func mapToVertexRequest(req MessageRequest, model string) (map[string]interface{
 						continue
 					case "image", "audio", "video", "media":
 						if source, ok := m["source"].(map[string]interface{}); ok {
-							if source["type"] == "base64" {
-								parts = append(parts, map[string]interface{}{
-									"inlineData": map[string]interface{}{
-										"mimeType": source["media_type"],
-										"data":     source["data"],
-									},
-								})
-							} else if source["type"] == "url" {
-								parts = append(parts, map[string]interface{}{
-									"fileData": map[string]interface{}{
-										"mimeType": source["media_type"],
-										"fileUri":  source["url"],
-									},
-								})
+							if part := convertMediaSourceToVertexPart(source, ""); part != nil {
+								parts = append(parts, part)
 							}
 						}
 					case "document":
 						// Anthropic document 类型主要用于 PDF（media_type: application/pdf）
 						// Gemini 通过 inlineData（base64）或 fileData（URI）接收
 						if source, ok := m["source"].(map[string]interface{}); ok {
-							mediaType, _ := source["media_type"].(string)
-							if mediaType == "" {
-								mediaType = "application/pdf"
-							}
-							if source["type"] == "base64" {
-								parts = append(parts, map[string]interface{}{
-									"inlineData": map[string]interface{}{
-										"mimeType": mediaType,
-										"data":     source["data"],
-									},
-								})
-							} else if source["type"] == "url" {
-								parts = append(parts, map[string]interface{}{
-									"fileData": map[string]interface{}{
-										"mimeType": mediaType,
-										"fileUri":  source["url"],
-									},
-								})
+							if part := convertMediaSourceToVertexPart(source, "application/pdf"); part != nil {
+								parts = append(parts, part)
 							}
 						}
 					case "tool_use":
@@ -278,20 +250,8 @@ func mapToVertexRequest(req MessageRequest, model string) (map[string]interface{
 									} else if t, ok := cMap["type"].(string); ok && (t == "image" || t == "document" || t == "audio" || t == "video" || t == "media") {
 										// 多媒体块放在 functionResponse 之外作为独立 part，让 Gemini 能同时处理文本结果和媒体文件
 										if source, ok := cMap["source"].(map[string]interface{}); ok {
-											if source["type"] == "base64" {
-												parts = append(parts, map[string]interface{}{
-													"inlineData": map[string]interface{}{
-														"mimeType": source["media_type"],
-														"data":     source["data"],
-													},
-												})
-											} else if source["type"] == "url" {
-												parts = append(parts, map[string]interface{}{
-													"fileData": map[string]interface{}{
-														"mimeType": source["media_type"],
-														"fileUri":  source["url"],
-													},
-												})
+											if part := convertMediaSourceToVertexPart(source, ""); part != nil {
+												parts = append(parts, part)
 											}
 										}
 									}
@@ -962,4 +922,31 @@ func sanitizeSchema(schema map[string]interface{}) map[string]interface{} {
 	}
 
 	return result
+}
+
+// convertMediaSourceToVertexPart 把 Anthropic 的媒体 source (base64/url) 转换为 Vertex AI 支持的 inlineData/fileData
+func convertMediaSourceToVertexPart(source map[string]interface{}, defaultMediaType string) map[string]interface{} {
+	if source == nil {
+		return nil
+	}
+	mediaType, _ := source["media_type"].(string)
+	if mediaType == "" {
+		mediaType = defaultMediaType
+	}
+	if source["type"] == "base64" {
+		return map[string]interface{}{
+			"inlineData": map[string]interface{}{
+				"mimeType": mediaType,
+				"data":     source["data"],
+			},
+		}
+	} else if source["type"] == "url" {
+		return map[string]interface{}{
+			"fileData": map[string]interface{}{
+				"mimeType": mediaType,
+				"fileUri":  source["url"],
+			},
+		}
+	}
+	return nil
 }
