@@ -85,22 +85,18 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 			continue
 		}
 
-		// Detect GEAP API error inside SSE stream (e.g., mid-stream rate limit)
-		if errData, ok := vResp["error"].(map[string]interface{}); ok {
-			errMsg := "GEAP API error in stream"
-			if msg, ok := errData["message"].(string); ok {
-				errMsg = msg
-			}
-			streamError = errMsg
-			slog.Error("❌ [Stream] GEAP 在流中返回 API 错误（可能是中途触发限流）", "trace_id", traceID, "account", dest.Node.Name, "error", errMsg)
-			break
-		}
-
 		// Detect promptFeedback block (content policy refusal)
+		// Gemini 可能返回 promptFeedback 且 blockReason 为空（静默拒绝），同样需要拦截
 		if pf, ok := vResp["promptFeedback"].(map[string]interface{}); ok {
 			if blockReason, ok := pf["blockReason"].(string); ok && blockReason != "" {
 				streamError = fmt.Sprintf("request blocked by GEAP safety filter: %s", blockReason)
 				slog.Error("❌ [Stream] GEAP promptFeedback 阻断请求", "trace_id", traceID, "account", dest.Node.Name, "block_reason", blockReason)
+				break
+			}
+			// promptFeedback 存在但 blockReason 为空 — 静默拒绝，标记为错误
+			if _, hasBlock := pf["blockReason"]; hasBlock {
+				slog.Warn("⚠️ [Stream] GEAP promptFeedback 静默拒绝 (blockReason 为空)", "trace_id", traceID, "account", dest.Node.Name)
+				streamError = "request blocked by GEAP safety filter (silent refusal)"
 				break
 			}
 		}
@@ -132,7 +128,25 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 		}
 
 		cand, _ := candidates[0].(map[string]interface{})
-		
+
+		// 检查 safetyRatings：Gemini 可能在返回空内容的同时标记安全风险
+		// 如 probability != "NEGLIGIBLE" 则说明触发了安全过滤器，应向上报错
+		if safetyRatings, ok := cand["safetyRatings"].([]interface{}); ok {
+			for _, sr := range safetyRatings {
+				if srm, ok := sr.(map[string]interface{}); ok {
+					if prob, ok := srm["probability"].(string); ok && prob != "NEGLIGIBLE" {
+						cat, _ := srm["category"].(string)
+						streamError = fmt.Sprintf("content blocked by GEAP safety filter: category=%s probability=%s", cat, prob)
+						slog.Error("❌ [Stream] GEAP safetyRatings 触发安全拦截", "trace_id", traceID, "account", dest.Node.Name, "category", cat, "probability", prob)
+						break
+					}
+				}
+			}
+			if streamError != "" {
+				break
+			}
+		}
+
 		if finishReason, ok := cand["finishReason"].(string); ok && finishReason != "" {
 			switch finishReason {
 			case "MAX_TOKENS":
@@ -319,22 +333,13 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 		}
 	}
 
-	// 流式正常结束但无任何内容块 → 注入空文本块兜底，防止 Claude Code /compact 等操作报错
+	// 上游返回空响应 → 发送 Anthropic 错误事件，而非注入空文本块
+	// 空文本块会导致 Claude Code /compact 报 "summarization produced empty response"，掩盖真正原因
 	if streamError == "" && blockIndex == 0 && !inText && !inThinking {
-		slog.Warn("⚠️ [Stream] GEAP 流式响应未包含任何内容块，注入空文本块兜底",
+		slog.Warn("⚠️ [Stream] GEAP 返回空响应，上游未生成任何内容块",
 			"trace_id", traceID, "account", dest.Node.Name,
-			"stop_reason", stopReason, "prompt_tokens", promptTokens)
-		
-		writeSSE(w, flusher, "content_block_start", StreamEvent{
-			Type:  "content_block_start",
-			Index: ptrInt(blockIndex),
-			ContentBlock: &Content{
-				Type: "text",
-				Text: "",
-			},
-		})
-		writeSSEContentBlockStop(w, flusher, blockIndex)
-		blockIndex++
+			"prompt_tokens", promptTokens)
+		streamError = "upstream model returned empty response — possible safety filter, context overflow, or model overload"
 	}
 
 	if streamError != "" {
@@ -454,6 +459,7 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 	}
 
 	// Detect promptFeedback block (safety refusal before any candidates)
+	// Gemini 可能返回 promptFeedback 且 blockReason 为空（静默拒绝），同样需要拦截
 	if pf, ok := vResp["promptFeedback"].(map[string]interface{}); ok {
 		if blockReason, ok := pf["blockReason"].(string); ok && blockReason != "" {
 			slog.Error("❌ [NonStream] GEAP promptFeedback 阻断请求", "trace_id", traceID, "account", dest.Node.Name, "block_reason", blockReason)
@@ -468,6 +474,19 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 			})
 			return
 		}
+		if _, hasBlock := pf["blockReason"]; hasBlock {
+			slog.Warn("⚠️ [NonStream] GEAP promptFeedback 静默拒绝 (blockReason 为空)", "trace_id", traceID, "account", dest.Node.Name)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadGateway)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"type": "error",
+				"error": map[string]interface{}{
+					"type":    "api_error",
+					"message": "request blocked by GEAP safety filter (silent refusal)",
+				},
+			})
+			return
+		}
 	}
 
 	contents := []Content{}
@@ -475,6 +494,27 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 
 	if candidates, ok := vResp["candidates"].([]interface{}); ok && len(candidates) > 0 {
 		if cand, ok := candidates[0].(map[string]interface{}); ok {
+			// 检查 safetyRatings，非 NEGLIGIBLE 表示触发安全过滤器
+			if safetyRatings, ok := cand["safetyRatings"].([]interface{}); ok {
+				for _, sr := range safetyRatings {
+					if srm, ok := sr.(map[string]interface{}); ok {
+						if prob, ok := srm["probability"].(string); ok && prob != "NEGLIGIBLE" {
+							cat, _ := srm["category"].(string)
+							slog.Error("❌ [NonStream] GEAP safetyRatings 触发安全拦截", "trace_id", traceID, "account", dest.Node.Name, "category", cat, "probability", prob)
+							w.Header().Set("Content-Type", "application/json")
+							w.WriteHeader(http.StatusBadGateway)
+							json.NewEncoder(w).Encode(map[string]interface{}{
+								"type": "error",
+								"error": map[string]interface{}{
+									"type":    "api_error",
+									"message": fmt.Sprintf("content blocked by GEAP safety filter: category=%s probability=%s", cat, prob),
+								},
+							})
+							return
+						}
+					}
+				}
+			}
 			// finishReason 映射与流式分支保持一致，避免客户端 stop_reason 检查不一致
 			if finishReason, ok := cand["finishReason"].(string); ok && finishReason != "" {
 				switch finishReason {
@@ -559,12 +599,22 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 		}
 	}
 	if !hasRealContent {
-		slog.Warn("⚠️ [NonStream] GEAP 返回无有效文本内容（安全过滤或空候选），注入空文本块防止客户端报错",
+		// 上游返回空响应 → 返回 Anthropic 错误而非空 content
+		// 空 content 会导致 Claude Code /compact 报 "summarization produced empty response"
+		slog.Warn("⚠️ [NonStream] GEAP 返回空响应，上游未生成任何内容块",
 			"trace_id", traceID, "account", dest.Node.Name,
-			"stop_reason", stopReason, "geap_resp_preview", string(bodyBytes[:min(len(bodyBytes), 500)]))
-		contents = []Content{
-			{Type: "text", Text: ""},
-		}
+			"geap_resp_preview", string(bodyBytes[:min(len(bodyBytes), 500)]))
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadGateway)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]interface{}{
+				"type":    "api_error",
+				"message": "Upstream model returned empty response — possible safety filter, context overflow, or model overload",
+			},
+		})
+		return
 	}
 
 	settleBilling("google", dest.Node.Name, clientType, "anthropic_adapter", modelName, int64(promptTokens), int64(completionTokens), int64(cachedTokens), vertexResp.StatusCode, dest, reqBody, traceID)
