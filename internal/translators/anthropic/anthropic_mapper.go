@@ -407,11 +407,12 @@ func mapToVertexRequest(req MessageRequest, model string) (map[string]interface{
 				},
 			}
 			// Gemini 2.5 自动 thinking（未显式配置 thinkingConfig）与 function calling 存在已知冲突：
-			// 模型会生成 name="thought" 的非法 functionCall，导致 MALFORMED_FUNCTION_CALL。
-			// 仅在未显式配置 thinking 时禁用自动 thinking；用户通过 /effort 显式开启的 thinking 保留，
-			// 因为显式 includeThoughts:true 可与工具调用正确共存（Gemini 2.5 支持 thinking + tools 混合模式）。
+			// 模型在无法输出原生 thought 时，会生成 name="thought" 的非法 functionCall，导致 MALFORMED_FUNCTION_CALL。
+			// 由于 Gemini 2.5 Pro 不支持 thinkingBudget=0 来禁用思考，
+			// 我们统一设置 includeThoughts: true 允许原生思考，流式处理器会自动将其转换为 thinking 块，
+			// 从而避免模型尝试伪造 functionCall 引发崩溃。
 			if _, hasExplicitThinking := genConfig["thinkingConfig"]; !hasExplicitThinking {
-				genConfig["thinkingConfig"] = map[string]interface{}{"thinkingBudget": 0}
+				genConfig["thinkingConfig"] = map[string]interface{}{"includeThoughts": true}
 				vertexReq["generationConfig"] = genConfig
 			}
 		}
