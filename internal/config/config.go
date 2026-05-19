@@ -10,8 +10,9 @@ import (
 	"polaris-gateway/internal/db"
 )
 
-// Version 记录网关当前的发布版本，用于自动更新机制
-const Version = "v2.4.41"
+// Version 运行期版本号，构建时由 -ldflags 注入（如 VERSION=$(git describe --tags --always)）
+// 未通过 ldflags 注入时默认 dev，便于 go run 本地调试
+var Version = "dev"
 
 // AccountDetail 上游节点配置，对应数据库 sys_nodes 表中的一条记录
 // 每个节点代表一个可用的上游 API 账号
