@@ -59,6 +59,8 @@ export default {
             };
         };
 
+        const redirectUri = window.location.protocol + '//' + window.location.host + '/api/admin/oauth/google/callback';
+
         Vue.onMounted(() => {
             fetchSettings();
         });
@@ -67,7 +69,8 @@ export default {
             state,
             t,
             saveSettings,
-            resetSettings
+            resetSettings,
+            redirectUri
         };
     },
     template: `
@@ -122,7 +125,7 @@ export default {
                         <p class="text-xs text-gray-500 dark:text-slate-400 mb-4">
                             {{ t("oauth_hint_1") }}<a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="text-blue-400 hover:underline">{{ t("oauth_hint_link") }}</a> {{ t("oauth_hint_2") }}
                             {{ t("oauth_hint_3") }}
-                            <code class="bg-white dark:bg-slate-800 px-1.5 py-0.5 rounded text-emerald-400 text-xs" id="redirectUriHint">http://127.0.0.1:28888/api/admin/oauth/google/callback</code>
+                            <code class="bg-white dark:bg-slate-800 px-1.5 py-0.5 rounded text-emerald-400 text-xs">{{ redirectUri }}</code>
                         </p>
                         <div class="space-y-4">
                             <div>

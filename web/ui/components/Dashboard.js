@@ -95,7 +95,7 @@ export default {
         const fetchData = async () => {
             if (state.currentTab !== 'dashboard') return;
             try {
-                const res = await fetch(\`/api/stats?start=\${state.startDate}&end=\${state.endDate}\`);
+                const res = await fetch(`/api/stats?start=${state.startDate}&end=${state.endDate}`);
                 const json = await res.json();
                 state.apiData = json.details || [];
                 const accSet = new Set(state.apiData.map(d => d.account));
@@ -116,7 +116,7 @@ export default {
 
         const formatDate = (date) => {
             const d = new Date(date);
-            return \`\${d.getFullYear()}-\${String(d.getMonth() + 1).padStart(2, '0')}-\${String(d.getDate()).padStart(2, '0')}\`;
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         };
 
         const setPreset = (preset) => {
@@ -156,7 +156,7 @@ export default {
             aggregatedData, setPreset
         };
     },
-    template: \`
+    template: `
             <div v-show="state.currentTab === 'dashboard'" class="max-w-6xl mx-auto">
                 <div class="flex justify-between items-start mb-8 border-b border-gray-300 dark:border-slate-700 pb-6">
                     <div>
@@ -311,5 +311,5 @@ export default {
                     </table>
                 </div>
             </div>
-    \`
+    `
 };

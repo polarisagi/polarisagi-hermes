@@ -44,7 +44,7 @@ export default {
                 'openai_google': t('desc_openai_google'),
                 'google_google': t('desc_google_direct'),
             };
-            return descs[\`\${routeForm.value.source_protocol}_\${routeForm.value.target_protocol}\`] || '';
+            return descs[`${routeForm.value.source_protocol}_${routeForm.value.target_protocol}`] || '';
         });
 
         const fetchRoutes = async () => {
@@ -163,7 +163,7 @@ export default {
         const deleteRoute = async (id) => {
             if(!confirm(state.lang === 'zh' ? '确定要删除这个路由吗？' : 'Are you sure you want to delete this route?')) return;
             try {
-                const res = await fetch(\`/api/admin/routes?id=\${id}\`, { method: 'DELETE' });
+                const res = await fetch(`/api/admin/routes?id=${id}`, { method: 'DELETE' });
                 if (res.ok) {
                     showToast(t('route_deleted'));
                     fetchRoutes();
@@ -194,7 +194,7 @@ export default {
             sourceModels, targetModels, onSourceProtocolChange, onTargetProtocolChange
         };
     },
-    template: \`
+    template: `
             <div v-show="state.currentTab === 'routes'" class="max-w-6xl mx-auto">
                 <div class="flex justify-between items-center mb-6">
                     <div>
@@ -339,5 +339,5 @@ export default {
                 </div>
             </div>
         </div>
-    \`
+    `
 };

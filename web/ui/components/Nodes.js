@@ -18,13 +18,13 @@ export default {
         const todayPrefix = () => {
             const d = new Date();
             const pad = n => String(n).padStart(2, '0');
-            return \`\${d.getFullYear()}-\${pad(d.getMonth()+1)}-\${pad(d.getDate())}\`;
+            return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
         };
 
         const nodeForm = ref({
             id: 0, provider: 'openai', name: '', credentials: '', project_id: '', location: 'global', base_url: '',
             priority: 10, limit_percent: 90.0, balance: 0.0, min_request_interval_sec: 0,
-            valid_from: \`\${todayPrefix()}T00:00:00\`, valid_to: \`2099-12-31T23:59:59\`, status: 1
+            valid_from: `${todayPrefix()}T00:00:00`, valid_to: `2099-12-31T23:59:59`, status: 1
         });
 
         const usagePercent = (node) => {
@@ -54,7 +54,7 @@ export default {
                 nodeForm.value = {
                     id: 0, provider: 'openai', name: '', credentials: '', project_id: '', location: 'global', base_url: '',
                     priority: 10, limit_percent: 90.0, balance: 0.0, min_request_interval_sec: 0,
-                    valid_from: \`\${today}T00:00:00\`, valid_to: \`2099-12-31T23:59:59\`, status: 1
+                    valid_from: `${today}T00:00:00`, valid_to: `2099-12-31T23:59:59`, status: 1
                 };
                 nodeModal.value = { show: true, isEdit: false };
             }
@@ -106,7 +106,7 @@ export default {
         const deleteNode = async (id) => {
             if(!confirm(state.lang === 'zh' ? '确定要删除这个节点吗？此操作不可恢复。' : 'Are you sure you want to delete this node? This action cannot be undone.')) return;
             try {
-                const res = await fetch(\`/api/admin/nodes?id=\${id}\`, { method: 'DELETE' });
+                const res = await fetch(`/api/admin/nodes?id=${id}`, { method: 'DELETE' });
                 if (res.ok) {
                     showToast(t('node_deleted'));
                     fetchNodes();
@@ -138,7 +138,7 @@ export default {
             const height = 700;
             const left = Math.max(0, (window.innerWidth - width) / 2 + window.screenX);
             const top = Math.max(0, (window.innerHeight - height) / 2 + window.screenY);
-            window.open('/api/admin/oauth/google/start', 'GoogleAuth', \`width=\${width},height=\${height},top=\${top},left=\${left}\`);
+            window.open('/api/admin/oauth/google/start', 'GoogleAuth', `width=${width},height=${height},top=${top},left=${left}`);
         };
 
         onMounted(() => {
@@ -156,7 +156,7 @@ export default {
             usagePercent
         };
     },
-    template: \`
+    template: `
             <div v-show="state.currentTab === 'nodes'" class="max-w-6xl mx-auto">
                 <div class="flex justify-between items-center mb-6">
                     <h2 class="text-2xl font-bold text-gray-900 dark:text-white">{{ t("tab_nodes_title") }}</h2>
@@ -347,5 +347,5 @@ export default {
                 </div>
             </div>
         </div>
-    \`
+    `
 };

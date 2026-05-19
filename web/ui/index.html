@@ -101,15 +101,6 @@
         </div>
     </div>
 
-    <script>
-        // 动态更新 OAuth 重定向 URI 提示，匹配当前网关端口
-        document.addEventListener('DOMContentLoaded', () => {
-            const el = document.getElementById('redirectUriHint');
-            if (el) {
-                el.textContent = 'http://127.0.0.1:' + window.location.port + '/api/admin/oauth/google/callback';
-            }
-        });
-    </script>
     <script type="module" src="app.js"></script>
 </body>
 </html>

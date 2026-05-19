@@ -1,4 +1,4 @@
-const messages = {
+window.messages = {
     zh: {
         // Sidebar
         app_title: "Polaris",
@@ -79,10 +79,10 @@ const messages = {
         cb_threshold_label: "连续失败阈值 (次)",
         btn_reset: "恢复默认",
         btn_save: "保存设置",
-        oauth_hint_1: "如果使用 gcloud 内置凭据时遇到"此应用已被阻止"错误，请在",
+        oauth_hint_1: "如果使用 gcloud 内置凭据时遇到'此应用已被阻止'错误，请在",
         oauth_hint_link: " Google Cloud Console → 凭据",
         oauth_hint_2: "创建 OAuth 2.0 客户端 ID（桌面应用），并将 Client ID 和 Secret 填入下方。",
-        oauth_hint_3: "然后还需要在 Google Cloud Console 中将以下重定向 URI 加入"已获授权的重定向 URI"列表：",
+        oauth_hint_3: "然后还需要在 Google Cloud Console 中将以下重定向 URI 加入'已获授权的重定向 URI'列表：",
         placeholder_gcloud_id: "留空使用 gcloud 内置 ID（可能被拦截）",
         placeholder_gcloud_secret: "留空使用 gcloud 内置 Secret",
         log_level_all_desc: "所有级别 (All)",

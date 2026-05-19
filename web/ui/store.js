@@ -84,7 +84,7 @@ export const checkForUpdates = (currentVer) => {
 };
 
 export const triggerUpdate = () => {
-    if (!confirm(state.lang === 'zh' ? \`确定要平滑热更新到 \${state.latestVersion} 吗？\\n整个过程完全自动化，并且不会中断正在处理的流量。\` : \`Are you sure you want to smooth update to \${state.latestVersion}?\\nThe process is fully automated and will not interrupt active traffic.\`)) return;
+    if (!confirm(state.lang === 'zh' ? `确定要平滑热更新到 ${state.latestVersion} 吗？\n整个过程完全自动化，并且不会中断正在处理的流量。` : `Are you sure you want to smooth update to ${state.latestVersion}?\nThe process is fully automated and will not interrupt active traffic.`)) return;
     
     state.isUpdating = true;
     fetch('/api/admin/update', {

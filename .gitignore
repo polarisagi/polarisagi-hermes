@@ -24,3 +24,14 @@ docs/superpowers/
 
 
 .firecrawl/
+
+# Frontend
+node_modules/
+dist/
+build/
+.npm/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.eslintcache
