@@ -87,11 +87,7 @@ func AnthropicToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Reque
 	useGEAPClaude := isClaudeModel(finalModel)
 
 	if isCountTokensPath(r.URL.Path) {
-		if useGEAPClaude {
-			handleGEAPClaudeCountTokens(ctx, w, r, bodyBytes, dest, traceID, finalModel)
-		} else {
-			handleVertexCountTokens(ctx, w, bodyBytes, dest, traceID)
-		}
+		handleCountTokensLocal(w, bodyBytes, traceID)
 		return
 	}
 

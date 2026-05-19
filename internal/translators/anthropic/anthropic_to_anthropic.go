@@ -18,10 +18,9 @@ import (
 // AnthropicToAnthropic is a pure passthrough: no protocol conversion, just load balancing + billing.
 // It proxies the Anthropic request body as-is to the target upstream and streams the response back.
 func AnthropicToAnthropic(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) {
-	// count_tokens 端点直接透传到上游 Anthropic 节点以获得官方精确计数
-	// 失败时函数内会降级到本地估算
+	// count_tokens 端点优化：直接使用本地估算，避免网络请求带来的延迟及 UI 撕裂
 	if isCountTokensPath(r.URL.Path) {
-		handleCountTokensPassthrough(ctx, w, r, bodyBytes, dest, traceID)
+		handleCountTokensLocal(w, bodyBytes, traceID)
 		return
 	}
 

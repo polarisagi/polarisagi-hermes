@@ -20,6 +20,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/pkoukk/tiktoken-go"
 	"polaris-gateway/internal/router"
@@ -27,20 +28,27 @@ import (
 
 func init() {
 	router.RegisterCountTokensHandler("anthropic", handleCountTokensLocal)
+	// 异步预加载 tiktoken，避免首次请求产生加载字典的阻塞延迟（消除 UI 撕裂）
+	go getTiktoken()
 }
 
 // 惰性加载 tiktoken 实例以提供高精度内存分词计算
-var tke *tiktoken.Tiktoken
+var (
+	tke     *tiktoken.Tiktoken
+	tkeOnce sync.Once
+)
 
 func getTiktoken() *tiktoken.Tiktoken {
-	if tke == nil {
+	tkeOnce.Do(func() {
 		var err error
 		// o200k_base 是 OpenAI 最新分词器，对 CJK 字符密度更接近 Claude 实际分词
 		tke, err = tiktoken.GetEncoding("o200k_base")
 		if err != nil {
 			slog.Error("⚠️ [CountTokens] 初始化 tiktoken 失败，可能会影响 token 计算精度", "error", err)
+		} else {
+			slog.Debug("✅ [CountTokens] tiktoken (o200k_base) 初始化完成")
 		}
-	}
+	})
 	return tke
 }
 
