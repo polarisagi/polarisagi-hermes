@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS sys_nodes (
 	balance REAL DEFAULT 0.0,
 	used_amount REAL DEFAULT 0.0,
 	limit_percent REAL DEFAULT 90.0,
+	min_request_interval_sec INTEGER DEFAULT 10,
 	valid_from DATETIME DEFAULT CURRENT_TIMESTAMP,
 	valid_to DATETIME DEFAULT '2099-12-31 23:59:59',
 	status INTEGER DEFAULT 1,

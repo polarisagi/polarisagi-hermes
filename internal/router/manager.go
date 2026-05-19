@@ -114,6 +114,8 @@ func ReloadFromConfig() {
 
 // cooldownManager 冷却守护协程：每秒检查一次，将冷却时间已到的节点
 // 从 Cooldown 状态恢复到 Probation (试用) 状态
+// 恢复时同步更新 LastAcquireTime = now，防止 Probation 节点因旧时间戳立即满足间隔条件
+// 被多个并发请求同时抢占，重蹈 429 覆辙
 func cooldownManager() {
 	for {
 		time.Sleep(1 * time.Second)
@@ -124,6 +126,7 @@ func cooldownManager() {
 			state.mu.Lock()
 			if state.Status == StatusCooldown && now.After(state.CooldownUntil) {
 				state.Status = StatusProbation
+				state.LastAcquireTime = now // 重置间隔起点，避免冷却刚结束就被多个请求同时抢占
 				slog.Info("⏳ [冷却守护] 节点冷却结束", "node", state.Name, "provider", state.Provider, "status", "Probation")
 			}
 			state.mu.Unlock()
@@ -291,13 +294,13 @@ func tryAcquire(sourceProtocol, reqModel string) (dest *MatchedDestination, reas
 			isIdleOrProb := (state.Status == StatusIdle || state.Status == StatusProbation)
 			// 强制最小请求间隔：优先用节点自身配置，0 则回退到全局 Breaker 默认，防止上游 RPM 429
 			if isIdleOrProb && !state.LastAcquireTime.IsZero() {
-				nodeInterval := state.MinRequestIntervalMs
+				nodeInterval := state.MinRequestIntervalSec
 				if nodeInterval <= 0 {
-					nodeInterval = config.AppConfig.Breaker.MinRequestIntervalMs
+					nodeInterval = config.AppConfig.Breaker.MinRequestIntervalSec
 				}
 				if nodeInterval > 0 && time.Since(state.LastAcquireTime) < time.Duration(nodeInterval)*time.Second {
 					isIdleOrProb = false
-					slog.Debug("⏱️ [请求间隔] 节点距上次请求间隔过短，跳过", "node", state.Name, "since_last_sec", time.Since(state.LastAcquireTime).Seconds(), "node_interval_sec", state.MinRequestIntervalMs, "global_interval_sec", config.AppConfig.Breaker.MinRequestIntervalMs)
+					slog.Debug("⏱️ [请求间隔] 节点距上次请求间隔过短，跳过", "node", state.Name, "since_last_sec", time.Since(state.LastAcquireTime).Seconds(), "node_interval_sec", state.MinRequestIntervalSec, "global_interval_sec", config.AppConfig.Breaker.MinRequestIntervalSec)
 				}
 			}
 			state.mu.Unlock()
@@ -306,7 +309,7 @@ func tryAcquire(sourceProtocol, reqModel string) (dest *MatchedDestination, reas
 				validCandidates = append(validCandidates, Candidate{
 					State:          state,
 					TargetModel:    matchedTargetModel,
-					TargetProtocol:  route.TargetProtocol,
+					TargetProtocol: route.TargetProtocol,
 				})
 			}
 		}
@@ -322,23 +325,29 @@ func tryAcquire(sourceProtocol, reqModel string) (dest *MatchedDestination, reas
 			return nil, "no model mapping matched", false
 		}
 		if len(candidateRoutes) > 0 {
-			totalNodes := 0
+			// 用 map 去重，避免多层 for 循环中同一节点被重复计数
+			seen := make(map[int]struct{})
 			busy, cooldown, exhausted := 0, 0, 0
 			for _, route := range candidateRoutes {
 				for _, state := range nodesMap {
-					if state.Provider == route.TargetProtocol {
-						totalNodes++
-						switch state.Status {
-						case StatusBusy:
-							busy++
-						case StatusCooldown, StatusProbation:
-							cooldown++
-						case StatusExhausted:
-							exhausted++
-						}
+					if state.Provider != route.TargetProtocol {
+						continue
+					}
+					if _, ok := seen[state.ID]; ok {
+						continue
+					}
+					seen[state.ID] = struct{}{}
+					switch state.Status {
+					case StatusBusy:
+						busy++
+					case StatusCooldown, StatusProbation:
+						cooldown++
+					case StatusExhausted:
+						exhausted++
 					}
 				}
 			}
+			totalNodes := len(seen)
 			if totalNodes == 0 {
 				return nil, "no nodes for target protocol of matching routes", false
 			}
@@ -373,6 +382,18 @@ func tryAcquire(sourceProtocol, reqModel string) (dest *MatchedDestination, reas
 			candidate.State.mu.Unlock()
 			racedCount++
 			continue
+		}
+		// TOCTOU re-check request interval in CAS phase
+		if !candidate.State.LastAcquireTime.IsZero() {
+			nodeInterval := candidate.State.MinRequestIntervalSec
+			if nodeInterval <= 0 {
+				nodeInterval = config.AppConfig.Breaker.MinRequestIntervalSec
+			}
+			if nodeInterval > 0 && time.Since(candidate.State.LastAcquireTime) < time.Duration(nodeInterval)*time.Second {
+				candidate.State.mu.Unlock()
+				racedCount++
+				continue
+			}
 		}
 		isProbationRun := (candidate.State.Status == StatusProbation)
 		candidate.State.Status = StatusBusy

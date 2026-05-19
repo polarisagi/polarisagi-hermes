@@ -29,7 +29,7 @@ type AccountDetail struct {
 	Balance              float64 `json:"balance"`                 // 总额度上限（美元）
 	UsedAmount           float64 `json:"used_amount"`             // 已使用金额
 	LimitPercent         float64 `json:"limit_percent"`           // 熔断水位线百分比，超过后自动隔离节点
-	MinRequestIntervalMs   int     `json:"min_request_interval_sec"` // 同节点两次请求最小间隔（秒），0=使用全局默认，防上游 RPM 429
+	MinRequestIntervalSec   int     `json:"min_request_interval_sec"` // 同节点两次请求最小间隔（秒），0=使用全局默认，防上游 RPM 429
 	ValidFrom            string  `json:"valid_from"`              // 有效期起始时间
 	ValidTo              string  `json:"valid_to"`                // 有效期截止时间
 	Status               int     `json:"status"`                  // 1=正常, 0=手动禁用, -1=熔断/过期
@@ -70,7 +70,7 @@ type Config struct {
 		MaxCooldownSeconds     int `json:"max_cooldown_seconds"`     // 熔断最大冷却时间上限（秒）
 		FailureThreshold       int `json:"failure_threshold"`        // 连续失败阈值，超过后触发熔断
 		FailureWindowSeconds   int `json:"failure_window_seconds"`   // 失败统计窗口（秒）
-		MinRequestIntervalMs   int `json:"min_request_interval_sec"`  // 同一节点两次请求的最小间隔（秒），防止上游 RPM 429
+		MinRequestIntervalSec   int `json:"min_request_interval_sec"`  // 同一节点两次请求的最小间隔（秒），防止上游 RPM 429
 	} `json:"breaker"`
 	Providers map[string][]AccountDetail `json:"providers"` // 按协议类型分组的节点池
 	Routes    []RouteDetail              `json:"routes"`    // 路由表
@@ -121,7 +121,7 @@ func ReloadFromDB() error {
 		AppConfig.Breaker.MaxCooldownSeconds = 3600
 		AppConfig.Breaker.FailureThreshold = 3
 		AppConfig.Breaker.FailureWindowSeconds = 120
-		AppConfig.Breaker.MinRequestIntervalMs = 10
+		AppConfig.Breaker.MinRequestIntervalSec = 10
 	}
 
 	if AppConfig.ListenAddr == "" {
@@ -139,7 +139,7 @@ func ReloadFromDB() error {
 
 	for rows.Next() {
 		var acc AccountDetail
-		if err := rows.Scan(&acc.ID, &acc.Name, &acc.Provider, &acc.BaseURL, &acc.Credentials, &acc.ProjectID, &acc.Location, &acc.Priority, &acc.Balance, &acc.UsedAmount, &acc.LimitPercent, &acc.MinRequestIntervalMs, &acc.ValidFrom, &acc.ValidTo, &acc.Status); err != nil {
+		if err := rows.Scan(&acc.ID, &acc.Name, &acc.Provider, &acc.BaseURL, &acc.Credentials, &acc.ProjectID, &acc.Location, &acc.Priority, &acc.Balance, &acc.UsedAmount, &acc.LimitPercent, &acc.MinRequestIntervalSec, &acc.ValidFrom, &acc.ValidTo, &acc.Status); err != nil {
 			slog.Error("扫描节点数据失败", "error", err)
 			continue
 		}
