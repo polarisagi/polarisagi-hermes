@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
 	"sort"
 	"time"
 
@@ -127,6 +128,10 @@ func ReloadFromDB() error {
 
 	if AppConfig.ListenAddr == "" {
 		AppConfig.ListenAddr = "127.0.0.1:28888"
+	}
+	
+	if os.Getenv("TEST_MODE") == "true" {
+		AppConfig.ListenAddr = "127.0.0.1:28889"
 	}
 
 	// Load Nodes

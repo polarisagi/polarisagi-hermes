@@ -32,3 +32,9 @@ build-all: build-mac build-linux build-windows
 
 clean:
 	rm -rf bin/
+
+run:
+	go run ./cmd/polaris
+
+run-test:
+	TEST_MODE=true go run ./cmd/polaris

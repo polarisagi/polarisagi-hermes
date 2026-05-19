@@ -66,6 +66,17 @@ iwr -useb https://raw.githubusercontent.com/mrlaoliai/polaris-gateway/main/scrip
 
 > **提示**: 如果您在使用 Claude Code 或 Codex，建议配合 [cc-switch](https://github.com/farion1231/cc-switch) 使用。
 
+### 🧪 本地测试模式 (给 AI 编程客户端的说明)
+在本地测试网关修改后的代码时，**严禁**直接运行在默认的 `28888` 端口，以免与正在使用的生产网关发生冲突。
+
+请使用测试模式（将监听在 `28889` 端口）：
+```bash
+make run-test
+# 或者手动运行:
+TEST_MODE=true go run ./cmd/polaris
+```
+AI 编程客户端（如 Claude Code）在向新网关发送测试请求时，也需将目标 API URL 修改为 `http://127.0.0.1:28889/...`。
+
 ### 🗑️ 一键卸载
 
 **macOS / Linux:**

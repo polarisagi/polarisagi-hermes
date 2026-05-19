@@ -67,6 +67,17 @@ By default, the gateway listens on `127.0.0.1:28888`.
 
 > **Note**: If you are using Claude Code or Codex, it is recommended to use them together with [cc-switch](https://github.com/farion1231/cc-switch).
 
+### 🧪 Local Testing Mode (For AI Coding Assistants)
+When testing modified gateway code locally, **DO NOT** run it on the default `28888` port to avoid port conflicts with the running production instance. 
+
+Use the test mode which listens on port `28889`:
+```bash
+make run-test
+# Or manually:
+TEST_MODE=true go run ./cmd/polaris
+```
+AI coding clients (like Claude Code) should change the target API URL to `http://127.0.0.1:28889/...` when sending test requests to the newly built gateway.
+
 ### 🗑️ Uninstall
 
 **macOS / Linux:**

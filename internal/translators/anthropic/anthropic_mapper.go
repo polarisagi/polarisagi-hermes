@@ -215,11 +215,10 @@ func mapToVertexRequest(req MessageRequest, model string) (map[string]interface{
 						}
 						// 回退2：若是 Gemini 3.x，必须提供 thoughtSignature，否则上游直接 400
 						if thoughtSig == "" && isGemini3Model(model) {
-							// 提供一个伪造的 signature，避免 Vertex 拒绝请求。
-							thoughtSig = "00000000000000000000000000000000"
+							thoughtSig = "CvMDAY89a1/f2vyEsKoCEmpZvUiJ4trV0B3A3K4I171tJ8CnwVvcFZHRrfvEwerszM/nvLuO7RxLpLR+LZBcnCYfuJ8ZvwupJmeIXO3yc9BMEqHl1VUV8Rpi3H+Pg/jUB9jRbx59Beb4KSDEGedYaPrFQkzOygCORYZb6SjZkWJTP4XFtXOE0imQmY/Vf67Xpmqo5FdKE/bFlEVYBCYs4/HcfI72QCQteWVz5vMzlsP+T6v3mbjjiDjcFE6zBD+Kei2ugFbnxrNhd+wYiJ/AXPmY+akDLcGa/Ko1zojsbSeZNhl+37dCvk9D2WYnZiIW3Axt/KY3Dy7B0hnRkO2OrTwySwnS2WU1Lco79gmnxWDItZ70bF34bj3BxbS+P4SH/JHYZKjhU6nlR8ADOQn+Xi1pRF45X6buL7gyE6vFSG5ohwdsWId3IDiuQ4/Q24rmBiAS88IgQe9oeYVB8oUnXXFN4/+to1fiiT9ObkIbeNE+zINsK6stZSHqfvuNiND8kEXLdCl1LLVKwzvPHFY2iEGcqAlSUprBnwuV77a7FVtZ4poS1ePNsBGPwJbBchzGUxDH/xNLqOK9QsyLByd7xw1BMJv/DHSwFFa/J2CfgCGZKen0BT7Y5oPwbK+SaHdHeIXC2421mO2yM79WQpH0o67jZlfFiA=="
 						}
 						
-						if thoughtSig != "" {
+						if thoughtSig != "" || isGemini3Model(model) {
 							partObj["thoughtSignature"] = thoughtSig
 						}
 
@@ -360,7 +359,7 @@ func mapToVertexRequest(req MessageRequest, model string) (map[string]interface{
 			// Gemini 3.x：使用 thinkingLevel 枚举，不接受 thinkingBudget 整数
 			genConfig["thinkingConfig"] = map[string]interface{}{
 				"includeThoughts": true,
-				"thinkingMode":    budgetToThinkingLevel(req.Thinking.BudgetTokens),
+				"thinkingLevel":   budgetToThinkingLevel(req.Thinking.BudgetTokens),
 			}
 		} else {
 			// Gemini 2.5：使用 thinkingBudget 整数
@@ -412,7 +411,14 @@ func mapToVertexRequest(req MessageRequest, model string) (map[string]interface{
 			// 我们统一设置 includeThoughts: true 允许原生思考，流式处理器会自动将其转换为 thinking 块，
 			// 从而避免模型尝试伪造 functionCall 引发崩溃。
 			if _, hasExplicitThinking := genConfig["thinkingConfig"]; !hasExplicitThinking {
-				genConfig["thinkingConfig"] = map[string]interface{}{"includeThoughts": true}
+				if isGemini3Model(model) {
+					genConfig["thinkingConfig"] = map[string]interface{}{
+						"includeThoughts": true,
+						"thinkingLevel":   "MEDIUM",
+					}
+				} else {
+					genConfig["thinkingConfig"] = map[string]interface{}{"includeThoughts": true}
+				}
 				vertexReq["generationConfig"] = genConfig
 			}
 		}
