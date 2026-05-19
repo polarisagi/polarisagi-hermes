@@ -177,7 +177,36 @@ func fixGoogleRequestBody(bodyBytes []byte) []byte {
 	if contents, ok := reqData["contents"].([]interface{}); ok {
 		for _, item := range contents {
 			if contentMap, ok := item.(map[string]interface{}); ok {
-				if parts, ok := contentMap["parts"].([]interface{}); !ok || len(parts) == 0 {
+				if parts, ok := contentMap["parts"].([]interface{}); ok {
+					var newParts []interface{}
+					for _, p := range parts {
+						if partMap, ok := p.(map[string]interface{}); ok {
+							// Filter out thought parts to prevent 499 Cancelled errors
+							if isThought, ok := partMap["thought"].(bool); ok && isThought {
+								// Keep the part only if it has a thoughtSignature, but strip thought and text
+								sig, hasSig := partMap["thoughtSignature"]
+								if hasSig {
+									newParts = append(newParts, map[string]interface{}{
+										"thoughtSignature": sig,
+									})
+								}
+								modified = true
+								continue
+							}
+							newParts = append(newParts, p)
+						} else {
+							newParts = append(newParts, p)
+						}
+					}
+					
+					if len(newParts) == 0 {
+						newParts = []interface{}{map[string]interface{}{"text": ""}}
+						modified = true
+					} else if len(newParts) != len(parts) {
+						modified = true
+					}
+					contentMap["parts"] = newParts
+				} else {
 					contentMap["parts"] = []interface{}{map[string]interface{}{"text": ""}}
 					modified = true
 				}

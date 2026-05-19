@@ -148,22 +148,13 @@ func mapToVertexRequest(req MessageRequest, model string) (map[string]interface{
 					case "text":
 						parts = append(parts, map[string]interface{}{"text": m["text"]})
 					case "thinking":
-						// Anthropic thinking 块 → Gemini thought part
-						// signature 存储上一轮 Gemini 返回的 thoughtSignature，
-						// 原样传回以维持多轮对话中的思考连贯性（Gemini 校验签名匹配）
-						thinkText, _ := m["thinking"].(string)
+						// 根据规则：思考块（thinking）请求丢弃
+						// 提取 signature 供后续可能存在的 tool_use 块使用，但不将此块发送给 Gemini
 						sig, _ := m["signature"].(string)
 						if sig != "" {
 							lastSignature = sig
 						}
-						thoughtPart := map[string]interface{}{
-							"text":    thinkText,
-							"thought": true,
-						}
-						if sig != "" {
-							thoughtPart["thoughtSignature"] = sig
-						}
-						parts = append(parts, thoughtPart)
+						continue
 					case "compaction":
 						// compaction 块是 /compact 产生的历史摘要检查点
 						// 将摘要内容作为普通文本传给 Gemini，让模型知晓之前对话的要点
