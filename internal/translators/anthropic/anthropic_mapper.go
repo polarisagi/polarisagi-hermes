@@ -221,32 +221,37 @@ func mapToVertexRequest(req MessageRequest, model string) (map[string]interface{
 							"name": m["name"],
 							"args": m["input"],
 						}
+						partObj := map[string]interface{}{
+							"functionCall": fc,
+						}
+						
 						// Gemini 3.x 要求多轮 function calling 时在历史中带回 thoughtSignature，
 						// 否则返回 400 "Function call is missing a thought_signature"。
-						// 网关在收到 Gemini 响应时把 signature 存入 toolThoughtSigCache 并编码在 toolID 中，此处回填。
+						var thoughtSig string
 						if id, ok := m["id"].(string); ok && id != "" {
 							if sig, ok := toolThoughtSigCache.Load(id); ok {
-								fc["thoughtSignature"] = sig
+								thoughtSig = sig.(string)
 							} else if idx := strings.Index(id, "_sig_"); idx != -1 {
 								// 如果缓存穿透（如网关重启），尝试从 toolID 中提取
-								fc["thoughtSignature"] = id[idx+5:]
+								thoughtSig = id[idx+5:]
 							}
 						}
 						
 						// 回退1：使用同一个 message 中的前一个 thinking 块的 signature
-						if _, ok := fc["thoughtSignature"]; !ok && lastSignature != "" {
-							fc["thoughtSignature"] = lastSignature
+						if thoughtSig == "" && lastSignature != "" {
+							thoughtSig = lastSignature
 						}
 						// 回退2：若是 Gemini 3.x，必须提供 thoughtSignature，否则上游直接 400
-						if _, ok := fc["thoughtSignature"]; !ok && isGemini3Model(model) {
+						if thoughtSig == "" && isGemini3Model(model) {
 							// 提供一个伪造的 signature，避免 Vertex 拒绝请求。
-							// Claude Code 可能会传入其他模型（如 Gemini 2.5 / Claude 3.5）生成的历史记录，其中不包含 signature。
-							fc["thoughtSignature"] = "00000000000000000000000000000000"
+							thoughtSig = "00000000000000000000000000000000"
+						}
+						
+						if thoughtSig != "" {
+							partObj["thoughtSignature"] = thoughtSig
 						}
 
-						parts = append(parts, map[string]interface{}{
-							"functionCall": fc,
-						})
+						parts = append(parts, partObj)
 					case "tool_result":
 						toolUseID, _ := m["tool_use_id"].(string)
 						name := toolMap[toolUseID]

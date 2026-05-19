@@ -308,7 +308,7 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 				// Gemini 3.x 在 functionCall part 携带 thoughtSignature，
 				// 存入缓存以便下一轮请求回填（否则 API 返回 400）
 				// 并将其编码到 toolID 中，确保服务重启后客户端历史依然能带回 signature
-				if sig, ok := fc["thoughtSignature"].(string); ok && sig != "" {
+				if sig, ok := part["thoughtSignature"].(string); ok && sig != "" {
 					toolID = fmt.Sprintf("%s_sig_%s", toolID, sig)
 					toolThoughtSigCache.Store(toolID, sig)
 				}
@@ -606,7 +606,7 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 							// Gemini 3.x 在 functionCall part 携带 thoughtSignature，
 							// 存入缓存以便下一轮请求回填（否则 API 返回 400）
 							// 并将其编码到 toolID 中，确保服务重启后客户端历史依然能带回 signature
-							if sig, ok := fc["thoughtSignature"].(string); ok && sig != "" {
+							if sig, ok := part["thoughtSignature"].(string); ok && sig != "" {
 								toolID = fmt.Sprintf("%s_sig_%s", toolID, sig)
 								toolThoughtSigCache.Store(toolID, sig)
 							}
