@@ -33,8 +33,7 @@ func normalizeDatetime(dt, defaultTime string) string {
 }
 
 // Version can be injected via build flags (-ldflags="-X 'polaris-gateway/internal/webapi.Version=vX.Y.Z'")
-// Default to config.Version
-var Version = config.Version
+var Version = "dev"
 
 func AdminInfoHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
@@ -69,7 +68,11 @@ func AdminDebugHandler(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 }
 
-func init() {}
+func init() {
+	if Version == "dev" && config.Version != "dev" {
+		Version = config.Version
+	}
+}
 
 // AdminSettingsHandler handles GET and POST for /api/settings
 func AdminSettingsHandler(w http.ResponseWriter, r *http.Request) {

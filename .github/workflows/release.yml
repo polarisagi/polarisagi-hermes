@@ -34,7 +34,7 @@ jobs:
         GOARCH: ${{ matrix.goarch }}
       run: |
         VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
-        LDFLAGS="-s -w -X 'polaris-gateway/internal/webapi.Version=${VERSION}'"
+        LDFLAGS="-s -w -X 'polaris-gateway/internal/config.Version=${VERSION}' -X 'polaris-gateway/internal/webapi.Version=${VERSION}'"
 
         BINARY_NAME=polaris-gateway
         if [ "${{ matrix.goos }}" = "windows" ]; then

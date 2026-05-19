@@ -72,7 +72,6 @@ export const setTheme = (t) => {
 };
 
 export const checkForUpdates = (currentVer) => {
-    if (currentVer === 'dev' || !currentVer.startsWith('v')) return;
     fetch('https://api.github.com/repos/mrlaoliai/polaris-gateway/releases/latest')
         .then(r => r.json())
         .then(d => {
