@@ -2,9 +2,11 @@ package utils
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"math"
+	"net"
 	"net/http"
 	"regexp"
 	"strings"
@@ -29,8 +31,15 @@ var sharedTransport = &http.Transport{
 	IdleConnTimeout:       90 * time.Second,
 	TLSHandshakeTimeout:   10 * time.Second,
 	ExpectContinueTimeout: 1 * time.Second,
-	ResponseHeaderTimeout: 60 * time.Second, // 防止上游 hang 在 header 阶段
+	ResponseHeaderTimeout: 180 * time.Second, // 与 http.Client.Timeout 对齐，大上下文请求 Gemini 首 token 延迟可能超 120s
 	ForceAttemptHTTP2:     true,
+	DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+		dialer := &net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}
+		return dialer.DialContext(ctx, network, addr)
+	},
 }
 
 // Project Atlas: Polaris Gateway (OpenAI Protocol Module)
