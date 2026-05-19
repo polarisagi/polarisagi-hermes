@@ -218,10 +218,13 @@ func mapToVertexRequest(req MessageRequest, model string) (map[string]interface{
 						}
 						// Gemini 3.x 要求多轮 function calling 时在历史中带回 thoughtSignature，
 						// 否则返回 400 "Function call is missing a thought_signature"。
-						// 网关在收到 Gemini 响应时把 signature 存入 toolThoughtSigCache，此处回填。
+						// 网关在收到 Gemini 响应时把 signature 存入 toolThoughtSigCache 并编码在 toolID 中，此处回填。
 						if id, ok := m["id"].(string); ok && id != "" {
 							if sig, ok := toolThoughtSigCache.Load(id); ok {
 								fc["thoughtSignature"] = sig
+							} else if idx := strings.Index(id, "_sig_"); idx != -1 {
+								// 如果缓存穿透（如网关重启），尝试从 toolID 中提取
+								fc["thoughtSignature"] = id[idx+5:]
 							}
 						}
 						parts = append(parts, map[string]interface{}{
