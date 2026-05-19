@@ -174,8 +174,8 @@ func ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 步骤5：创建带超时的请求上下文（180秒），超时时自动取消下游请求
-	ctx, cancel := context.WithTimeout(r.Context(), 180*time.Second)
+	// 步骤5：创建带超时的请求上下文（600秒），超时时自动取消下游请求
+	ctx, cancel := context.WithTimeout(r.Context(), 600*time.Second)
 	defer cancel()
 
 	// 步骤6：路由分配与节点获取 — 在排队等待中轮询可用路由和节点

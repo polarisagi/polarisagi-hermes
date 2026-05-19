@@ -68,7 +68,7 @@ func FinalizeNodeState(dest *router.MatchedDestination, isNodeFailure, isQuotaEx
 // SharedHTTPClient 全局统一的 HTTP 客户端，用于访问各大模型平台
 // 使用统一的 Transport 共享 TCP 连接池，避免高并发下连接膨胀
 var SharedHTTPClient = &http.Client{
-	Timeout:   180 * time.Second,
+	Timeout:   600 * time.Second,
 	Transport: sharedTransport,
 }
 

@@ -31,7 +31,7 @@ var sharedTransport = &http.Transport{
 	IdleConnTimeout:       90 * time.Second,
 	TLSHandshakeTimeout:   10 * time.Second,
 	ExpectContinueTimeout: 1 * time.Second,
-	ResponseHeaderTimeout: 180 * time.Second, // 与 http.Client.Timeout 对齐，大上下文请求 Gemini 首 token 延迟可能超 120s
+	ResponseHeaderTimeout: 600 * time.Second, // Claude Code compress 大上下文首 token 延迟可达 5min+
 	ForceAttemptHTTP2:     true,
 	DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 		dialer := &net.Dialer{
