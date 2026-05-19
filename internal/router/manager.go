@@ -16,7 +16,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"math/rand"
 	"sort"
 	"strings"
 	"sync"
@@ -29,10 +28,10 @@ import (
 )
 
 var (
-	nodesMap        map[int]*NodeState          // 全局节点池，key=节点ID
+	nodesMap        map[int]*NodeState            // 全局节点池，key=节点ID
 	routesBySource  map[string][]config.RouteDetail // 按源协议索引的路由表
-	poolMutex       sync.RWMutex                // 节点池读写锁
-	initOnce        sync.Once                   // 确保初始化只执行一次
+	poolMutex       sync.RWMutex                  // 节点池读写锁
+	initOnce        sync.Once                     // 确保初始化只执行一次
 )
 
 // InitRouter 初始化路由引擎：启动冷却管理器后台协程 + 注册热重载回调 + 加载配置
@@ -323,15 +322,19 @@ func tryAcquire(sourceProtocol, reqModel string) (dest *MatchedDestination, reas
 			return nil, "no model mapping matched", false
 		}
 		if len(candidateRoutes) > 0 {
-			// Routes exist but no model matched or all nodes busy
 			totalNodes := 0
-			busyNodes := 0
+			busy, cooldown, exhausted := 0, 0, 0
 			for _, route := range candidateRoutes {
 				for _, state := range nodesMap {
 					if state.Provider == route.TargetProtocol {
 						totalNodes++
-						if state.Status != StatusIdle && state.Status != StatusProbation {
-							busyNodes++
+						switch state.Status {
+						case StatusBusy:
+							busy++
+						case StatusCooldown, StatusProbation:
+							cooldown++
+						case StatusExhausted:
+							exhausted++
 						}
 					}
 				}
@@ -339,19 +342,24 @@ func tryAcquire(sourceProtocol, reqModel string) (dest *MatchedDestination, reas
 			if totalNodes == 0 {
 				return nil, "no nodes for target protocol of matching routes", false
 			}
-			return nil, fmt.Sprintf("all %d nodes busy/exhausted for target protocol", busyNodes), false
+			return nil, fmt.Sprintf("all %d nodes unavailable: %d busy, %d cooling, %d exhausted", totalNodes, busy, cooldown, exhausted), false
 		}
 		return nil, "no model mapping matched", false
 	}
 
-	// 相同优先级的节点随机打乱，实现随机负载均衡
-	rand.Shuffle(len(validCandidates), func(i, j int) {
-		validCandidates[i], validCandidates[j] = validCandidates[j], validCandidates[i]
-	})
-
-	// 按优先级升序排列：数字越小优先级越高（Priority=1 最先被选中）
+	// 按优先级 + LRU 排序：同优先级选最久未使用的节点
+	// 随机洗牌在高并发下可能让多个请求同时选中同一账号，确定性 LRU 调度将请求
+	// 自然分散到不同节点，避免短时间内命中同一 Google 账号触发上游 RPM 429
 	sort.SliceStable(validCandidates, func(i, j int) bool {
-		return validCandidates[i].State.Priority < validCandidates[j].State.Priority
+		pi, pj := validCandidates[i].State.Priority, validCandidates[j].State.Priority
+		if pi != pj {
+			return pi < pj
+		}
+		ti, tj := validCandidates[i].State.LastAcquireTime, validCandidates[j].State.LastAcquireTime
+		if ti.IsZero() != tj.IsZero() {
+			return ti.IsZero()
+		}
+		return ti.Before(tj)
 	})
 
 	// CAS 抢占：候选筛选时的状态检查与最终 Busy 设置存在时间窗口，必须在持锁内重新验证

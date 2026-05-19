@@ -268,6 +268,16 @@ func mapToVertexRequest(req MessageRequest) (map[string]interface{}, error) {
 			}, contents...)
 		}
 	}
+	// GEAP 的最后一条消息必须是 user 角色。若客户端发送了以 assistant 结尾的历史（如 Claude Code 的 Assistant Prefill），
+	// Gemini 会认为 model 已经发言完毕从而返回空响应。在末尾插入一条占位 user 消息促使模型继续生成。
+	if len(contents) > 0 {
+		if contents[len(contents)-1]["role"] == "model" {
+			contents = append(contents, map[string]interface{}{
+				"role": "user",
+				"parts": []map[string]interface{}{{"text": "Please continue."}},
+			})
+		}
+	}
 
 	vertexReq["contents"] = contents
 

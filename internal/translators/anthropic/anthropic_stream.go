@@ -42,6 +42,7 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 	blockIndex := 0
 	inText := false
 	inThinking := false       // 追踪是否有开放中的 thinking 内容块（用于合并多个 thought 分片）
+	emittedText := false      // 追踪是否实际发出了非空文本内容，用于判断是否为空响应
 	var thoughtSig string     // 当前 thinking 块对应的 thoughtSignature（Gemini 返回，转存为 Anthropic signature）
 	var toolID string
 	stopReason := "end_turn"
@@ -266,6 +267,7 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 				}
 
 				if text != "" {
+					emittedText = true
 					writeSSE(w, flusher, "content_block_delta", StreamEvent{
 						Type:  "content_block_delta",
 						Index: ptrInt(blockIndex),
@@ -335,7 +337,7 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 
 	// 上游返回空响应 → 发送 Anthropic 错误事件，而非注入空文本块
 	// 空文本块会导致 Claude Code /compact 报 "summarization produced empty response"，掩盖真正原因
-	if streamError == "" && blockIndex == 0 && !inText && !inThinking {
+	if streamError == "" && blockIndex == 0 && !inThinking && !emittedText {
 		slog.Warn("⚠️ [Stream] GEAP 返回空响应，上游未生成任何内容块",
 			"trace_id", traceID, "account", dest.Node.Name,
 			"prompt_tokens", promptTokens)
@@ -391,8 +393,8 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 	}
 	if inText {
 		writeSSEContentBlockStop(w, flusher, blockIndex)
+		inText = false
 	}
-
 	// message_delta：Anthropic 协议要求附带最终 stop_reason 与精确 usage
 	// Gemini 的 cachedContentTokenCount 映射成 cache_read_input_tokens，
 	// Claude Code 的 /cost 命令据此识别 prompt cache 命中以反映真实费用
@@ -590,10 +592,15 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 	}
 
 	// 判断是否存在真正有意义的内容块：
-	// tool_use / thinking 不属于"空"，只有 contents 为空才需要注入兜底
+	// tool_use / thinking 视为有效内容；空文本块（Text == ""）不算有效内容
+	// 因为空文本块会导致 Claude Code /compact 报 "summarization produced empty response"
 	hasRealContent := false
 	for _, c := range contents {
-		if c.Type == "tool_use" || c.Type == "thinking" || c.Type == "text" {
+		if c.Type == "tool_use" || c.Type == "thinking" {
+			hasRealContent = true
+			break
+		}
+		if c.Type == "text" && c.Text != "" {
 			hasRealContent = true
 			break
 		}

@@ -121,7 +121,7 @@ func ReloadFromDB() error {
 		AppConfig.Breaker.MaxCooldownSeconds = 3600
 		AppConfig.Breaker.FailureThreshold = 3
 		AppConfig.Breaker.FailureWindowSeconds = 120
-		AppConfig.Breaker.MinRequestIntervalMs = 6
+		AppConfig.Breaker.MinRequestIntervalMs = 10
 	}
 
 	if AppConfig.ListenAddr == "" {
