@@ -11,6 +11,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"polaris-gateway/internal/router"
 	"polaris-gateway/internal/translators/utils"
@@ -174,6 +175,42 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 				// 此处保持 end_turn；若 part 里确实有 functionCall，part 处理会覆盖为 tool_use
 				stopReason = "end_turn"
 				slog.Warn("⚠️ [Stream] GEAP 工具调用格式异常", "trace_id", traceID, "account", dest.Node.Name, "finish_reason", finishReason)
+				
+				// 尝试挽救因模型输出格式错误而被拦截的正文内容
+				if fm, ok := cand["finishMessage"].(string); ok && fm != "" {
+					text := fm
+					if strings.HasPrefix(fm, "Malformed function call: ") {
+						text = strings.TrimPrefix(fm, "Malformed function call: ")
+					}
+					
+					if !inText {
+						blockType := "text"
+						if isCompact {
+							blockType = "compaction"
+						}
+						writeSSE(w, flusher, "content_block_start", StreamEvent{
+							Type:  "content_block_start",
+							Index: ptrInt(blockIndex),
+							ContentBlock: &Content{
+								Type: blockType,
+							},
+						})
+						inText = true
+					}
+					emittedText = true
+					
+					var delta *Delta
+					if isCompact {
+						delta = &Delta{Type: "compaction_delta", Content: text}
+					} else {
+						delta = &Delta{Type: "text_delta", Text: text}
+					}
+					writeSSE(w, flusher, "content_block_delta", StreamEvent{
+						Type:  "content_block_delta",
+						Index: ptrInt(blockIndex),
+						Delta: delta,
+					})
+				}
 			default:
 				stopReason = "end_turn"
 			}
@@ -562,6 +599,25 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 					stopReason = "end_turn"
 					slog.Warn("⚠️ [NonStream] GEAP 工具调用格式异常",
 						"trace_id", traceID, "account", dest.Node.Name, "finish_reason", finishReason)
+					
+					// 尝试挽救因模型输出格式错误而被拦截的正文内容
+					if fm, ok := cand["finishMessage"].(string); ok && fm != "" {
+						text := fm
+						if strings.HasPrefix(fm, "Malformed function call: ") {
+							text = strings.TrimPrefix(fm, "Malformed function call: ")
+						}
+						if isCompact {
+							contents = append(contents, Content{
+								Type:    "compaction",
+								Content: text,
+							})
+						} else {
+							contents = append(contents, Content{
+								Type: "text",
+								Text: text,
+							})
+						}
+					}
 				}
 			}
 			if content, ok := cand["content"].(map[string]interface{}); ok {
