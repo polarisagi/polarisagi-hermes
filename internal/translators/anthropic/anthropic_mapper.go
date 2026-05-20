@@ -112,6 +112,7 @@ func mapToVertexRequest(req MessageRequest, model string) (map[string]interface{
 
 	// Build a map of tool_use_id to tool name for mapping tool_results later
 	toolMap := make(map[string]string)
+	flattenedTools := make(map[string]bool)
 	for _, msg := range messages {
 		if arr, ok := msg.Content.([]interface{}); ok {
 			for _, item := range arr {
@@ -211,6 +212,17 @@ func mapToVertexRequest(req MessageRequest, model string) (map[string]interface{
 							// 移除 lastSignature = ""，保留给可能存在的平行工具调用
 						}
 						
+						if thoughtSig == "" && isGemini3Model(model) {
+							// 优雅降级：丢失签名的工具调用转化为普通文本，避免 Google API 400/499 报错
+							argsBytes, _ := json.Marshal(m["input"])
+							textPart := fmt.Sprintf("[Assistant called tool '%s' with arguments: %s]", m["name"], string(argsBytes))
+							parts = append(parts, map[string]interface{}{"text": textPart})
+							if id, ok := m["id"].(string); ok {
+								flattenedTools[id] = true
+							}
+							continue
+						}
+						
 						if thoughtSig != "" {
 							partObj["thoughtSignature"] = thoughtSig
 						}
@@ -265,12 +277,18 @@ func mapToVertexRequest(req MessageRequest, model string) (map[string]interface{
 							respContent = map[string]interface{}{"content": contentStr}
 						}
 						
-						parts = append(parts, map[string]interface{}{
-							"functionResponse": map[string]interface{}{
-								"name":     name,
-								"response": respContent,
-							},
-						})
+						if flattenedTools[toolUseID] {
+							// 优雅降级：以纯文本形式记录工具返回结果
+							textPart := fmt.Sprintf("[Tool '%s' returned result: %s]", name, respContent["content"])
+							parts = append(parts, map[string]interface{}{"text": textPart})
+						} else {
+							parts = append(parts, map[string]interface{}{
+								"functionResponse": map[string]interface{}{
+									"name":     name,
+									"response": respContent,
+								},
+							})
+						}
 					}
 				}
 			}
