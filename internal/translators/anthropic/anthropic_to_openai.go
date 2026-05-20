@@ -61,6 +61,24 @@ func AnthropicToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Reque
 		w.Header().Set("X-Anthropic-Billing-Header", extractedBillingHeader)
 	}
 
+	// 检测 compact-2026-01-12 beta：Claude Code /compact 触发的上下文压缩请求
+	// OpenAI 不原生支持 compaction 块，由网关在响应侧合成正确的 compaction 内容块格式
+	isCompact := false
+	if betaHeaders, ok := r.Header["Anthropic-Beta"]; ok {
+		for _, betaVal := range betaHeaders {
+			if strings.Contains(betaVal, "compact-2026-01-12") {
+				isCompact = true
+				break
+			}
+		}
+	}
+
+	if isCompact {
+		// 上下文压缩请求只要求模型输出纯文本摘要，
+		// 强制剥夺所有工具，杜绝 OpenAI 被 Instruction 混淆而尝试输出 tool_calls 而非纯文本摘要
+		req.Tools = nil
+	}
+
 	oaiReq := buildOpenAIRequest(req, dest)
 	oaiBody, _ := json.Marshal(oaiReq)
 
@@ -77,7 +95,6 @@ func AnthropicToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Reque
 	router.ExecuteAndStream(w, proxyReq, dest, "openai", clientType, "anthropic_adapter", traceID, "Anthropic→OpenAI",
 		func(finalResp *http.Response, startTime time.Time) bool {
 			// 上游 OpenAI 返回错误时，转换为 Anthropic 错误格式返回给 Claude Code
-			// 否则 anthropicStreamOpenAI 会强制写 200 + 尝试解析错误 body 为 SSE 导致乱码
 			if finalResp.StatusCode != http.StatusOK {
 				errBody, _ := io.ReadAll(finalResp.Body)
 				finalResp.Body.Close()
@@ -95,9 +112,9 @@ func AnthropicToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Reque
 			}
 
 			if oaiReq.Stream {
-				anthropicStreamOpenAI(ctx, w, finalResp, traceID, dest, clientType, oaiReq.Model, bodyBytes)
+				anthropicStreamOpenAI(ctx, w, finalResp, traceID, dest, clientType, oaiReq.Model, bodyBytes, isCompact)
 			} else {
-				anthropicNonStreamOpenAI(w, finalResp, traceID, dest, clientType, oaiReq.Model, bodyBytes)
+				anthropicNonStreamOpenAI(w, finalResp, traceID, dest, clientType, oaiReq.Model, bodyBytes, isCompact)
 			}
 			return false
 		})
@@ -225,6 +242,12 @@ func convertAnthropicToolChoice(tc *ToolChoice) interface{} {
 //   - user 消息含 tool_result 块时，每个 tool_result 拆为独立的 role=tool 消息
 //   - 其他文本/图片块按原顺序作为 multi-part content
 func convertAnthropicMessages(msgs []Message) []oaiMessage {
+	// compaction 历史截断：Claude Code /compact 产生的 compaction 检查点之前的消息
+	// 对于后续模型调用来说已无意义，裁剪可减少 token 消耗和避免上下文溢出
+	if lastIdx := findLastCompactionIndex(msgs); lastIdx >= 0 {
+		msgs = msgs[lastIdx:]
+	}
+
 	var result []oaiMessage
 	for _, msg := range msgs {
 		switch v := msg.Content.(type) {
@@ -378,7 +401,7 @@ func flattenToolResultContent(m map[string]interface{}) string {
 //   - 工具调用：每个 OpenAI tool_call.index 映射一个独立的 Anthropic block，
 //     首次出现时 emit content_block_start (tool_use)，后续 arguments 增量
 //     emit content_block_delta (input_json_delta)
-func anthropicStreamOpenAI(ctx context.Context, w http.ResponseWriter, oaiResp *http.Response, traceID string, dest *router.MatchedDestination, clientType, modelName string, reqBody []byte) {
+func anthropicStreamOpenAI(ctx context.Context, w http.ResponseWriter, oaiResp *http.Response, traceID string, dest *router.MatchedDestination, clientType, modelName string, reqBody []byte, isCompact bool) {
 	defer oaiResp.Body.Close()
 
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -439,7 +462,7 @@ func anthropicStreamOpenAI(ctx context.Context, w http.ResponseWriter, oaiResp *
 				line := make([]byte, idx)
 				copy(line, lineBuf.Bytes()[:idx])
 				lineBuf.Next(idx + 1)
-				processOAIStreamLine(line, w, flusher, &textOpen, &textBlockIndex, &thinkingOpen, &thinkingBlockIndex, toolBlocks, &nextBlockIndex, &stopReason)
+				processOAIStreamLine(line, w, flusher, &textOpen, &textBlockIndex, &thinkingOpen, &thinkingBlockIndex, toolBlocks, &nextBlockIndex, &stopReason, isCompact)
 			}
 		}
 		if readErr != nil {
@@ -448,7 +471,7 @@ func anthropicStreamOpenAI(ctx context.Context, w http.ResponseWriter, oaiResp *
 	}
 	// 处理 buffer 残留（最后一行可能无换行）
 	if rest := lineBuf.Bytes(); len(rest) > 0 {
-		processOAIStreamLine(rest, w, flusher, &textOpen, &textBlockIndex, &thinkingOpen, &thinkingBlockIndex, toolBlocks, &nextBlockIndex, &stopReason)
+		processOAIStreamLine(rest, w, flusher, &textOpen, &textBlockIndex, &thinkingOpen, &thinkingBlockIndex, toolBlocks, &nextBlockIndex, &stopReason, isCompact)
 	}
 
 	// 关闭所有打开的 content block
@@ -493,7 +516,7 @@ func anthropicStreamOpenAI(ctx context.Context, w http.ResponseWriter, oaiResp *
 // processOAIStreamLine 解析单行 OpenAI SSE 数据，emit 对应 Anthropic SSE 事件
 // 出参通过指针修改：textOpen、nextBlockIndex、stopReason
 // toolBlocks 是引用类型可直接修改
-func processOAIStreamLine(line []byte, w http.ResponseWriter, flusher http.Flusher, textOpen *bool, textBlockIndex *int, thinkingOpen *bool, thinkingBlockIndex *int, toolBlocks map[int]int, nextBlockIndex *int, stopReason *string) {
+func processOAIStreamLine(line []byte, w http.ResponseWriter, flusher http.Flusher, textOpen *bool, textBlockIndex *int, thinkingOpen *bool, thinkingBlockIndex *int, toolBlocks map[int]int, nextBlockIndex *int, stopReason *string, isCompact bool) {
 	line = bytes.TrimSpace(line)
 	if !bytes.HasPrefix(line, []byte("data: ")) {
 		return
@@ -572,18 +595,29 @@ func processOAIStreamLine(line []byte, w http.ResponseWriter, flusher http.Flush
 		if !*textOpen {
 			*textBlockIndex = *nextBlockIndex
 			*nextBlockIndex++
-			// emit text content_block_start
+			// emit content_block_start：compact 模式使用 compaction 块类型
+			blockType := "text"
+			if isCompact {
+				blockType = "compaction"
+			}
 			writeSSE(w, flusher, "content_block_start", StreamEvent{
 				Type:         "content_block_start",
 				Index:        ptrInt(*textBlockIndex),
-				ContentBlock: &Content{Type: "text", Text: ""},
+				ContentBlock: &Content{Type: blockType},
 			})
 			*textOpen = true
+		}
+		// emit content_block_delta：compact 模式使用 compaction_delta + Content 字段
+		var delta *Delta
+		if isCompact {
+			delta = &Delta{Type: "compaction_delta", Content: content}
+		} else {
+			delta = &Delta{Type: "text_delta", Text: content}
 		}
 		writeSSE(w, flusher, "content_block_delta", StreamEvent{
 			Type:  "content_block_delta",
 			Index: ptrInt(*textBlockIndex),
-			Delta: &Delta{Type: "text_delta", Text: content},
+			Delta: delta,
 		})
 	}
 
@@ -659,7 +693,7 @@ func processOAIStreamLine(line []byte, w http.ResponseWriter, flusher http.Flush
 }
 
 // anthropicNonStreamOpenAI 非流式响应：解析 OpenAI message.tool_calls 转为 Anthropic Content tool_use
-func anthropicNonStreamOpenAI(w http.ResponseWriter, oaiResp *http.Response, traceID string, dest *router.MatchedDestination, clientType, modelName string, reqBody []byte) {
+func anthropicNonStreamOpenAI(w http.ResponseWriter, oaiResp *http.Response, traceID string, dest *router.MatchedDestination, clientType, modelName string, reqBody []byte, isCompact bool) {
 	defer oaiResp.Body.Close()
 
 	var oaiResponse struct {
@@ -705,9 +739,13 @@ func anthropicNonStreamOpenAI(w http.ResponseWriter, oaiResp *http.Response, tra
 			})
 		}
 
-		// 文本内容
+		// 文本内容：compact 模式输出为 compaction 内容块
 		if choice.Message.Content != "" {
-			contents = append(contents, Content{Type: "text", Text: choice.Message.Content})
+			if isCompact {
+				contents = append(contents, Content{Type: "compaction", Content: choice.Message.Content})
+			} else {
+				contents = append(contents, Content{Type: "text", Text: choice.Message.Content})
+			}
 		}
 
 		// 工具调用
