@@ -64,11 +64,7 @@ func mapMessages(messages []Message, model string) ([]map[string]interface{}, er
 							}
 						}
 					case "tool_use":
-						parsedParts, newSig := parseToolUseBlock(m, model, lastSignature, flattenedTools)
-						if newSig == "" {
-							// If a signature was consumed by tool_use, we reset it
-							lastSignature = ""
-						}
+						parsedParts := parseToolUseBlock(m, model, lastSignature, flattenedTools)
 						parts = append(parts, parsedParts...)
 					case "tool_result":
 						parts = append(parts, parseToolResultBlock(m, toolMap, flattenedTools)...)
@@ -108,7 +104,7 @@ func buildToolMap(messages []Message, toolMap map[string]string) {
 	}
 }
 
-func parseToolUseBlock(m map[string]interface{}, model, lastSignature string, flattenedTools map[string]bool) ([]map[string]interface{}, string) {
+func parseToolUseBlock(m map[string]interface{}, model, lastSignature string, flattenedTools map[string]bool) []map[string]interface{} {
 	fc := map[string]interface{}{
 		"name": m["name"],
 		"args": m["input"],
@@ -136,14 +132,14 @@ func parseToolUseBlock(m map[string]interface{}, model, lastSignature string, fl
 		if id, ok := m["id"].(string); ok {
 			flattenedTools[id] = true
 		}
-		return []map[string]interface{}{{"text": textPart}}, ""
+		return []map[string]interface{}{{"text": textPart}}
 	}
 	
 	if thoughtSig != "" {
 		partObj["thoughtSignature"] = thoughtSig
 	}
 
-	return []map[string]interface{}{partObj}, thoughtSig
+	return []map[string]interface{}{partObj}
 }
 
 func parseToolResultBlock(m map[string]interface{}, toolMap map[string]string, flattenedTools map[string]bool) []map[string]interface{} {
