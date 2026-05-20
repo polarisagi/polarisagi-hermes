@@ -50,8 +50,9 @@ func GoogleToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	}
 
 	router.ExecuteAndStream(w, proxyReq, dest, "google", clientType, methodName, traceID, "Google Agent Platform",
-		func(finalResp *http.Response, startTime time.Time) {
+		func(finalResp *http.Response, startTime time.Time) bool {
 			streamGoogleResponse(w, finalResp, dest, dest.TargetModel, clientType, methodName, traceID, startTime, bodyBytes)
+			return false
 		})
 }
 

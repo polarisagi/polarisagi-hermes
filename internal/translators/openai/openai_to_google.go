@@ -66,8 +66,9 @@ func OpenAIToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Request,
 
 	// Probation 探路日志由 ExecuteAndStream 统一处理
 	router.ExecuteAndStream(w, proxyReq, dest, "google", clientType, methodName, traceID, "OAI→Google Agent Platform",
-		func(finalResp *http.Response, startTime time.Time) {
+		func(finalResp *http.Response, startTime time.Time) bool {
 			streamAndSettleUsage(w, finalResp, dest, dest.TargetModel, clientType, methodName, traceID, startTime, currentBody)
+			return false
 		})
 }
 

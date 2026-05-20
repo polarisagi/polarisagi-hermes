@@ -68,10 +68,24 @@ func FinalizeNodeState(dest *MatchedDestination, isNodeFailure, isQuotaExhausted
 }
 
 // StreamHandler 定义了流式/非流式响应的处理回调
-type StreamHandler func(finalResp *http.Response, startTime time.Time)
+// 返回值 streamFailed: true 表示在流式传输过程中发生不可恢复错误（如 Vertex SSE 中途报错），
+// 调用方（ExecuteAndStream）会将此信息合并到 isNodeFailure，触发节点惩罚
+type StreamHandler func(finalResp *http.Response, startTime time.Time) (streamFailed bool)
 
 // ExecuteAndStream 包装了调用大模型 API 的完整生命周期：
 // 包括探路日志、请求执行、异常捕获、额度判断、执行协议回写回调、状态刷新
+//
+// 所有协议转换器必须通过此函数发起 HTTP 请求，禁止直接调用 httpClient.Do()
+// 转换器只需要负责：
+//   1. 构造 proxyReq（URL + Headers + Body 格式转换）
+//   2. 提供 streamHandler 回调处理响应内容（格式转换 + 计费）
+//
+// 外层 ExecuteAndStream 负责：
+//   1. 发起 HTTP 请求（SharedHTTPClient.Do）
+//   2. 网络错误处理（HandleNetworkError）
+//   3. HTTP 状态码检查（CheckResponseStatus）
+//   4. 错误响应透传给客户端
+//   5. 节点状态结算（FinalizeNodeState）
 func ExecuteAndStream(
 	w http.ResponseWriter,
 	proxyReq *http.Request,
@@ -98,8 +112,12 @@ func ExecuteAndStream(
 	isNodeFailure, isQuotaExhausted := CheckResponseStatus(finalResp, dest, platform, clientType, methodName, traceID, logPrefix)
 
 	if streamHandler != nil {
-		streamHandler(finalResp, startTime)
+		streamFailed := streamHandler(finalResp, startTime)
+		if streamFailed {
+			isNodeFailure = true
+		}
 	}
 
 	FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
 }
+

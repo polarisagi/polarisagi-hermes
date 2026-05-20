@@ -23,8 +23,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
+	"time"
 	"strings"
 
 	"polaris-gateway/internal/router"
@@ -139,15 +139,10 @@ func handleGEAPClaude(ctx context.Context, w http.ResponseWriter, r *http.Reques
 	}
 	targetURL := buildGEAPURL(dest.Node, "anthropic", subpath, "us-east5")
 
-	if dest.IsProbationRun {
-		slog.Warn("⚠️ 启用 🟠 Probation 账号执行流量探路 (GEAP-Claude)", "trace_id", traceID, "account", dest.Node.Name)
-	}
-
 	proxyReq, _ := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(geapBody))
 	proxyReq.Header.Set("Content-Type", "application/json")
 
 	// 透传 Anthropic 扩展功能头：beta 功能（扩展思考、prompt cache）通过 anthropic-beta 头激活
-	// anthropic-version 已经由 rewriteBodyForGEAPClaude 注入 body 的 anthropic_version 字段，无需重复
 	if r != nil {
 		for k, vv := range r.Header {
 			lk := strings.ToLower(k)
@@ -163,30 +158,24 @@ func handleGEAPClaude(ctx context.Context, w http.ResponseWriter, r *http.Reques
 	q.Set("key", dest.Node.Credentials)
 	proxyReq.URL.RawQuery = q.Encode()
 
-	finalResp, err := httpClient.Do(proxyReq)
-	if err != nil {
-		router.HandleNetworkError(w, err, dest, "google", clientType, "anthropic_geap_claude", traceID, "Anthropic(GEAP-Claude)")
-		return
-	}
+	router.ExecuteAndStream(w, proxyReq, dest, "google", clientType, "anthropic_geap_claude", traceID, "Anthropic(GEAP-Claude)",
+		func(finalResp *http.Response, startTime time.Time) bool {
+			if finalResp.StatusCode != http.StatusOK {
+				errBody, _ := io.ReadAll(finalResp.Body)
+				finalResp.Body.Close()
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(finalResp.StatusCode)
+				_, _ = w.Write(errBody)
+				return false // 状态码错误已由 CheckResponseStatus 标记，无需额外 streamFailed
+			}
 
-	isNodeFailure, isQuotaExhausted := router.CheckResponseStatus(finalResp, dest, "google", clientType, "anthropic_geap_claude", traceID, "Anthropic(GEAP-Claude)")
-
-	if finalResp.StatusCode != http.StatusOK {
-		errBody, _ := io.ReadAll(finalResp.Body)
-		finalResp.Body.Close()
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(finalResp.StatusCode)
-		_, _ = w.Write(errBody)
-		router.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
-		return
-	}
-
-	if stream {
-		streamGEAPClaude(w, finalResp, dest, clientType, model, traceID, bodyBytes)
-	} else {
-		nonStreamGEAPClaude(w, finalResp, dest, clientType, model, traceID, bodyBytes)
-	}
-	router.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
+			if stream {
+				streamGEAPClaude(w, finalResp, dest, clientType, model, traceID, bodyBytes)
+			} else {
+				nonStreamGEAPClaude(w, finalResp, dest, clientType, model, traceID, bodyBytes)
+			}
+			return false
+		})
 }
 
 // rewriteBodyForGEAPClaude 注入 anthropic_version，删除 model 字段（model 在 URL 中指定）
@@ -276,10 +265,6 @@ func handleGemini(ctx context.Context, w http.ResponseWriter, bodyBytes []byte, 
 	}
 	targetURL := buildGEAPURL(dest.Node, "google", subpath, "global")
 
-	if dest.IsProbationRun {
-		slog.Warn("⚠️ 启用 🟠 Probation 账号执行流量探路 (Gemini)", "trace_id", traceID, "account", dest.Node.Name)
-	}
-
 	proxyReq, _ := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(vReqBytes))
 	proxyReq.Header.Set("Content-Type", "application/json")
 	q := proxyReq.URL.Query()
@@ -289,40 +274,31 @@ func handleGemini(ctx context.Context, w http.ResponseWriter, bodyBytes []byte, 
 	}
 	proxyReq.URL.RawQuery = q.Encode()
 
-	finalResp, err := httpClient.Do(proxyReq)
-	if err != nil {
-		router.HandleNetworkError(w, err, dest, "google", clientType, "anthropic_adapter", traceID, "Anthropic(Gemini)")
-		return
-	}
+	router.ExecuteAndStream(w, proxyReq, dest, "google", clientType, "anthropic_adapter", traceID, "Anthropic(Gemini)",
+		func(finalResp *http.Response, startTime time.Time) bool {
+			if finalResp.StatusCode != http.StatusOK {
+				errBody, _ := io.ReadAll(finalResp.Body)
+				finalResp.Body.Close()
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(finalResp.StatusCode)
+				errResp := map[string]interface{}{
+					"type": "error",
+					"error": map[string]interface{}{
+						"type":    "api_error",
+						"message": fmt.Sprintf("Google Agent Platform API returned status %d: %s", finalResp.StatusCode, string(errBody)),
+					},
+				}
+				_ = json.NewEncoder(w).Encode(errResp)
+				return false
+			}
 
-	isNodeFailure, isQuotaExhausted := router.CheckResponseStatus(finalResp, dest, "google", clientType, "anthropic_adapter", traceID, "Anthropic(Gemini)")
-
-	if finalResp.StatusCode != http.StatusOK {
-		errBody, _ := io.ReadAll(finalResp.Body)
-		finalResp.Body.Close()
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(finalResp.StatusCode)
-		errResp := map[string]interface{}{
-			"type": "error",
-			"error": map[string]interface{}{
-				"type":    "api_error",
-				"message": fmt.Sprintf("Google Agent Platform API returned status %d: %s", finalResp.StatusCode, string(errBody)),
-			},
-		}
-		_ = json.NewEncoder(w).Encode(errResp)
-		router.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
-		return
-	}
-
-	if req.Stream {
-		streamOK := streamAnthropicResponse(ctx, w, finalResp, req, traceID, dest, clientType, model, bodyBytes, isCompact)
-		if !streamOK {
-			isNodeFailure = true
-		}
-	} else {
-		handleAnthropicNonStreamResponse(w, finalResp, req, traceID, dest, clientType, model, bodyBytes, isCompact)
-	}
-	router.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
+			if req.Stream {
+				streamOK := streamAnthropicResponse(ctx, w, finalResp, req, traceID, dest, clientType, model, bodyBytes, isCompact)
+				return !streamOK // streamOK=false → streamFailed=true → 触发节点惩罚
+			}
+			handleAnthropicNonStreamResponse(w, finalResp, req, traceID, dest, clientType, model, bodyBytes, isCompact)
+			return false
+		})
 }
 
 func init() {

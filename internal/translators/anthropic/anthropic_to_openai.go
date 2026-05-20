@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 	"strings"
 
 	"polaris-gateway/internal/router"
@@ -76,21 +77,15 @@ func AnthropicToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Reque
 	proxyReq.Header.Set("Content-Type", "application/json")
 	proxyReq.Header.Set("Authorization", "Bearer "+dest.Node.Credentials)
 
-	finalResp, err := httpClient.Do(proxyReq)
-	if err != nil {
-		router.HandleNetworkError(w, err, dest, "openai", clientType, "anthropic_adapter", traceID, "Anthropic→OpenAI")
-		return
-	}
-
-	isNodeFailure, isQuotaExhausted := router.CheckResponseStatus(finalResp, dest, "openai", clientType, "anthropic_adapter", traceID, "Anthropic→OpenAI")
-
-	if oaiReq.Stream {
-		anthropicStreamOpenAI(ctx, w, finalResp, traceID, dest, clientType, oaiReq.Model, bodyBytes)
-	} else {
-		anthropicNonStreamOpenAI(w, finalResp, traceID, dest, clientType, oaiReq.Model, bodyBytes)
-	}
-
-	router.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
+	router.ExecuteAndStream(w, proxyReq, dest, "openai", clientType, "anthropic_adapter", traceID, "Anthropic→OpenAI",
+		func(finalResp *http.Response, startTime time.Time) bool {
+			if oaiReq.Stream {
+				anthropicStreamOpenAI(ctx, w, finalResp, traceID, dest, clientType, oaiReq.Model, bodyBytes)
+			} else {
+				anthropicNonStreamOpenAI(w, finalResp, traceID, dest, clientType, oaiReq.Model, bodyBytes)
+			}
+			return false
+		})
 }
 
 // buildOpenAIRequest 把 Anthropic MessageRequest 转换为 OpenAI Chat Completions 请求

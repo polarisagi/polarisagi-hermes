@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
+	"time"
 	"regexp"
 	"strings"
 
@@ -44,17 +44,11 @@ func AnthropicToAnthropic(ctx context.Context, w http.ResponseWriter, r *http.Re
 	if targetURL == "" {
 		targetURL = "https://api.anthropic.com/v1"
 	}
-	// Append the path: the stripped path is like /v1/messages
-	// Anthropic base URL already includes /v1, so we need just /messages
 	subPath := strings.TrimPrefix(r.URL.Path, "/v1")
 	if !strings.HasPrefix(subPath, "/") {
 		subPath = "/" + subPath
 	}
 	targetURL = targetURL + subPath
-
-	if dest.IsProbationRun {
-		slog.Warn("⚠️ 启用 🟠 Probation 账号执行流量探路 (Anthropic Passthrough)", "trace_id", traceID, "account", dest.Node.Name)
-	}
 
 	proxyReq, _ := http.NewRequestWithContext(ctx, r.Method, targetURL, bytes.NewReader(bodyBytes))
 	for k, vv := range r.Header {
@@ -70,21 +64,15 @@ func AnthropicToAnthropic(ctx context.Context, w http.ResponseWriter, r *http.Re
 	proxyReq.Header.Set("anthropic-version", "2023-06-01")
 	proxyReq.Header.Set("Content-Type", "application/json")
 
-	finalResp, err := httpClient.Do(proxyReq)
-	if err != nil {
-		router.HandleNetworkError(w, err, dest, "anthropic", clientType, "passthrough", traceID, "Anthropic Passthrough")
-		return
-	}
-
-	isNodeFailure, isQuotaExhausted := router.CheckResponseStatus(finalResp, dest, "anthropic", clientType, "passthrough", traceID, "Anthropic Passthrough")
-
-	if req.Stream {
-		anthropicPassthroughStream(w, finalResp, traceID, dest, clientType, modelName, bodyBytes)
-	} else {
-		anthropicPassthroughNonStream(w, finalResp, traceID, dest, clientType, modelName, bodyBytes)
-	}
-
-	router.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
+	router.ExecuteAndStream(w, proxyReq, dest, "anthropic", clientType, "passthrough", traceID, "Anthropic Passthrough",
+		func(finalResp *http.Response, startTime time.Time) bool {
+			if req.Stream {
+				anthropicPassthroughStream(w, finalResp, traceID, dest, clientType, modelName, bodyBytes)
+			} else {
+				anthropicPassthroughNonStream(w, finalResp, traceID, dest, clientType, modelName, bodyBytes)
+			}
+			return false
+		})
 }
 
 // anthropicPassthroughStream 直通流式响应：读取上游 Anthropic SSE 流，原样写回客户端并结算

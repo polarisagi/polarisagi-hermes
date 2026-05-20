@@ -9,8 +9,6 @@ import (
 	"polaris-gateway/internal/router"
 )
 
-// httpClient 包级共享 HTTP 客户端，所有 Anthropic 包内的转换器均通过此实例发出上游请求
-var httpClient = router.SharedHTTPClient
 
 // writeSSEMessageStart 发送 message_start 事件
 // estimatedInputTokens > 0 时填入 Usage.InputTokens，让 Claude Code 的 /context 命令

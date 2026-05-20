@@ -53,8 +53,9 @@ func OpenAIToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Request,
 
 	// OpenAIToOpenAI 本身原本没有输出 Probation 探路日志，这里交给 ExecuteAndStream 统一处理
 	router.ExecuteAndStream(w, proxyReq, dest, "openai", clientType, methodName, traceID, "OAI",
-		func(finalResp *http.Response, startTime time.Time) {
+		func(finalResp *http.Response, startTime time.Time) bool {
 			streamAndSettleUsage(w, finalResp, dest, dest.TargetModel, clientType, methodName, traceID, startTime, bodyBytes)
+			return false
 		})
 }
 
