@@ -4,15 +4,12 @@
 package openai
 
 import (
-	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
-	"polaris-gateway/internal/db"
 	"polaris-gateway/internal/router"
-	"polaris-gateway/internal/translators/utils"
 )
 
 // streamAndSettleUsage 流式转发上游响应到客户端，同时在尾部窗口收集 usage 数据完成计费
@@ -28,20 +25,16 @@ func streamAndSettleUsage(w http.ResponseWriter, finalResp *http.Response, dest 
 	}
 	w.WriteHeader(finalResp.StatusCode)
 
-	tailBuf, totalWritten := utils.ForwardStreamBody(w, finalResp.Body)
+	tailBuf, totalWritten := router.ForwardStreamBody(w, finalResp.Body)
 
-	prompt, completion, cached, found := utils.ParseUsageFromStreamTail(tailBuf)
+	prompt, completion, cached, found := router.ParseUsageFromStreamTail(tailBuf)
 	if !found {
 		// 客户端中断导致 stream 提前结束，未能获取最后一块的 usageMetadata
-		prompt = utils.EstimatePromptTokens(reqBody)
-		completion = utils.EstimateCompletionTokens(totalWritten)
+		prompt = router.EstimatePromptTokens(reqBody)
+		completion = router.EstimateCompletionTokens(totalWritten)
 		slog.Warn("⚠️ 响应流中断，启用 token 估算补偿", "trace_id", traceID, "node", dest.Node.Name, "prompt", prompt, "completion", completion)
 	}
 
-	if prompt > 0 || completion > 0 {
-		cost := utils.CalculateCost(dest.Node.Provider, modelName, prompt, completion, cached, reqBody)
-		db.SaveUsage("openai", dest.Node.Name, clientType, methodName, prompt, completion, cost, finalResp.StatusCode)
-		dest.Node.RecordCost(cost, traceID)
-		slog.Info("💰 结算成功", "trace_id", traceID, "node", dest.Node.Name, "model", modelName, "cost", fmt.Sprintf("%.4f", cost))
-	}
+	router.SettleBilling(dest.Node.Provider, dest.Node.Name, clientType, methodName, modelName,
+		prompt, completion, cached, finalResp.StatusCode, dest, reqBody, traceID)
 }

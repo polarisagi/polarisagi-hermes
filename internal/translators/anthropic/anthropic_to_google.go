@@ -28,7 +28,6 @@ import (
 	"strings"
 
 	"polaris-gateway/internal/router"
-	"polaris-gateway/internal/translators/utils"
 )
 
 // anthropicVersionGEAP GEAP 平台要求的 Claude 请求体版本字段，Google 官方文档中写死
@@ -166,11 +165,11 @@ func handleGEAPClaude(ctx context.Context, w http.ResponseWriter, r *http.Reques
 
 	finalResp, err := httpClient.Do(proxyReq)
 	if err != nil {
-		utils.HandleNetworkError(w, err, dest, "google", clientType, "anthropic_geap_claude", traceID, "Anthropic(GEAP-Claude)")
+		router.HandleNetworkError(w, err, dest, "google", clientType, "anthropic_geap_claude", traceID, "Anthropic(GEAP-Claude)")
 		return
 	}
 
-	isNodeFailure, isQuotaExhausted := utils.CheckResponseStatus(finalResp, dest, "google", clientType, "anthropic_geap_claude", traceID, "Anthropic(GEAP-Claude)")
+	isNodeFailure, isQuotaExhausted := router.CheckResponseStatus(finalResp, dest, "google", clientType, "anthropic_geap_claude", traceID, "Anthropic(GEAP-Claude)")
 
 	if finalResp.StatusCode != http.StatusOK {
 		errBody, _ := io.ReadAll(finalResp.Body)
@@ -178,7 +177,7 @@ func handleGEAPClaude(ctx context.Context, w http.ResponseWriter, r *http.Reques
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(finalResp.StatusCode)
 		_, _ = w.Write(errBody)
-		utils.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
+		router.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
 		return
 	}
 
@@ -187,7 +186,7 @@ func handleGEAPClaude(ctx context.Context, w http.ResponseWriter, r *http.Reques
 	} else {
 		nonStreamGEAPClaude(w, finalResp, dest, clientType, model, traceID, bodyBytes)
 	}
-	utils.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
+	router.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
 }
 
 // rewriteBodyForGEAPClaude 注入 anthropic_version，删除 model 字段（model 在 URL 中指定）
@@ -230,7 +229,7 @@ func streamGEAPClaude(w http.ResponseWriter, upstreamResp *http.Response, dest *
 	}
 	w.WriteHeader(upstreamResp.StatusCode)
 
-	tailBuf, _ := utils.ForwardStreamBody(w, upstreamResp.Body)
+	tailBuf, _ := router.ForwardStreamBody(w, upstreamResp.Body)
 
 	if bytes.Contains(tailBuf, []byte("output_tokens")) {
 		extractAndRecordAnthropicUsage("google", tailBuf, modelName, dest, clientType, "anthropic_geap_claude", traceID, reqBody)
@@ -292,11 +291,11 @@ func handleGemini(ctx context.Context, w http.ResponseWriter, bodyBytes []byte, 
 
 	finalResp, err := httpClient.Do(proxyReq)
 	if err != nil {
-		utils.HandleNetworkError(w, err, dest, "google", clientType, "anthropic_adapter", traceID, "Anthropic(Gemini)")
+		router.HandleNetworkError(w, err, dest, "google", clientType, "anthropic_adapter", traceID, "Anthropic(Gemini)")
 		return
 	}
 
-	isNodeFailure, isQuotaExhausted := utils.CheckResponseStatus(finalResp, dest, "google", clientType, "anthropic_adapter", traceID, "Anthropic(Gemini)")
+	isNodeFailure, isQuotaExhausted := router.CheckResponseStatus(finalResp, dest, "google", clientType, "anthropic_adapter", traceID, "Anthropic(Gemini)")
 
 	if finalResp.StatusCode != http.StatusOK {
 		errBody, _ := io.ReadAll(finalResp.Body)
@@ -311,7 +310,7 @@ func handleGemini(ctx context.Context, w http.ResponseWriter, bodyBytes []byte, 
 			},
 		}
 		_ = json.NewEncoder(w).Encode(errResp)
-		utils.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
+		router.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
 		return
 	}
 
@@ -323,7 +322,7 @@ func handleGemini(ctx context.Context, w http.ResponseWriter, bodyBytes []byte, 
 	} else {
 		handleAnthropicNonStreamResponse(w, finalResp, req, traceID, dest, clientType, model, bodyBytes, isCompact)
 	}
-	utils.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
+	router.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
 }
 
 func init() {

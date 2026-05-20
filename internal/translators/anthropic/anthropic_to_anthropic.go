@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"polaris-gateway/internal/router"
-	"polaris-gateway/internal/translators/utils"
 )
 
 // AnthropicToAnthropic is a pure passthrough: no protocol conversion, just load balancing + billing.
@@ -73,11 +72,11 @@ func AnthropicToAnthropic(ctx context.Context, w http.ResponseWriter, r *http.Re
 
 	finalResp, err := httpClient.Do(proxyReq)
 	if err != nil {
-		utils.HandleNetworkError(w, err, dest, "anthropic", clientType, "passthrough", traceID, "Anthropic Passthrough")
+		router.HandleNetworkError(w, err, dest, "anthropic", clientType, "passthrough", traceID, "Anthropic Passthrough")
 		return
 	}
 
-	isNodeFailure, isQuotaExhausted := utils.CheckResponseStatus(finalResp, dest, "anthropic", clientType, "passthrough", traceID, "Anthropic Passthrough")
+	isNodeFailure, isQuotaExhausted := router.CheckResponseStatus(finalResp, dest, "anthropic", clientType, "passthrough", traceID, "Anthropic Passthrough")
 
 	if req.Stream {
 		anthropicPassthroughStream(w, finalResp, traceID, dest, clientType, modelName, bodyBytes)
@@ -85,7 +84,7 @@ func AnthropicToAnthropic(ctx context.Context, w http.ResponseWriter, r *http.Re
 		anthropicPassthroughNonStream(w, finalResp, traceID, dest, clientType, modelName, bodyBytes)
 	}
 
-	utils.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
+	router.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
 }
 
 // anthropicPassthroughStream 直通流式响应：读取上游 Anthropic SSE 流，原样写回客户端并结算
@@ -101,7 +100,7 @@ func anthropicPassthroughStream(w http.ResponseWriter, upstreamResp *http.Respon
 	}
 	w.WriteHeader(upstreamResp.StatusCode)
 
-	tailBuf, _ := utils.ForwardStreamBody(w, upstreamResp.Body)
+	tailBuf, _ := router.ForwardStreamBody(w, upstreamResp.Body)
 
 	if bytes.Contains(tailBuf, []byte("output_tokens")) {
 		extractAndRecordAnthropicUsage("anthropic", tailBuf, modelName, dest, clientType, "passthrough", traceID, reqBody)
@@ -158,7 +157,7 @@ func extractAndRecordAnthropicUsage(provider string, tailBuf []byte, modelName s
 		_, _ = fmt.Sscanf(string(m[1]), "%d", &inputTokens)
 	}
 	if inputTokens == 0 {
-		inputTokens = utils.EstimatePromptTokens(reqBody)
+		inputTokens = router.EstimatePromptTokens(reqBody)
 	}
 
 	// cache_read_input_tokens：Anthropic prompt cache 命中
@@ -168,7 +167,7 @@ func extractAndRecordAnthropicUsage(provider string, tailBuf []byte, modelName s
 		_, _ = fmt.Sscanf(string(m[1]), "%d", &cacheReadTokens)
 	}
 
-	settleBilling(provider, dest.Node.Name, clientType, methodName, modelName, inputTokens, outputTokens, cacheReadTokens, http.StatusOK, dest, reqBody, traceID)
+	router.SettleBilling(provider, dest.Node.Name, clientType, methodName, modelName, inputTokens, outputTokens, cacheReadTokens, http.StatusOK, dest, reqBody, traceID)
 }
 
 func init() {

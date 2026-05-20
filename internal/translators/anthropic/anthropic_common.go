@@ -3,17 +3,14 @@ package anthropic
 import (
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"strings"
 
-	"polaris-gateway/internal/db"
 	"polaris-gateway/internal/router"
-	"polaris-gateway/internal/translators/utils"
 )
 
 // httpClient 包级共享 HTTP 客户端，所有 Anthropic 包内的转换器均通过此实例发出上游请求
-var httpClient = utils.SharedHTTPClient
+var httpClient = router.SharedHTTPClient
 
 // writeSSEMessageStart 发送 message_start 事件
 // estimatedInputTokens > 0 时填入 Usage.InputTokens，让 Claude Code 的 /context 命令
@@ -109,23 +106,8 @@ func parseAndSettleAnthropicResponse(provider string, bodyBytes []byte, dest *ro
 	if json.Unmarshal(bodyBytes, &resp) == nil {
 		// cache_creation 按正常 prompt 计费；cache_read 按折扣价，由 CalculateCost 处理
 		inputTokens := int64(resp.Usage.InputTokens) + int64(resp.Usage.CacheCreationInputTokens)
-		settleBilling(provider, dest.Node.Name, clientType, methodName, modelName,
+		router.SettleBilling(provider, dest.Node.Name, clientType, methodName, modelName,
 			inputTokens, int64(resp.Usage.OutputTokens), int64(resp.Usage.CacheReadInputTokens),
 			statusCode, dest, reqBody, traceID)
-	}
-}
-
-// settleBilling records usage and cost for a completed API request
-func settleBilling(provider, nodeName, clientType, adapterName, modelName string, promptTokens, completionTokens, cachedTokens int64, statusCode int, dest *router.MatchedDestination, reqBody []byte, traceID string) {
-	if promptTokens <= 0 && completionTokens <= 0 {
-		return
-	}
-	cost := utils.CalculateCost(provider, modelName, promptTokens, completionTokens, cachedTokens, reqBody)
-	db.SaveUsage(provider, nodeName, clientType, adapterName, promptTokens, completionTokens, cost, statusCode)
-	dest.Node.RecordCost(cost, traceID)
-	if cachedTokens > 0 {
-		slog.Info("💰 结算完成", "trace_id", traceID, "account", nodeName, "model", modelName, "prompt", promptTokens, "cached", cachedTokens, "completion", completionTokens, "cost", fmt.Sprintf("%.4f", cost))
-	} else {
-		slog.Info("💰 结算完成", "trace_id", traceID, "account", nodeName, "model", modelName, "prompt", promptTokens, "completion", completionTokens, "cost", fmt.Sprintf("%.4f", cost))
 	}
 }

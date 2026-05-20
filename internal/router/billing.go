@@ -1,50 +1,20 @@
-package utils
+// 统一计费引擎：模型定价 + 费用计算 + Token 估算 + 用量解析 + 结算入口
+// 所有协议转换器在处理完响应后调用 SettleBilling() 完成计费结算
+// 禁止在协议层直接调用 db.SaveUsage 或 Node.RecordCost
+package router
 
 import (
 	"bytes"
-	"context"
 	"fmt"
-	"io"
+	"log/slog"
 	"math"
-	"net"
-	"net/http"
 	"regexp"
 	"strings"
-	"time"
 
-	"polaris-gateway/internal/config"
+	"polaris-gateway/internal/db"
 )
 
-// sharedTransport 全局共享的 HTTP Transport，避免高并发下 TCP 连接膨胀
-// 默认 Transport 没有连接池限制，每个 LLM 上游请求都可能新建 socket，
-// Claude Code/opencode 等客户端瞬时几十个并发时会触发 EADDRINUSE / 文件句柄耗尽
-//
-// 调参依据：
-//   - MaxIdleConns=200 覆盖单网关 ~20 个上游节点 × 10 并发的常见规模
-//   - MaxIdleConnsPerHost=50 单个上游 LLM host 的 idle 连接上限
-//   - IdleConnTimeout=90s 比 LLM 平均响应时长长，复用率最大化
-//   - DisableCompression=false 让上游 gzip 响应能正常解压
-var sharedTransport = &http.Transport{
-	MaxIdleConns:          200,
-	MaxIdleConnsPerHost:   50,
-	MaxConnsPerHost:       0, // 0 = 不限并发连接，仅 idle 池有上限
-	IdleConnTimeout:       90 * time.Second,
-	TLSHandshakeTimeout:   10 * time.Second,
-	ExpectContinueTimeout: 1 * time.Second,
-	ResponseHeaderTimeout: 600 * time.Second, // Claude Code compress 大上下文首 token 延迟可达 5min+
-	ForceAttemptHTTP2:     true,
-	DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-		dialer := &net.Dialer{
-			Timeout:   30 * time.Second,
-			KeepAlive: 30 * time.Second,
-		}
-		return dialer.DialContext(ctx, network, addr)
-	},
-}
-
-// Project Atlas: Polaris Gateway (OpenAI Protocol Module)
-// Author: mrlaoliai
-
+// ModelPrice 模型单价（美元/百万 token）
 type ModelPrice struct {
 	Prompt1M    float64
 	Candidate1M float64
@@ -121,49 +91,42 @@ var modelPriceDict = map[string]ModelPrice{
 	"default": {Prompt1M: 1.0, Candidate1M: 2.0},
 }
 
+// ── 用量提取正则 ──
+
 var (
 	OpenAIPromptRegex     = regexp.MustCompile(`"prompt_tokens"\s*:\s*(\d+)`)
 	OpenAICompletionRegex = regexp.MustCompile(`"completion_tokens"\s*:\s*(\d+)`)
 	OpenAICachedRegex     = regexp.MustCompile(`"cached_tokens"\s*:\s*(\d+)`)
-	ModelRegex            = regexp.MustCompile(`"model"\s*:\s*"([^"]+)"`)
-	
+	BillingModelRegex     = regexp.MustCompile(`"model"\s*:\s*"([^"]+)"`)
+
 	PromptRegex        = regexp.MustCompile(`"promptTokenCount":\s*(\d+)`)
 	CandidateRegex     = regexp.MustCompile(`"candidatesTokenCount":\s*(\d+)`)
 	CachedContentRegex = regexp.MustCompile(`"cachedContentTokenCount":\s*(\d+)`)
 )
 
-func ExtractModelName(body []byte) string {
-	match := ModelRegex.FindSubmatch(body)
+// ExtractModelNameFromBody 从 JSON body 中用正则快速提取 model 字段值（计费用途）
+func ExtractModelNameFromBody(body []byte) string {
+	match := BillingModelRegex.FindSubmatch(body)
 	if len(match) > 1 {
 		return string(match[1])
 	}
 	return "unknown"
 }
 
-// ExtractMethodName 从 URL 路径中动态推导 OpenAPI 标准接口 (如 chat/completions, embeddings)
-func ExtractMethodName(incomingPath string) string {
-	sub := strings.TrimPrefix(incomingPath, "/v1/")
-	sub = strings.TrimPrefix(sub, "/")
-	if sub == "" {
-		return "unknown"
-	}
-	return sub
-}
-
+// EstimatePromptTokens 基于请求体字节数的启发式 token 估算（1 token ≈ 4 字节）
 func EstimatePromptTokens(bodyBytes []byte) int64 {
-	// 简单的经验法则: 1 token ≈ 4 字节
 	return int64(len(bodyBytes)) / 4
 }
 
+// EstimateCompletionTokens 基于 SSE 流字节数的启发式 token 估算（1 token ≈ 60 字节 SSE 开销）
 func EstimateCompletionTokens(sentBytes int64) int64 {
-	// SSE JSON overhead 较大，1 个 token 往往带有 50-80 字节的结构包装
 	return sentBytes / 60
 }
 
 // CalculateCost 根据模型名和 token 用量计算费用
 // 定价策略: 从 modelPriceDict 查找模型单价 → 区分 cached/uncached prompt tokens
 // Gemini 模型超过 128K prompt tokens 时费率翻倍（长上下文定价）
-// cached tokens 折扣: Gemini 25%, DeepSeek 10%, 其他 50%
+// cached tokens 折扣: Gemini 25%, DeepSeek 10%, Claude 10%, 其他 50%
 func CalculateCost(provider, modelName string, promptTokens, candidateTokens, cachedTokens int64, bodyBytes []byte) float64 {
 	price, exists := modelPriceDict[modelName]
 	if !exists {
@@ -194,13 +157,10 @@ func CalculateCost(provider, modelName string, promptTokens, candidateTokens, ca
 	cachedRate := promptRate * 0.50 // Default 50% discount for cached tokens
 
 	if strings.Contains(modelName, "deepseek-") {
-		// DeepSeek cached tokens are typically 10% of standard rate
 		cachedRate = promptRate * 0.10
 	} else if strings.Contains(modelName, "gemini-") {
-		// Gemini cached context discount is ~25% of standard rate
 		cachedRate = promptRate * 0.25
 	} else if strings.Contains(modelName, "claude-") {
-		// Claude cached read tokens are typically 10% of standard rate
 		cachedRate = promptRate * 0.10
 	}
 
@@ -223,107 +183,10 @@ func CalculateCost(provider, modelName string, promptTokens, candidateTokens, ca
 	return math.Ceil(cost*10000) / 10000
 }
 
-// IdentifyClient 从 User-Agent 请求头识别客户端类型，用于统计面板按客户端分组
-func IdentifyClient(r *http.Request) string {
-	userAgent := strings.ToLower(r.UserAgent())
-	if strings.Contains(userAgent, "aider") {
-		return "Aider"
-	}
-	if strings.Contains(userAgent, "curl") {
-		return "cURL"
-	}
-	if strings.Contains(userAgent, "opencode") || strings.Contains(userAgent, "vscode") {
-		return "OpenCode"
-	}
-	if userAgent == "" {
-		return "Unknown"
-	}
-	if len(userAgent) > 20 {
-		return userAgent[:20] + "..."
-	}
-	return r.UserAgent()
-}
-
-// BuildTargetURL 实现多态路由分发，原生支持 Vertex 端点的多子路径拼接
-func BuildTargetURL(acc config.AccountDetail, incomingPath string) string {
-	// 1. 提取业务子路径 (例如 chat/completions)
-	subPath := strings.TrimPrefix(incomingPath, "/v1")
-	if !strings.HasPrefix(subPath, "/") {
-		subPath = "/" + subPath
-	}
-
-	// 2. Vertex OpenAPI 节点路由渲染
-	if acc.ProjectID != "" {
-		template := acc.BaseURL
-		if template == "" {
-			template = "https://aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/endpoints/openapi"
-		}
-
-		location := acc.Location
-		if location == "" {
-			location = "global"
-		}
-
-		resURL := strings.ReplaceAll(template, "{project_id}", acc.ProjectID)
-		resURL = strings.ReplaceAll(resURL, "{location}", location)
-
-		// 完美咬合 Google 官方规范：在 openapi 之后直接拼接方法名
-		return strings.TrimSuffix(resURL, "/") + subPath
-	}
-
-	// 3. 标准 OpenAI 节点处理 (如 DeepSeek)
-	baseURL := strings.TrimSuffix(acc.BaseURL, "/")
-	
-	versionPrefix := "/v1"
-	if strings.Contains(baseURL, "generativelanguage.googleapis") {
-		if strings.Contains(subPath, "preview") || strings.Contains(subPath, "3.1") || strings.Contains(subPath, "2.5") || strings.Contains(subPath, "2.0") || strings.Contains(subPath, "lite") {
-			versionPrefix = "/v1beta"
-		}
-	}
-	return baseURL + versionPrefix + subPath
-}
-
-// ForwardStreamBody 将 body 流式转发到 w，同时维护尾部 8KB 缓冲窗口
-// 返回尾部缓冲（用于从流末提取 usage 字段）和累计写入字节数（用于 token 估算兜底）
-// 调用方负责在调用前后进行 header 复制、w.WriteHeader 和 body.Close
-func ForwardStreamBody(w http.ResponseWriter, body io.Reader) (tailBuf []byte, totalWritten int64) {
-	flusher, _ := w.(http.Flusher)
-	buf := make([]byte, 8192)
-	const tailWindowSize = 8192
-
-	for {
-		n, readErr := body.Read(buf)
-		if n > 0 {
-			if _, writeErr := w.Write(buf[:n]); writeErr != nil {
-				break
-			}
-			if flusher != nil {
-				flusher.Flush()
-			}
-			totalWritten += int64(n)
-			tailBuf = append(tailBuf, buf[:n]...)
-			if len(tailBuf) > tailWindowSize {
-				tailBuf = tailBuf[len(tailBuf)-tailWindowSize:]
-			}
-		}
-		if readErr != nil {
-			break
-		}
-	}
-	return tailBuf, totalWritten
-}
-
-func ParseToInt(b []byte) int64 {
-	var n int64
-	if _, err := fmt.Sscanf(string(b), "%d", &n); err != nil {
-		return 0
-	}
-	return n
-}
-
-// ParseUsageFromStreamTail parses OpenAI, Vertex, and Gemini stream response tails for token usage info.
+// ParseUsageFromStreamTail 从 SSE 流尾部缓冲中提取 token 用量
+// 支持 OpenAI 格式 (prompt_tokens/completion_tokens) 和 Vertex 格式 (promptTokenCount/candidatesTokenCount)
 func ParseUsageFromStreamTail(tailBuf []byte) (prompt, completion, cached int64, found bool) {
-	// Try OpenAI format: "prompt_tokens", "completion_tokens"
+	// Try OpenAI format
 	if bytes.Contains(tailBuf, []byte("prompt_tokens")) || bytes.Contains(tailBuf, []byte("completion_tokens")) {
 		pMatch := OpenAIPromptRegex.FindSubmatch(tailBuf)
 		cMatch := OpenAICompletionRegex.FindSubmatch(tailBuf)
@@ -342,7 +205,7 @@ func ParseUsageFromStreamTail(tailBuf []byte) (prompt, completion, cached int64,
 		}
 	}
 
-	// Try Vertex format: "promptTokenCount", "candidatesTokenCount"
+	// Try Vertex format
 	if bytes.Contains(tailBuf, []byte("promptTokenCount")) || bytes.Contains(tailBuf, []byte("usageMetadata")) {
 		pMatch := PromptRegex.FindSubmatch(tailBuf)
 		cMatch := CandidateRegex.FindSubmatch(tailBuf)
@@ -362,4 +225,23 @@ func ParseUsageFromStreamTail(tailBuf []byte) (prompt, completion, cached int64,
 	}
 
 	return 0, 0, 0, false
+}
+
+// SettleBilling 全局统一计费入口
+// 所有协议转换器在处理完响应后调用此函数完成计费结算
+// 禁止在协议层直接调用 db.SaveUsage 或 Node.RecordCost
+func SettleBilling(provider, nodeName, clientType, methodName, modelName string,
+	promptTokens, completionTokens, cachedTokens int64,
+	statusCode int, dest *MatchedDestination, reqBody []byte, traceID string) {
+	if promptTokens <= 0 && completionTokens <= 0 {
+		return
+	}
+	cost := CalculateCost(provider, modelName, promptTokens, completionTokens, cachedTokens, reqBody)
+	db.SaveUsage(provider, nodeName, clientType, methodName, promptTokens, completionTokens, cost, statusCode)
+	dest.Node.RecordCost(cost, traceID)
+	if cachedTokens > 0 {
+		slog.Info("💰 结算完成", "trace_id", traceID, "account", nodeName, "model", modelName, "prompt", promptTokens, "cached", cachedTokens, "completion", completionTokens, "cost", fmt.Sprintf("%.4f", cost))
+	} else {
+		slog.Info("💰 结算完成", "trace_id", traceID, "account", nodeName, "model", modelName, "prompt", promptTokens, "completion", completionTokens, "cost", fmt.Sprintf("%.4f", cost))
+	}
 }

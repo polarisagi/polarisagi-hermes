@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	"polaris-gateway/internal/router"
-	"polaris-gateway/internal/translators/utils"
 )
 
 // streamAnthropicResponse 从 Vertex 后端读取流式 SSE 响应，边读边转为 Anthropic SSE 格式
@@ -587,12 +586,12 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 	// GEAP 偶发不返回 usageMetadata（极少见），此时用字节估算兜底保证计费不丢失
 	// 注：!streamOK 在此处永远为 false（命名返回值尚未赋值），去掉该条件让逻辑更清晰
 	if promptTokens == 0 && completionTokens == 0 {
-		promptTokens = int(utils.EstimatePromptTokens(reqBody))
-		completionTokens = int(utils.EstimateCompletionTokens(totalWritten))
+		promptTokens = int(router.EstimatePromptTokens(reqBody))
+		completionTokens = int(router.EstimateCompletionTokens(totalWritten))
 		slog.Warn("⚠️ GEAP 未返回 usageMetadata，启用 token 估算兜底", "trace_id", traceID, "node", dest.Node.Name, "prompt", promptTokens, "completion", completionTokens)
 	}
 
-	settleBilling("google", dest.Node.Name, clientType, "anthropic_adapter", modelName, int64(promptTokens), int64(completionTokens), int64(cachedTokens), http.StatusOK, dest, reqBody, traceID)
+	router.SettleBilling("google", dest.Node.Name, clientType, "anthropic_adapter", modelName, int64(promptTokens), int64(completionTokens), int64(cachedTokens), http.StatusOK, dest, reqBody, traceID)
 
 	return true
 }

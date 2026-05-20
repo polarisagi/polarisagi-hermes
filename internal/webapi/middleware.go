@@ -11,20 +11,17 @@ import (
 
 	"polaris-gateway/internal/config"
 	"polaris-gateway/internal/db"
+	"polaris-gateway/internal/router"
 )
 
-var (
-	MaxConcurrency int   // 最大并发数（=活跃节点数）
-	ActiveCount    int32 // 正在处理的请求计数（原子操作）
-	WaitingCount   int32 // 排队等待的请求计数（原子操作）
-)
+
 
 // InitMiddleware 初始化并发限制，concurrency 为活跃节点总数
 func InitMiddleware(concurrency int) {
 	if concurrency <= 0 {
 		concurrency = 2
 	}
-	MaxConcurrency = concurrency
+	router.MaxConcurrency = concurrency
 }
 
 func ConcurrencyLimiter(next http.HandlerFunc) http.HandlerFunc {
@@ -126,9 +123,9 @@ func StatsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"details":       details,
-		"active_count":  atomic.LoadInt32(&ActiveCount),
-		"waiting_count": atomic.LoadInt32(&WaitingCount),
-		"max_limit":     MaxConcurrency,
+		"active_count":  atomic.LoadInt32(&router.ActiveCount),
+		"waiting_count": atomic.LoadInt32(&router.WaitingCount),
+		"max_limit":     router.MaxConcurrency,
 	}); err != nil {
 		slog.Error("JSON 响应编码失败", "error", err)
 	}

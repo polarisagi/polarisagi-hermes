@@ -11,14 +11,13 @@ import (
 	"time"
 
 	"polaris-gateway/internal/router"
-	"polaris-gateway/internal/translators/utils"
 )
 
 // OpenAIToOpenAI 处理 OpenAI 协议到 OpenAI 兼容后端的直通转发
 // 仅做: 模型名替换 + API Key 注入 + 头透传，不做协议格式转换
 func OpenAIToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) {
-	clientType := utils.IdentifyClient(r)
-	methodName := utils.ExtractMethodName(r.URL.Path)
+	clientType := router.IdentifyClient(r)
+	methodName := router.ExtractMethodName(r.URL.Path)
 
 	targetURL := strings.TrimSuffix(dest.Node.BaseURL, "/")
 	if targetURL == "" {
@@ -31,7 +30,7 @@ func OpenAIToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	targetURL = targetURL + subPath
 
 	// 缓存原始模型名：避免在第二次 ReplaceAll 时 ExtractModelName 读到已被替换后的值
-	originalModel := utils.ExtractModelName(bodyBytes)
+	originalModel := router.ExtractModelNameFromBody(bodyBytes)
 	if dest.TargetModel != "" && dest.TargetModel != originalModel {
 		bodyBytes = bytes.ReplaceAll(bodyBytes, []byte(fmt.Sprintf(`"model":"%s"`, originalModel)), []byte(fmt.Sprintf(`"model":"%s"`, dest.TargetModel)))
 		bodyBytes = bytes.ReplaceAll(bodyBytes, []byte(fmt.Sprintf(`"model": "%s"`, originalModel)), []byte(fmt.Sprintf(`"model": "%s"`, dest.TargetModel)))
@@ -53,7 +52,7 @@ func OpenAIToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	proxyReq.Header.Set("Authorization", "Bearer "+dest.Node.Credentials)
 
 	// OpenAIToOpenAI 本身原本没有输出 Probation 探路日志，这里交给 ExecuteAndStream 统一处理
-	utils.ExecuteAndStream(w, proxyReq, dest, "openai", clientType, methodName, traceID, "OAI",
+	router.ExecuteAndStream(w, proxyReq, dest, "openai", clientType, methodName, traceID, "OAI",
 		func(finalResp *http.Response, startTime time.Time) {
 			streamAndSettleUsage(w, finalResp, dest, dest.TargetModel, clientType, methodName, traceID, startTime, bodyBytes)
 		})

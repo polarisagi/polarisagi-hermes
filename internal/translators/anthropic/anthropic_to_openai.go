@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"polaris-gateway/internal/router"
-	"polaris-gateway/internal/translators/utils"
 )
 
 // Anthropic → OpenAI 协议转换器
@@ -79,11 +78,11 @@ func AnthropicToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Reque
 
 	finalResp, err := httpClient.Do(proxyReq)
 	if err != nil {
-		utils.HandleNetworkError(w, err, dest, "openai", clientType, "anthropic_adapter", traceID, "Anthropic→OpenAI")
+		router.HandleNetworkError(w, err, dest, "openai", clientType, "anthropic_adapter", traceID, "Anthropic→OpenAI")
 		return
 	}
 
-	isNodeFailure, isQuotaExhausted := utils.CheckResponseStatus(finalResp, dest, "openai", clientType, "anthropic_adapter", traceID, "Anthropic→OpenAI")
+	isNodeFailure, isQuotaExhausted := router.CheckResponseStatus(finalResp, dest, "openai", clientType, "anthropic_adapter", traceID, "Anthropic→OpenAI")
 
 	if oaiReq.Stream {
 		anthropicStreamOpenAI(ctx, w, finalResp, traceID, dest, clientType, oaiReq.Model, bodyBytes)
@@ -91,7 +90,7 @@ func AnthropicToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Reque
 		anthropicNonStreamOpenAI(w, finalResp, traceID, dest, clientType, oaiReq.Model, bodyBytes)
 	}
 
-	utils.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
+	router.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
 }
 
 // buildOpenAIRequest 把 Anthropic MessageRequest 转换为 OpenAI Chat Completions 请求
@@ -459,10 +458,10 @@ func anthropicStreamOpenAI(ctx context.Context, w http.ResponseWriter, oaiResp *
 	}
 
 	// 解析 usage
-	prompt, completion, cached, found := utils.ParseUsageFromStreamTail(tailBuf)
+	prompt, completion, cached, found := router.ParseUsageFromStreamTail(tailBuf)
 	if !found {
-		prompt = utils.EstimatePromptTokens(reqBody)
-		completion = utils.EstimateCompletionTokens(totalWritten)
+		prompt = router.EstimatePromptTokens(reqBody)
+		completion = router.EstimateCompletionTokens(totalWritten)
 		slog.Warn("⚠️ 响应流中断，启用 token 估算补偿", "trace_id", traceID, "node", dest.Node.Name, "prompt", prompt, "completion", completion)
 	}
 
@@ -478,7 +477,7 @@ func anthropicStreamOpenAI(ctx context.Context, w http.ResponseWriter, oaiResp *
 	writeSSE(w, flusher, "message_delta", msgDeltaEvent)
 	writeSSEMessageStop(w, flusher)
 
-	settleBilling("openai", dest.Node.Name, clientType, "anthropic_adapter", modelName, prompt, completion, cached, oaiResp.StatusCode, dest, reqBody, traceID)
+	router.SettleBilling("openai", dest.Node.Name, clientType, "anthropic_adapter", modelName, prompt, completion, cached, oaiResp.StatusCode, dest, reqBody, traceID)
 }
 
 // processOAIStreamLine 解析单行 OpenAI SSE 数据，emit 对应 Anthropic SSE 事件
@@ -740,7 +739,7 @@ func anthropicNonStreamOpenAI(w http.ResponseWriter, oaiResp *http.Response, tra
 
 	promptTokens := int64(oaiResponse.Usage.PromptTokens)
 	completionTokens := int64(oaiResponse.Usage.CompletionTokens)
-	settleBilling("openai", dest.Node.Name, clientType, "anthropic_adapter", modelName, promptTokens, completionTokens, 0, oaiResp.StatusCode, dest, reqBody, traceID)
+	router.SettleBilling("openai", dest.Node.Name, clientType, "anthropic_adapter", modelName, promptTokens, completionTokens, 0, oaiResp.StatusCode, dest, reqBody, traceID)
 
 	anthropicResp := MessageResponse{
 		ID:           fmt.Sprintf("msg_%s", traceID),

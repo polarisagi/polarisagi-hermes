@@ -8,21 +8,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
-	"polaris-gateway/internal/db"
 	"polaris-gateway/internal/router"
-	"polaris-gateway/internal/translators/utils"
 )
 
 // GoogleToGoogle 将 Google Agent Platform 原生请求协议直通到 GEAP 后端：不做协议转换，仅替换端点 URL 和认证方式
 func GoogleToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) {
-	clientType := utils.IdentifyClient(r)
-	methodName := utils.ExtractMethodName(r.URL.Path)
+	clientType := router.IdentifyClient(r)
+	methodName := router.ExtractMethodName(r.URL.Path)
 
 	targetURL := buildGoogleTargetURL(dest.Node, r.URL.Path, dest.TargetModel)
 
@@ -52,7 +49,7 @@ func GoogleToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	utils.ExecuteAndStream(w, proxyReq, dest, "google", clientType, methodName, traceID, "Google Agent Platform",
+	router.ExecuteAndStream(w, proxyReq, dest, "google", clientType, methodName, traceID, "Google Agent Platform",
 		func(finalResp *http.Response, startTime time.Time) {
 			streamGoogleResponse(w, finalResp, dest, dest.TargetModel, clientType, methodName, traceID, startTime, bodyBytes)
 		})
@@ -71,21 +68,17 @@ func streamGoogleResponse(w http.ResponseWriter, finalResp *http.Response, dest 
 	}
 	w.WriteHeader(finalResp.StatusCode)
 
-	tailBuf, totalWritten := utils.ForwardStreamBody(w, finalResp.Body)
+	tailBuf, totalWritten := router.ForwardStreamBody(w, finalResp.Body)
 
-	prompt, completion, cached, found := utils.ParseUsageFromStreamTail(tailBuf)
+	prompt, completion, cached, found := router.ParseUsageFromStreamTail(tailBuf)
 	if !found {
-		prompt = utils.EstimatePromptTokens(reqBody)
-		completion = utils.EstimateCompletionTokens(totalWritten)
+		prompt = router.EstimatePromptTokens(reqBody)
+		completion = router.EstimateCompletionTokens(totalWritten)
 		slog.Warn("⚠️ 响应流中断，启用 token 估算补偿", "trace_id", traceID, "node", dest.Node.Name, "prompt", prompt, "completion", completion)
 	}
 
-	if prompt > 0 || completion > 0 {
-		cost := utils.CalculateCost(dest.Node.Provider, modelName, prompt, completion, cached, reqBody)
-		db.SaveUsage("google", dest.Node.Name, clientType, methodName, prompt, completion, cost, finalResp.StatusCode)
-		dest.Node.RecordCost(cost, traceID)
-		slog.Info("💰 结算成功", "trace_id", traceID, "node", dest.Node.Name, "model", modelName, "cost", fmt.Sprintf("%.4f", cost))
-	}
+	router.SettleBilling("google", dest.Node.Name, clientType, methodName, modelName,
+		prompt, completion, cached, finalResp.StatusCode, dest, reqBody, traceID)
 }
 
 // buildGoogleTargetURL 构建 Google Agent Platform (GEAP) 端点 URL

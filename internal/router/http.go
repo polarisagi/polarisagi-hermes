@@ -16,8 +16,6 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
-
-	"polaris-gateway/internal/webapi"
 )
 
 // TranslatorFunc 协议转换器函数签名
@@ -186,9 +184,9 @@ func ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	// 步骤6：路由分配与节点获取 — 在排队等待中轮询可用路由和节点
-	atomic.AddInt32(&webapi.WaitingCount, 1)
+	atomic.AddInt32(&WaitingCount, 1)
 	dest, err := MatchAndAcquireRoute(ctx, sourceProtocol, modelName)
-	atomic.AddInt32(&webapi.WaitingCount, -1)
+	atomic.AddInt32(&WaitingCount, -1)
 
 	// 路由匹配失败：无可用路由或无空闲节点 → 返回 503
 	if err != nil || dest == nil {
@@ -211,8 +209,8 @@ func ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 步骤7：节点已分配，增加活跃连接计数
-	atomic.AddInt32(&webapi.ActiveCount, 1)
-	defer atomic.AddInt32(&webapi.ActiveCount, -1)
+	atomic.AddInt32(&ActiveCount, 1)
+	defer atomic.AddInt32(&ActiveCount, -1)
 	defer ReleaseNode(dest)
 
 	// 步骤8：查找协议转换器 (如 "anthropic_to_google")

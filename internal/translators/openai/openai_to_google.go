@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"polaris-gateway/internal/router"
-	"polaris-gateway/internal/translators/utils"
 )
 
 // OpenAIToGoogle 将 OpenAI Chat Completions 请求转发到 Google Agent Platform 端点
@@ -18,10 +17,10 @@ import (
 // 自动在模型名前添加 "google/" 前缀（满足 GEAP OpenAI 兼容端点的要求）
 // 带有 ProjectID 的节点使用查询参数 ?key= 认证，否则使用 Bearer Token
 func OpenAIToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) {
-	clientType := utils.IdentifyClient(r)
-	methodName := utils.ExtractMethodName(r.URL.Path)
+	clientType := router.IdentifyClient(r)
+	methodName := router.ExtractMethodName(r.URL.Path)
 
-	targetURL := utils.BuildTargetURL(dest.Node.AccountDetail, r.URL.Path)
+	targetURL := router.BuildTargetURL(dest.Node.AccountDetail, r.URL.Path)
 	currentBody := bodyBytes
 
 	if dest.Node.ProjectID != "" {
@@ -33,7 +32,7 @@ func OpenAIToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Request,
 
 	if dest.TargetModel != "" {
 		// 缓存原始模型名：第二次 ReplaceAll 读取必须用替换前的值
-		originalModel := utils.ExtractModelName(currentBody)
+		originalModel := router.ExtractModelNameFromBody(currentBody)
 		currentBody = bytes.ReplaceAll(currentBody, []byte(fmt.Sprintf(`"model":"%s"`, originalModel)), []byte(fmt.Sprintf(`"model":"google/%s"`, dest.TargetModel)))
 		currentBody = bytes.ReplaceAll(currentBody, []byte(fmt.Sprintf(`"model": "%s"`, originalModel)), []byte(fmt.Sprintf(`"model": "google/%s"`, dest.TargetModel)))
 	}
@@ -66,7 +65,7 @@ func OpenAIToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	}
 
 	// Probation 探路日志由 ExecuteAndStream 统一处理
-	utils.ExecuteAndStream(w, proxyReq, dest, "google", clientType, methodName, traceID, "OAI→Google Agent Platform",
+	router.ExecuteAndStream(w, proxyReq, dest, "google", clientType, methodName, traceID, "OAI→Google Agent Platform",
 		func(finalResp *http.Response, startTime time.Time) {
 			streamAndSettleUsage(w, finalResp, dest, dest.TargetModel, clientType, methodName, traceID, startTime, currentBody)
 		})

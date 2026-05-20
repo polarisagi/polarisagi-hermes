@@ -1,4 +1,7 @@
-package utils
+// 节点生命周期管理：网络错误处理 + HTTP 状态检查 + 节点状态结算 + 统一执行封装
+// 此文件是负载均衡核心的关键组件，控制节点的健康状态转换（Idle/Busy/Cooldown/Exhausted）
+// 所有协议转换器的 HTTP 执行最终都通过此文件与节点状态机交互
+package router
 
 import (
 	"bytes"
@@ -9,11 +12,10 @@ import (
 	"time"
 
 	"polaris-gateway/internal/db"
-	"polaris-gateway/internal/router"
 )
 
 // HandleNetworkError 处理向上游代理时的网络级错误，直接向客户端返回 502 并触发节点惩罚
-func HandleNetworkError(w http.ResponseWriter, err error, dest *router.MatchedDestination, platform, clientType, methodName, traceID, logPrefix string) {
+func HandleNetworkError(w http.ResponseWriter, err error, dest *MatchedDestination, platform, clientType, methodName, traceID, logPrefix string) {
 	errMsg := err.Error()
 	dest.MarkFinalized()
 	db.SaveUsage(platform, dest.Node.Name, clientType, methodName, 0, 0, 0, http.StatusBadGateway)
@@ -23,7 +25,7 @@ func HandleNetworkError(w http.ResponseWriter, err error, dest *router.MatchedDe
 }
 
 // CheckResponseStatus 统一验证上游 HTTP 状态码，读取 Body 判断是否触达 Quota Exceeded 额度耗尽，记录节点错误或警告并保存到账单日志
-func CheckResponseStatus(finalResp *http.Response, dest *router.MatchedDestination, platform, clientType, methodName, traceID, logPrefix string) (isNodeFailure, isQuotaExhausted bool) {
+func CheckResponseStatus(finalResp *http.Response, dest *MatchedDestination, platform, clientType, methodName, traceID, logPrefix string) (isNodeFailure, isQuotaExhausted bool) {
 	statusCode := finalResp.StatusCode
 	isNodeFailure = statusCode >= 500 || statusCode == http.StatusTooManyRequests || statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden
 
@@ -52,7 +54,7 @@ func CheckResponseStatus(finalResp *http.Response, dest *router.MatchedDestinati
 }
 
 // FinalizeNodeState 在流式输出结束后，根据探测到的错误情况更新节点的状态（成功、失败或永久封禁）
-func FinalizeNodeState(dest *router.MatchedDestination, isNodeFailure, isQuotaExhausted bool, traceID string) {
+func FinalizeNodeState(dest *MatchedDestination, isNodeFailure, isQuotaExhausted bool, traceID string) {
 	dest.MarkFinalized()
 	if isNodeFailure {
 		if isQuotaExhausted {
@@ -65,13 +67,6 @@ func FinalizeNodeState(dest *router.MatchedDestination, isNodeFailure, isQuotaEx
 	}
 }
 
-// SharedHTTPClient 全局统一的 HTTP 客户端，用于访问各大模型平台
-// 使用统一的 Transport 共享 TCP 连接池，避免高并发下连接膨胀
-var SharedHTTPClient = &http.Client{
-	Timeout:   600 * time.Second,
-	Transport: sharedTransport,
-}
-
 // StreamHandler 定义了流式/非流式响应的处理回调
 type StreamHandler func(finalResp *http.Response, startTime time.Time)
 
@@ -80,7 +75,7 @@ type StreamHandler func(finalResp *http.Response, startTime time.Time)
 func ExecuteAndStream(
 	w http.ResponseWriter,
 	proxyReq *http.Request,
-	dest *router.MatchedDestination,
+	dest *MatchedDestination,
 	platform string,
 	clientType string,
 	methodName string,
