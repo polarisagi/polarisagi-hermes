@@ -94,11 +94,19 @@ func AnthropicToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Reque
 	// 检测 compact-2026-01-12 beta：Claude Code /compact 触发的上下文压缩请求
 	// Gemini 不原生支持 compaction 块，由网关在响应侧合成正确的 compaction 内容块格式
 	isCompact := false
-	for _, betaVal := range r.Header["Anthropic-Beta"] {
-		if strings.Contains(betaVal, "compact-2026-01-12") {
-			isCompact = true
-			break
+	if betaHeaders, ok := r.Header["Anthropic-Beta"]; ok {
+		for _, betaVal := range betaHeaders {
+			if strings.Contains(betaVal, "compact-2026-01-12") {
+				isCompact = true
+				break
+			}
 		}
+	}
+
+	if isCompact {
+		// 终极优化：上下文压缩请求只要求模型输出纯文本摘要，
+		// 强制剥夺所有可用工具，杜绝 Gemini 被 Instruction 混淆而尝试输出 functionCall 导致 499 报错
+		req.Tools = nil
 	}
 
 	if useGEAPClaude {
