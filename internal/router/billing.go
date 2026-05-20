@@ -10,9 +10,51 @@ import (
 	"math"
 	"regexp"
 	"strings"
+	"sync"
 
+	"github.com/pkoukk/tiktoken-go"
 	"polaris-gateway/internal/db"
 )
+
+// ── tiktoken 高精度分词器 ──
+// 使用 OpenAI o200k_base 分词器提供接近真实的 token 计数
+// 该实例全局共享，线程安全，启动时异步预加载
+
+var (
+	tke     *tiktoken.Tiktoken
+	tkeOnce sync.Once
+)
+
+func init() {
+	// 异步预加载 tiktoken 字典，避免首次请求时的加载延迟
+	go GetTiktoken()
+}
+
+// GetTiktoken 返回全局共享的 tiktoken 实例（惰性初始化，线程安全）
+func GetTiktoken() *tiktoken.Tiktoken {
+	tkeOnce.Do(func() {
+		var err error
+		// o200k_base 是 OpenAI 最新分词器，对 CJK 字符密度更接近 Claude/Gemini 实际分词
+		tke, err = tiktoken.GetEncoding("o200k_base")
+		if err != nil {
+			slog.Error("⚠️ [Tiktoken] 初始化失败，token 估算将使用字节数兜底", "error", err)
+		} else {
+			slog.Debug("✅ [Tiktoken] o200k_base 分词器初始化完成")
+		}
+	})
+	return tke
+}
+
+// CountTextTokens 使用 tiktoken 精确计算文本的 token 数
+// 这是全局公共的高精度分词函数，供 count_tokens 端点和计费估算共用
+func CountTextTokens(text string) int {
+	tk := GetTiktoken()
+	if tk != nil {
+		return len(tk.Encode(text, nil, nil))
+	}
+	// tiktoken 初始化失败时的字节数兜底（1 token ≈ 4 bytes）
+	return len(text) / 4
+}
 
 // ModelPrice 模型单价（美元/百万 token）
 type ModelPrice struct {
@@ -113,12 +155,19 @@ func ExtractModelNameFromBody(body []byte) string {
 	return "unknown"
 }
 
-// EstimatePromptTokens 基于请求体字节数的启发式 token 估算（1 token ≈ 4 字节）
+// EstimatePromptTokens 使用 tiktoken 精确估算请求体中的 prompt token 数
+// 当 SSE 流中断未能获取上游返回的 usageMetadata 时，此函数作为兜底估算
 func EstimatePromptTokens(bodyBytes []byte) int64 {
+	tk := GetTiktoken()
+	if tk != nil {
+		return int64(len(tk.Encode(string(bodyBytes), nil, nil)))
+	}
+	// tiktoken 不可用时的字节数兜底（1 token ≈ 4 bytes）
 	return int64(len(bodyBytes)) / 4
 }
 
 // EstimateCompletionTokens 基于 SSE 流字节数的启发式 token 估算（1 token ≈ 60 字节 SSE 开销）
+// SSE 格式包含大量 data: 前缀和 JSON 结构包装，因此比例远高于纯文本
 func EstimateCompletionTokens(sentBytes int64) int64 {
 	return sentBytes / 60
 }

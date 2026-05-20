@@ -16,46 +16,14 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
-	"sync"
 
-	"github.com/pkoukk/tiktoken-go"
 	"polaris-gateway/internal/router"
 )
 
 func init() {
 	router.RegisterCountTokensHandler("anthropic", handleCountTokensLocal)
-	// 异步预加载 tiktoken，避免首次请求产生加载字典的阻塞延迟（消除 UI 撕裂）
-	go getTiktoken()
 }
 
-// 惰性加载 tiktoken 实例以提供高精度内存分词计算
-var (
-	tke     *tiktoken.Tiktoken
-	tkeOnce sync.Once
-)
-
-func getTiktoken() *tiktoken.Tiktoken {
-	tkeOnce.Do(func() {
-		var err error
-		// o200k_base 是 OpenAI 最新分词器，对 CJK 字符密度更接近 Claude 实际分词
-		tke, err = tiktoken.GetEncoding("o200k_base")
-		if err != nil {
-			slog.Error("⚠️ [CountTokens] 初始化 tiktoken 失败，可能会影响 token 计算精度", "error", err)
-		} else {
-			slog.Debug("✅ [CountTokens] tiktoken (o200k_base) 初始化完成")
-		}
-	})
-	return tke
-}
-
-func countTextTokens(text string) int {
-	tk := getTiktoken()
-	if tk != nil {
-		return len(tk.Encode(text, nil, nil))
-	}
-	// fallback，尽管这种情况极少出现
-	return len(text) / 4
-}
 
 // isCountTokensPath 判断请求路径是否为 count_tokens 端点
 // 路由层已剥离协议前缀，此处看到的路径形如 /v1/messages/count_tokens
@@ -72,12 +40,12 @@ func estimateAnthropicTokens(req MessageRequest) int {
 	// System prompt：支持字符串或内容块数组
 	switch sys := req.System.(type) {
 	case string:
-		total += countTextTokens(sys)
+		total += router.CountTextTokens(sys)
 	case []interface{}:
 		for _, item := range sys {
 			if m, ok := item.(map[string]interface{}); ok {
 				if t, ok := m["text"].(string); ok {
-					total += countTextTokens(t)
+					total += router.CountTextTokens(t)
 				}
 			}
 		}
@@ -87,7 +55,7 @@ func estimateAnthropicTokens(req MessageRequest) int {
 	for _, msg := range req.Messages {
 		switch v := msg.Content.(type) {
 		case string:
-			total += countTextTokens(v)
+			total += router.CountTextTokens(v)
 		case []interface{}:
 			for _, item := range v {
 				m, ok := item.(map[string]interface{})
@@ -97,7 +65,7 @@ func estimateAnthropicTokens(req MessageRequest) int {
 				switch m["type"] {
 				case "text":
 					if t, ok := m["text"].(string); ok {
-						total += countTextTokens(t)
+						total += router.CountTextTokens(t)
 					}
 				case "image", "document":
 					// 图片/PDF 按 Anthropic 官方经验值近似
@@ -105,19 +73,19 @@ func estimateAnthropicTokens(req MessageRequest) int {
 				case "tool_use":
 					if input, ok := m["input"]; ok {
 						b, _ := json.Marshal(input)
-						total += countTextTokens(string(b))
+						total += router.CountTextTokens(string(b))
 					}
 					if name, ok := m["name"].(string); ok {
-						total += countTextTokens(name)
+						total += router.CountTextTokens(name)
 					}
 				case "tool_result":
 					if c, ok := m["content"].(string); ok {
-						total += countTextTokens(c)
+						total += router.CountTextTokens(c)
 					} else if arr, ok := m["content"].([]interface{}); ok {
 						for _, ci := range arr {
 							if cm, ok := ci.(map[string]interface{}); ok {
 								if t, ok := cm["text"].(string); ok {
-									total += countTextTokens(t)
+									total += router.CountTextTokens(t)
 								}
 							}
 						}
@@ -125,7 +93,7 @@ func estimateAnthropicTokens(req MessageRequest) int {
 				case "thinking":
 					// Claude Code 历史中保留的思考块仍计入上下文
 					if t, ok := m["thinking"].(string); ok {
-						total += countTextTokens(t)
+						total += router.CountTextTokens(t)
 					}
 				case "redacted_thinking":
 					// 加密 thinking blob，固定开销估算
@@ -133,7 +101,7 @@ func estimateAnthropicTokens(req MessageRequest) int {
 				case "compaction":
 					// /compact 产生的历史摘要检查点
 					if c, ok := m["content"].(string); ok {
-						total += countTextTokens(c)
+						total += router.CountTextTokens(c)
 					}
 				}
 			}
@@ -150,11 +118,11 @@ func estimateAnthropicTokens(req MessageRequest) int {
 			total += builtinToolTokenCost(tool.Type)
 			continue
 		}
-		total += countTextTokens(tool.Name)
-		total += countTextTokens(tool.Description)
+		total += router.CountTextTokens(tool.Name)
+		total += router.CountTextTokens(tool.Description)
 		if tool.InputSchema != nil {
 			b, _ := json.Marshal(tool.InputSchema)
-			total += countTextTokens(string(b))
+			total += router.CountTextTokens(string(b))
 		}
 	}
 
