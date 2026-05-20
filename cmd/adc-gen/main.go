@@ -102,7 +102,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	server.Shutdown(context.Background())
+	_ = server.Shutdown(context.Background())
 
 	fmt.Println("\n已获得授权码，正在请求刷新令牌...")
 
@@ -132,12 +132,12 @@ func main() {
 	fmt.Println(string(jsonBytes))
 	fmt.Println("\n==================================================")
 	fmt.Println("按回车键退出...")
-	fmt.Scanln()
+	_, _ = fmt.Scanln()
 }
 
 func generateState() string {
 	b := make([]byte, 16)
-	rand.Read(b)
+	_, _ = rand.Read(b)
 	return base64.URLEncoding.EncodeToString(b)
 }
 
@@ -154,5 +154,6 @@ func openBrowser(url string) {
 		err = fmt.Errorf("unsupported platform")
 	}
 	if err != nil {
+		fmt.Printf("无法打开浏览器: %v\n", err)
 	}
 }

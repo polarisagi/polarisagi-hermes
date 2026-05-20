@@ -139,19 +139,7 @@ func inferGEAPHost(location string) string {
 	return "https://" + location + "-aiplatform.googleapis.com"
 }
 
-// stripTemplatePath 从 BaseURL 模板中提取 scheme://host 部分，丢弃 /v1/... 等模板路径段
-func stripTemplatePath(template string) string {
-	idx := strings.Index(template, "://")
-	if idx < 0 {
-		return template
-	}
-	rest := template[idx+3:]
-	slash := strings.Index(rest, "/")
-	if slash < 0 {
-		return template
-	}
-	return template[:idx+3+slash]
-}
+
 
 // fixGoogleRequestBody 修复客户端发送的非法请求体（如缺少 parts 字段）
 // GEAP 强制要求 systemInstruction 和 contents 中的每一项必须包含至少一个 parts。

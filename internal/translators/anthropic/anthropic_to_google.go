@@ -177,7 +177,7 @@ func handleGEAPClaude(ctx context.Context, w http.ResponseWriter, r *http.Reques
 		finalResp.Body.Close()
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(finalResp.StatusCode)
-		w.Write(errBody)
+		_, _ = w.Write(errBody)
 		utils.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
 		return
 	}
@@ -248,64 +248,10 @@ func nonStreamGEAPClaude(w http.ResponseWriter, upstreamResp *http.Response, des
 	parseAndSettleAnthropicResponse("google", bodyBytes, dest, clientType, "anthropic_geap_claude", modelName, traceID, upstreamResp.StatusCode, reqBody)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(upstreamResp.StatusCode)
-	w.Write(bodyBytes)
+	_, _ = w.Write(bodyBytes)
 }
 
-// handleGEAPClaudeCountTokens 调用 GEAP Claude count-tokens 端点获取精确计数，失败时降级本地估算
-// 端点：publishers/anthropic/models/count-tokens:rawPredict
-func handleGEAPClaudeCountTokens(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string, model string) {
-	geapBody, err := rewriteBodyForGEAPClaude(bodyBytes, true, model)
-	if err != nil {
-		slog.Warn("⚠️ [CountTokens-GEAP-Claude] body 重写失败，降级本地估算", "trace_id", traceID, "error", err)
-		handleCountTokensLocal(w, bodyBytes, traceID)
-		return
-	}
 
-	targetURL := buildGEAPURL(dest.Node, "anthropic", "models/count-tokens:rawPredict", "us-east5")
-
-	proxyReq, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(geapBody))
-	if err != nil {
-		slog.Warn("⚠️ [CountTokens-GEAP-Claude] 请求构建失败，降级本地估算", "trace_id", traceID, "error", err)
-		handleCountTokensLocal(w, bodyBytes, traceID)
-		return
-	}
-	proxyReq.Header.Set("Content-Type", "application/json")
-	// 同样透传 anthropic-beta 头，确保 extended thinking 等 beta 特性在计数时得到正确统计
-	if r != nil {
-		for k, vv := range r.Header {
-			if strings.EqualFold(k, "anthropic-beta") {
-				for _, v := range vv {
-					proxyReq.Header.Add(k, v)
-				}
-			}
-		}
-	}
-	q := proxyReq.URL.Query()
-	q.Set("key", dest.Node.Credentials)
-	proxyReq.URL.RawQuery = q.Encode()
-
-	resp, err := httpClient.Do(proxyReq)
-	if err != nil {
-		slog.Warn("⚠️ [CountTokens-GEAP-Claude] 调用失败，降级本地估算", "trace_id", traceID, "error", err)
-		handleCountTokensLocal(w, bodyBytes, traceID)
-		return
-	}
-	defer resp.Body.Close()
-
-	respBody, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != http.StatusOK {
-		slog.Warn("⚠️ [CountTokens-GEAP-Claude] 上游非 200，降级本地估算",
-			"trace_id", traceID, "status", resp.StatusCode,
-			"body_preview", string(respBody[:min(len(respBody), 200)]))
-		handleCountTokensLocal(w, bodyBytes, traceID)
-		return
-	}
-
-	slog.Debug("📏 [CountTokens-GEAP-Claude] 上游精确计数", "trace_id", traceID, "model", model)
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	w.Write(respBody)
-}
 
 // ─── Gemini 转换路径 ─────────────────────────────────────────────────────────
 // 请求体：Anthropic 格式 → Gemini GenerateContent 格式（mapToVertexRequest）
@@ -364,7 +310,7 @@ func handleGemini(ctx context.Context, w http.ResponseWriter, bodyBytes []byte, 
 				"message": fmt.Sprintf("Google Agent Platform API returned status %d: %s", finalResp.StatusCode, string(errBody)),
 			},
 		}
-		json.NewEncoder(w).Encode(errResp)
+		_ = json.NewEncoder(w).Encode(errResp)
 		utils.FinalizeNodeState(dest, isNodeFailure, isQuotaExhausted, traceID)
 		return
 	}

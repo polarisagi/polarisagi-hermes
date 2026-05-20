@@ -67,7 +67,7 @@ func getOAuthConfig(r *http.Request) *oauth2.Config {
 
 func generateStateOauthCookie(w http.ResponseWriter) string {
 	b := make([]byte, 16)
-	rand.Read(b)
+	_, _ = rand.Read(b)
 	state := base64.URLEncoding.EncodeToString(b)
 	
 	oauthStates.Store(state, time.Now().Add(10*time.Minute))
@@ -172,5 +172,5 @@ func AdminOAuthGoogleCallbackHandler(w http.ResponseWriter, r *http.Request) {
 </html>`, string(jsonBytes))
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write([]byte(html))
+	_, _ = w.Write([]byte(html))
 }

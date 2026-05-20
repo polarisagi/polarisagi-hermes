@@ -758,7 +758,7 @@ func anthropicNonStreamOpenAI(w http.ResponseWriter, oaiResp *http.Response, tra
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(oaiResp.StatusCode)
-	json.NewEncoder(w).Encode(anthropicResp)
+	_ = json.NewEncoder(w).Encode(anthropicResp)
 }
 
 func init() {

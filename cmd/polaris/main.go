@@ -66,13 +66,13 @@ func main() {
 		if r.URL.Path == "/" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"status": "Polaris Gateway Active"}`))
+			_, _ = w.Write([]byte(`{"status": "Polaris Gateway Active"}`))
 			return
 		}
 		
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"error": "Endpoint not found"}`))
+		_, _ = w.Write([]byte(`{"error": "Endpoint not found"}`))
 	})
 
 	// 6. 启动控制平面

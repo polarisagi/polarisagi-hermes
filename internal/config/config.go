@@ -199,7 +199,7 @@ func ReloadFromDB() error {
 			if err := routeRows.Scan(&r.ID, &r.SourceProtocol, &r.TargetProtocol, &mappingsJSON, &r.Status); err == nil {
 				r.ModelMappings = mappingsJSON
 				if mappingsJSON != "" {
-					json.Unmarshal([]byte(mappingsJSON), &r.ModelMappingsParsed)
+					_ = json.Unmarshal([]byte(mappingsJSON), &r.ModelMappingsParsed)
 				}
 				if r.ModelMappingsParsed == nil {
 					r.ModelMappingsParsed = []ModelMapping{}

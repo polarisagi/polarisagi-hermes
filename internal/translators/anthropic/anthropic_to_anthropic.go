@@ -28,7 +28,7 @@ func AnthropicToAnthropic(ctx context.Context, w http.ResponseWriter, r *http.Re
 
 	// Parse request minimally to get model name for billing
 	var req MessageRequest
-	json.Unmarshal(bodyBytes, &req)
+	_ = json.Unmarshal(bodyBytes, &req)
 
 	modelName := req.Model
 	if dest.TargetModel != "" {
@@ -127,7 +127,7 @@ func anthropicPassthroughNonStream(w http.ResponseWriter, upstreamResp *http.Res
 		}
 	}
 	w.WriteHeader(upstreamResp.StatusCode)
-	w.Write(bodyBytes)
+	_, _ = w.Write(bodyBytes)
 }
 
 // extractAndRecordAnthropicUsage 从 Anthropic SSE 流的 tailBuf 中提取 usage 并完成计费
@@ -142,7 +142,7 @@ func extractAndRecordAnthropicUsage(provider string, tailBuf []byte, modelName s
 	var outputTokens int64
 	for _, m := range outputRe.FindAllSubmatch(tailBuf, -1) {
 		var v int64
-		fmt.Sscanf(string(m[1]), "%d", &v)
+		_, _ = fmt.Sscanf(string(m[1]), "%d", &v)
 		if v > outputTokens {
 			outputTokens = v
 		}
@@ -155,7 +155,7 @@ func extractAndRecordAnthropicUsage(provider string, tailBuf []byte, modelName s
 	var inputTokens int64
 	inputRe := regexp.MustCompile(`"input_tokens"\s*:\s*(\d+)`)
 	if m := inputRe.FindSubmatch(tailBuf); len(m) > 1 {
-		fmt.Sscanf(string(m[1]), "%d", &inputTokens)
+		_, _ = fmt.Sscanf(string(m[1]), "%d", &inputTokens)
 	}
 	if inputTokens == 0 {
 		inputTokens = utils.EstimatePromptTokens(reqBody)
@@ -165,7 +165,7 @@ func extractAndRecordAnthropicUsage(provider string, tailBuf []byte, modelName s
 	var cacheReadTokens int64
 	cacheReadRe := regexp.MustCompile(`"cache_read_input_tokens"\s*:\s*(\d+)`)
 	if m := cacheReadRe.FindSubmatch(tailBuf); len(m) > 1 {
-		fmt.Sscanf(string(m[1]), "%d", &cacheReadTokens)
+		_, _ = fmt.Sscanf(string(m[1]), "%d", &cacheReadTokens)
 	}
 
 	settleBilling(provider, dest.Node.Name, clientType, methodName, modelName, inputTokens, outputTokens, cacheReadTokens, http.StatusOK, dest, reqBody, traceID)

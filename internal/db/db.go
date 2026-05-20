@@ -161,7 +161,7 @@ func migrateOldRoutesIfNeeded() {
 		slog.Error("迁移事务启动失败", "error", err)
 		return
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// 创建新版表
 	if _, err := tx.Exec(`
@@ -205,7 +205,7 @@ func migrateOldRoutesIfNeeded() {
 	}
 
 	var migratedCount int
-	db.QueryRow("SELECT COUNT(*) FROM sys_routes").Scan(&migratedCount)
+	_ = db.QueryRow("SELECT COUNT(*) FROM sys_routes").Scan(&migratedCount)
 	slog.Info("✅ 旧版路由数据迁移完成", "migrated_routes", migratedCount)
 }
 

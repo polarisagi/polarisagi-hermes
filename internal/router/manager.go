@@ -66,7 +66,10 @@ func ReloadFromConfig() {
 
 			// 如果 Credentials 看起来是一个 JSON（通常以 { 开头），尝试解析为 OAuth2 TokenSource
 			if strings.HasPrefix(strings.TrimSpace(acc.Credentials), "{") && json.Valid([]byte(acc.Credentials)) {
-				creds, err := google.CredentialsFromJSON(context.Background(), []byte(acc.Credentials), "https://www.googleapis.com/auth/cloud-platform")
+				//nolint:staticcheck // user provided credential json
+				creds, err := google.CredentialsFromJSONWithParams(context.Background(), []byte(acc.Credentials), google.CredentialsParams{
+					Scopes: []string{"https://www.googleapis.com/auth/cloud-platform"},
+				})
 				if err == nil && creds != nil {
 					state.TokenSource = creds.TokenSource
 					slog.Info("🔑 [ADC JSON] 成功为节点加载 OAuth2 TokenSource", "node", acc.Name)

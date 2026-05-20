@@ -38,7 +38,7 @@ var Version = "dev"
 func AdminInfoHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(fmt.Sprintf(`{"version": "%s", "debug": %v}`, Version, DebugEnabled)))
+		_, _ = w.Write([]byte(fmt.Sprintf(`{"version": "%s", "debug": %v}`, Version, DebugEnabled)))
 		return
 	}
 	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -47,7 +47,7 @@ func AdminInfoHandler(w http.ResponseWriter, r *http.Request) {
 func AdminDebugHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(fmt.Sprintf(`{"debug": %v}`, DebugEnabled)))
+		_, _ = w.Write([]byte(fmt.Sprintf(`{"debug": %v}`, DebugEnabled)))
 		return
 	}
 	if r.Method == http.MethodPost {
@@ -62,7 +62,7 @@ func AdminDebugHandler(w http.ResponseWriter, r *http.Request) {
 		logger.SetDebug(DebugEnabled)
 		slog.Info("🔧 Debug模式已切换", "enabled", DebugEnabled)
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(fmt.Sprintf(`{"debug": %v}`, DebugEnabled)))
+		_, _ = w.Write([]byte(fmt.Sprintf(`{"debug": %v}`, DebugEnabled)))
 		return
 	}
 	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -78,7 +78,7 @@ func init() {
 func AdminSettingsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(config.AppConfig)
+		_ = json.NewEncoder(w).Encode(config.AppConfig)
 		return
 	}
 
@@ -105,9 +105,9 @@ func AdminSettingsHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		config.ReloadFromDB()
+		_ = config.ReloadFromDB()
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status": "success"}`))
+		_, _ = w.Write([]byte(`{"status": "success"}`))
 		return
 	}
 	
@@ -187,7 +187,7 @@ func AdminUpdateHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status": "success", "message": "正在后台更新，系统将在几秒内自动重启"}`))
+	_, _ = w.Write([]byte(`{"status": "success", "message": "正在后台更新，系统将在几秒内自动重启"}`))
 }
 
 // AdminModelsHandler 返回指定协议的可用模型列表，用于后台路由配置页面的模型选择下拉框
@@ -215,7 +215,7 @@ func AdminModelsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"models": result,
 	})
 }
@@ -267,7 +267,7 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 				"status":                 status,
 			})
 		}
-		json.NewEncoder(w).Encode(nodes)
+		_ = json.NewEncoder(w).Encode(nodes)
 		return
 	}
 
@@ -319,9 +319,9 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		
-		config.ReloadFromDB()
+		_ = config.ReloadFromDB()
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status": "success"}`))
+		_, _ = w.Write([]byte(`{"status": "success"}`))
 		return
 	}
 
@@ -373,9 +373,9 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		
-		config.ReloadFromDB()
+		_ = config.ReloadFromDB()
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status": "success"}`))
+		_, _ = w.Write([]byte(`{"status": "success"}`))
 		return
 	}
 
@@ -391,9 +391,9 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		config.ReloadFromDB()
+		_ = config.ReloadFromDB()
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status": "success"}`))
+		_, _ = w.Write([]byte(`{"status": "success"}`))
 		return
 	}
 	
@@ -404,7 +404,7 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 func AdminLogsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	if logger.LogFile == nil {
-		w.Write([]byte("No log file configured or polaris-gateway.log not found.\n"))
+		_, _ = w.Write([]byte("No log file configured or polaris-gateway.log not found.\n"))
 		return
 	}
 
@@ -426,7 +426,7 @@ func AdminLogsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Write(buf)
+	_, _ = w.Write(buf)
 }
 
 // AdminRoutesHandler handles CRUD for /api/admin/routes
@@ -453,7 +453,7 @@ func AdminRoutesHandler(w http.ResponseWriter, r *http.Request) {
 			// Parse model_mappings JSON for the frontend
 			var mappings []map[string]string
 			if modelMappings != "" {
-				json.Unmarshal([]byte(modelMappings), &mappings)
+				_ = json.Unmarshal([]byte(modelMappings), &mappings)
 			}
 			if mappings == nil {
 				mappings = []map[string]string{}
@@ -467,7 +467,7 @@ func AdminRoutesHandler(w http.ResponseWriter, r *http.Request) {
 				"status":          status,
 			})
 		}
-		json.NewEncoder(w).Encode(routes)
+		_ = json.NewEncoder(w).Encode(routes)
 		return
 	}
 
@@ -496,9 +496,9 @@ func AdminRoutesHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		
-		config.ReloadFromDB()
+		_ = config.ReloadFromDB()
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status": "success"}`))
+		_, _ = w.Write([]byte(`{"status": "success"}`))
 		return
 	}
 
@@ -527,9 +527,9 @@ func AdminRoutesHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		
-		config.ReloadFromDB()
+		_ = config.ReloadFromDB()
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status": "success"}`))
+		_, _ = w.Write([]byte(`{"status": "success"}`))
 		return
 	}
 
@@ -545,9 +545,9 @@ func AdminRoutesHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		config.ReloadFromDB()
+		_ = config.ReloadFromDB()
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status": "success"}`))
+		_, _ = w.Write([]byte(`{"status": "success"}`))
 		return
 	}
 	

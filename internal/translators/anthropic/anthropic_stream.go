@@ -453,7 +453,6 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 	}
 	if inText {
 		writeSSEContentBlockStop(w, flusher, blockIndex)
-		inText = false
 	}
 	// message_delta：Anthropic 协议要求附带最终 stop_reason 与精确 usage
 	// Gemini 的 cachedContentTokenCount 映射成 cache_read_input_tokens，
@@ -528,7 +527,7 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 			slog.Error("❌ [NonStream] GEAP promptFeedback 阻断请求", "trace_id", traceID, "account", dest.Node.Name, "block_reason", blockReason)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadGateway)
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"type": "error",
 				"error": map[string]interface{}{
 					"type":    "api_error",
@@ -541,7 +540,7 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 			slog.Warn("⚠️ [NonStream] GEAP promptFeedback 静默拒绝 (blockReason 为空)", "trace_id", traceID, "account", dest.Node.Name)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadGateway)
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"type": "error",
 				"error": map[string]interface{}{
 					"type":    "api_error",
@@ -568,7 +567,7 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 							slog.Error("❌ [NonStream] GEAP safetyRatings 触发安全拦截", "trace_id", traceID, "account", dest.Node.Name, "category", cat, "probability", prob)
 							w.Header().Set("Content-Type", "application/json")
 							w.WriteHeader(http.StatusBadGateway)
-							json.NewEncoder(w).Encode(map[string]interface{}{
+							_ = json.NewEncoder(w).Encode(map[string]interface{}{
 								"type": "error",
 								"error": map[string]interface{}{
 									"type":    "api_error",
@@ -719,7 +718,7 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadGateway)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"type": "error",
 			"error": map[string]interface{}{
 				"type":    "api_error",
@@ -748,7 +747,7 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(vertexResp.StatusCode)
-	json.NewEncoder(w).Encode(anthropicResp)
+	_ = json.NewEncoder(w).Encode(anthropicResp)
 }
 
 // writeSSE 写入一条 Anthropic SSE 事件到 HTTP 响应流

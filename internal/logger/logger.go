@@ -14,7 +14,7 @@ import (
 var LogFile *os.File       // 日志文件句柄，供管理后台读取日志内容
 var logWriter io.Writer    // 多路输出 writer（stdout + 文件）
 var mu sync.Mutex          // 保护 debugEnabled 和 slog handler 切换
-var debugEnabled bool      // 当前是否启用 Debug 日志级别
+
 
 // getLogPath 返回日志文件的完整路径：~/.polaris-gateway/polaris-gateway.log
 func getLogPath() string {
@@ -36,8 +36,6 @@ func getLogPath() string {
 func SetDebug(enabled bool) {
 	mu.Lock()
 	defer mu.Unlock()
-	debugEnabled = enabled
-
 	level := slog.LevelInfo
 	if enabled {
 		level = slog.LevelDebug
