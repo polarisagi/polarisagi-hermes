@@ -5,10 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
-	"time"
 	"strings"
+	"time"
 
 	"polaris-gateway/internal/router"
 )
@@ -69,16 +70,30 @@ func AnthropicToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Reque
 	}
 	targetURL = targetURL + "/chat/completions"
 
-	if dest.IsProbationRun {
-		slog.Warn("⚠️ 启用 🟠 Probation 账号执行流量探路 (Anthropic→OpenAI)", "trace_id", traceID, "account", dest.Node.Name)
-	}
-
 	proxyReq, _ := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(oaiBody))
 	proxyReq.Header.Set("Content-Type", "application/json")
 	proxyReq.Header.Set("Authorization", "Bearer "+dest.Node.Credentials)
 
 	router.ExecuteAndStream(w, proxyReq, dest, "openai", clientType, "anthropic_adapter", traceID, "Anthropic→OpenAI",
 		func(finalResp *http.Response, startTime time.Time) bool {
+			// 上游 OpenAI 返回错误时，转换为 Anthropic 错误格式返回给 Claude Code
+			// 否则 anthropicStreamOpenAI 会强制写 200 + 尝试解析错误 body 为 SSE 导致乱码
+			if finalResp.StatusCode != http.StatusOK {
+				errBody, _ := io.ReadAll(finalResp.Body)
+				finalResp.Body.Close()
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(finalResp.StatusCode)
+				errResp := map[string]interface{}{
+					"type": "error",
+					"error": map[string]interface{}{
+						"type":    "api_error",
+						"message": fmt.Sprintf("OpenAI API returned status %d: %s", finalResp.StatusCode, string(errBody)),
+					},
+				}
+				_ = json.NewEncoder(w).Encode(errResp)
+				return false
+			}
+
 			if oaiReq.Stream {
 				anthropicStreamOpenAI(ctx, w, finalResp, traceID, dest, clientType, oaiReq.Model, bodyBytes)
 			} else {
