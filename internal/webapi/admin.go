@@ -403,12 +403,16 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 // AdminLogsHandler returns the tail of the polaris-gateway.log file
 func AdminLogsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	if logger.LogFile == nil {
+	
+	logPath := logger.GetLogPath()
+	f, err := os.Open(logPath)
+	if err != nil {
 		_, _ = w.Write([]byte("No log file configured or polaris-gateway.log not found.\n"))
 		return
 	}
+	defer f.Close()
 
-	info, err := logger.LogFile.Stat()
+	info, err := f.Stat()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -420,7 +424,7 @@ func AdminLogsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	buf := make([]byte, size)
-	_, err = logger.LogFile.ReadAt(buf, info.Size()-size)
+	_, err = f.ReadAt(buf, info.Size()-size)
 	if err != nil && err != io.EOF {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

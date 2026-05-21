@@ -9,15 +9,16 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-var LogFile *os.File       // 日志文件句柄，供管理后台读取日志内容
 var logWriter io.Writer    // 多路输出 writer（stdout + 文件）
 var mu sync.Mutex          // 保护 debugEnabled 和 slog handler 切换
 
 
-// getLogPath 返回日志文件的完整路径：~/.polaris-gateway/polaris-gateway.log
-func getLogPath() string {
+// GetLogPath 返回日志文件的完整路径：~/.polaris-gateway/polaris-gateway.log
+func GetLogPath() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "./polaris-gateway.log"
@@ -56,24 +57,26 @@ func SetDebug(enabled bool) {
 	slog.SetDefault(slog.New(handler))
 }
 
-// InitLogger initializes the global slog instance.
+// InitLogger initializes the global slog instance with lumberjack log rotation.
 func InitLogger() {
 	opts := &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}
 
-	logPath := getLogPath()
-	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0666)
-	if err == nil {
-		LogFile = f
-		multiWriter := io.MultiWriter(os.Stdout, f)
-		logWriter = multiWriter
-		handler := slog.NewTextHandler(multiWriter, opts)
-		logger := slog.New(handler)
-		slog.SetDefault(logger)
-	} else {
-		handler := slog.NewTextHandler(os.Stdout, opts)
-		logger := slog.New(handler)
-		slog.SetDefault(logger)
+	logPath := GetLogPath()
+	
+	// 使用 lumberjack 实现日志按大小、时间自动滚动归档
+	lj := &lumberjack.Logger{
+		Filename:   logPath,
+		MaxSize:    50,   // 每个日志文件最大 50 MB
+		MaxBackups: 7,    // 最多保留 7 个旧日志文件
+		MaxAge:     30,   // 旧文件最多保留 30 天
+		Compress:   true, // 是否压缩旧的日志文件 (gzip)
 	}
+
+	multiWriter := io.MultiWriter(os.Stdout, lj)
+	logWriter = multiWriter
+	handler := slog.NewTextHandler(multiWriter, opts)
+	logger := slog.New(handler)
+	slog.SetDefault(logger)
 }
