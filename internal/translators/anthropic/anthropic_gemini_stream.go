@@ -517,13 +517,14 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 				Type:  "content_block_start",
 				Index: ptrInt(blockIndex),
 				ContentBlock: &Content{
-					Type: "compaction",
+					Type: "text",
+					Text: "",
 				},
 			})
 			writeSSE(w, flusher, "content_block_delta", StreamEvent{
 				Type:  "content_block_delta",
 				Index: ptrInt(blockIndex),
-				Delta: &Delta{Type: "compaction_delta", Content: "Context compacted (Model returned empty summary due to length)."},
+				Delta: &Delta{Type: "text_delta", Text: "<analysis>\nFallback triggered due to empty model response.\n</analysis>\n<summary>\nContext compacted (Model returned empty summary due to length).\n</summary>"},
 			})
 			writeSSEContentBlockStop(w, flusher, blockIndex)
 			blockIndex++
