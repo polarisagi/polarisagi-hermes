@@ -512,7 +512,7 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 		slog.Warn("⚠️ [Stream] GEAP 返回空响应，上游未生成任何内容块",
 			"trace_id", traceID, "account", dest.Node.Name,
 			"prompt_tokens", promptTokens)
-		streamError = "upstream model returned empty response — possible safety filter, context overflow, or model overload"
+		streamError = "upstream model returned empty response — triggering automatic retry"
 	}
 
 	if streamError != "" {
@@ -532,10 +532,15 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 		}
 		// Anthropic 错误事件格式：event: error / data: {"type":"error","error":{"type":"...","message":"..."}}
 		// 用 json.Marshal 保证 message 中的特殊字符正确转义
+		// 使用 overloaded_error 会触发 Claude Code 和官方 SDK 的自动退避重试
+		errType := "api_error"
+		if strings.Contains(streamError, "triggering automatic retry") {
+			errType = "overloaded_error"
+		}
 		errPayload, _ := json.Marshal(map[string]interface{}{
 			"type": "error",
 			"error": map[string]interface{}{
-				"type":    "api_error",
+				"type":    errType,
 				"message": streamError,
 			},
 		})

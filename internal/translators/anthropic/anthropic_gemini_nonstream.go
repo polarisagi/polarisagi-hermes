@@ -261,20 +261,22 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 			break
 		}
 	}
+
 	if !hasRealContent {
 		// 上游返回空响应 → 返回 Anthropic 错误而非空 content
-		// 空 content 会导致 Claude Code /compact 报 "summarization produced empty response"
+		// 这里返回 529 overloaded_error 以触发 Claude Code 的自动重试机制
 		slog.Warn("⚠️ [NonStream] GEAP 返回空响应，上游未生成任何内容块",
 			"trace_id", traceID, "account", dest.Node.Name,
 			"geap_resp_preview", string(bodyBytes[:min(len(bodyBytes), 500)]))
 
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadGateway)
+		w.WriteHeader(http.StatusTooManyRequests) // 也可以使用 529，但 429 和 529 都会触发重试
+		// Anthropic SDK 遇到 429 或 529 会自动退避重试
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"type": "error",
 			"error": map[string]interface{}{
-				"type":    "api_error",
-				"message": "Upstream model returned empty response — possible safety filter, context overflow, or model overload",
+				"type":    "overloaded_error",
+				"message": "Upstream model returned empty response — triggering automatic retry",
 			},
 		})
 		return
