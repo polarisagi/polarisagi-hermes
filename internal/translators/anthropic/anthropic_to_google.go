@@ -117,14 +117,27 @@ func AnthropicToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Reque
 
 	// 检测 Claude Code /compact 触发的上下文压缩请求
 	// 随着版本更新，Claude Code 已不再发送专用的 compact-2026-01-12 头
-	// 现在的特征是：最后一条用户消息中包含明确的压缩指令，例如 "Respond with TEXT ONLY" 和 "summary of the conversation so far"
+	// 为防止未来 Claude Code 修改提示词，这里采用多维度特征检测：
+	// 如果最后一条用户消息命中至少 3 个核心摘要/纯文本特征（或包含特定的上下文管理参数），即判定为压缩请求
 	isCompact := false
 	if len(req.Messages) > 0 {
 		lastMsg := req.Messages[len(req.Messages)-1]
 		if lastMsg.Role == "user" {
 			lastMsgBytes, _ := json.Marshal(lastMsg.Content)
 			lastMsgStr := string(lastMsgBytes)
-			if strings.Contains(lastMsgStr, "Respond with TEXT ONLY") && strings.Contains(lastMsgStr, "summary of the conversation so far") {
+			features := 0
+			if strings.Contains(lastMsgStr, "TEXT ONLY") { features++ }
+			if strings.Contains(strings.ToLower(lastMsgStr), "summary") { features++ }
+			if strings.Contains(lastMsgStr, "Do NOT call any tools") { features++ }
+			if strings.Contains(lastMsgStr, "<analysis>") { features++ }
+			if strings.Contains(lastMsgStr, "<summary>") { features++ }
+			
+			// Claude Code 使用了上下文管理 API 来清除旧的思考过程
+			if bytes.Contains(bodyBytes, []byte("clear_thinking_20251015")) {
+				features++
+			}
+			
+			if features >= 3 {
 				isCompact = true
 			}
 		}
