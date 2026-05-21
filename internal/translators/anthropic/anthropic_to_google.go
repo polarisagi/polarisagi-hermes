@@ -26,6 +26,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -94,11 +95,18 @@ func AnthropicToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Reque
 
 	slog.Debug("🔍 [DEBUG] Anthropic Headers", "trace_id", traceID, "headers", fmt.Sprintf("%+v", r.Header))
 	
-	// 仅在开启 DEBUG 日志级别时，将请求体写入文件供本地排查
+	// 仅在开启 DEBUG 日志级别时，将请求体写入网关根目录（~/.polaris-gateway）供本地排查
 	if slog.Default().Enabled(ctx, slog.LevelDebug) {
-		errDump := os.WriteFile("claude_debug_body.json", bodyBytes, 0644)
+		home, err := os.UserHomeDir()
+		var dumpPath string
+		if err == nil {
+			dumpPath = filepath.Join(home, ".polaris-gateway", "claude_debug_body.json")
+		} else {
+			dumpPath = "claude_debug_body.json"
+		}
+		errDump := os.WriteFile(dumpPath, bodyBytes, 0644)
 		if errDump == nil {
-			slog.Debug("🔍 [DEBUG] 已将完整的请求体保存到当前目录下的 claude_debug_body.json 文件中", "trace_id", traceID)
+			slog.Debug(fmt.Sprintf("🔍 [DEBUG] 已将完整的请求体保存到文件: %s", dumpPath), "trace_id", traceID)
 		} else {
 			slog.Debug("🔍 [DEBUG] 保存请求体到文件失败", "trace_id", traceID, "error", errDump)
 		}
