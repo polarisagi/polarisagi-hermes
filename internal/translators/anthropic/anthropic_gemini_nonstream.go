@@ -263,6 +263,18 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 	}
 
 	if !hasRealContent {
+		if isCompact {
+			// 强行塞入兜底文本，避免 Claude Code 陷入重试死循环
+			contents = append(contents, Content{
+				Type:    "compaction",
+				Content: "Context compacted (Model returned empty summary due to length).",
+			})
+			hasRealContent = true
+			slog.Warn("⚠️ [NonStream] GEAP 返回空响应，已注入兜底 compaction 文本", "trace_id", traceID)
+		}
+	}
+
+	if !hasRealContent {
 		// 上游返回空响应 → 返回 Anthropic 错误而非空 content
 		// 这里返回 529 overloaded_error 以触发 Claude Code 的自动重试机制
 		slog.Warn("⚠️ [NonStream] GEAP 返回空响应，上游未生成任何内容块",

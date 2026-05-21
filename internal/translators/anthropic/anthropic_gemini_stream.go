@@ -509,10 +509,31 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 	// 上游返回空响应 → 发送 Anthropic 错误事件，而非注入空文本块
 	// 空文本块会导致 Claude Code /compact 报 "summarization produced empty response"，掩盖真正原因
 	if streamError == "" && blockIndex == 0 && !inThinking && !emittedText {
-		slog.Warn("⚠️ [Stream] GEAP 返回空响应，上游未生成任何内容块",
-			"trace_id", traceID, "account", dest.Node.Name,
-			"prompt_tokens", promptTokens)
-		streamError = "upstream model returned empty response — triggering automatic retry"
+		if isCompact {
+			slog.Warn("⚠️ [Stream] GEAP 返回空响应，由于是 /compact 请求，注入兜底文本以完成压缩",
+				"trace_id", traceID, "account", dest.Node.Name,
+				"prompt_tokens", promptTokens)
+			writeSSE(w, flusher, "content_block_start", StreamEvent{
+				Type:  "content_block_start",
+				Index: ptrInt(blockIndex),
+				ContentBlock: &Content{
+					Type: "compaction",
+				},
+			})
+			writeSSE(w, flusher, "content_block_delta", StreamEvent{
+				Type:  "content_block_delta",
+				Index: ptrInt(blockIndex),
+				Delta: &Delta{Type: "compaction_delta", Content: "Context compacted (Model returned empty summary due to length)."},
+			})
+			writeSSEContentBlockStop(w, flusher, blockIndex)
+			blockIndex++
+			stopReason = "end_turn"
+		} else {
+			slog.Warn("⚠️ [Stream] GEAP 返回空响应，上游未生成任何内容块",
+				"trace_id", traceID, "account", dest.Node.Name,
+				"prompt_tokens", promptTokens)
+			streamError = "upstream model returned empty response — triggering automatic retry"
+		}
 	}
 
 	if streamError != "" {

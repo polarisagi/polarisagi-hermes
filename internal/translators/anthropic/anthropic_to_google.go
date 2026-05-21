@@ -258,10 +258,39 @@ func handleGemini(ctx context.Context, w http.ResponseWriter, bodyBytes []byte, 
 		// 这样 Gemini 就再也不会受到复杂的 history 结构、未知的工具调用、角色交替等因素影响，
 		// 从而彻底解决它拒绝生成摘要（返回空响应）或报错的问题！
 		
-		historyJSON, _ := json.MarshalIndent(req.Messages, "", "  ")
+		var sb strings.Builder
+		for _, msg := range req.Messages {
+			sb.WriteString(fmt.Sprintf("<turn role=\"%s\">\n", msg.Role))
+			switch c := msg.Content.(type) {
+			case string:
+				sb.WriteString(c)
+			case []interface{}:
+				for _, item := range c {
+					if m, ok := item.(map[string]interface{}); ok {
+						if t, ok := m["type"].(string); ok {
+							switch t {
+							case "text":
+								if text, ok := m["text"].(string); ok {
+									sb.WriteString(text)
+									sb.WriteString("\n")
+								}
+							case "tool_use":
+								name, _ := m["name"].(string)
+								input, _ := json.Marshal(m["input"])
+								sb.WriteString(fmt.Sprintf("[Tool Use: %s, Args: %s]\n", name, string(input)))
+							case "tool_result":
+								content, _ := json.Marshal(m["content"])
+								sb.WriteString(fmt.Sprintf("[Tool Result: %s]\n", string(content)))
+							}
+						}
+					}
+				}
+			}
+			sb.WriteString("\n</turn>\n")
+		}
+		historyXML := sb.String()
 		systemPrompt := flattenAnthropicSystem(req.System)
-		
-		promptInjection := fmt.Sprintf("System Context: %s\n\n<conversation_history>\n%s\n</conversation_history>\n\nSystem Task: You are performing a context compaction for an AI coding assistant. Please distill the conversation history above into a highly compressed, concise summary. Focus strictly on preserving critical facts, current goal state, architectural decisions, and important environmental constraints. Discard all conversational fluff, routine tool outputs, and redundant steps. Your output must be a highly dense summary in plain text. Do not return an empty response.", systemPrompt, string(historyJSON))
+		promptInjection := fmt.Sprintf("System Context: %s\n\n<conversation_history>\n%s\n</conversation_history>\n\nSystem Task: You are performing a context compaction. Please distill the conversation history above into a highly compressed, concise summary. Focus strictly on preserving critical facts, the user's main intent, important context, and any established rules or constraints. Discard all conversational fluff, routine tool outputs, and redundant steps. Your output must be a highly dense summary in plain text. Do not return an empty response.", systemPrompt, historyXML)
 		
 		vReq = map[string]interface{}{
 			"contents": []map[string]interface{}{
