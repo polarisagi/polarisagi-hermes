@@ -262,18 +262,14 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 		}
 	}
 	if isCompact && hasRealContent {
-		// 网关层强行包裹返回的纯文本内容，避免依赖大模型自己生成 XML
 		for i, c := range contents {
 			if c.Type == "text" {
-				// 清洗掉模型可能自己生成的冗余标签
-				cleanText := strings.ReplaceAll(c.Text, "<summary>", "")
-				cleanText = strings.ReplaceAll(cleanText, "</summary>", "")
-				cleanText = strings.ReplaceAll(cleanText, "<analysis>", "")
-				cleanText = strings.ReplaceAll(cleanText, "</analysis>", "")
-				cleanText = strings.TrimSpace(cleanText)
-
-				contents[i].Text = "<analysis>\nGateway manually wrapped this context compaction.\n</analysis>\n<summary>\n" + cleanText + "\n</summary>"
-				break // 只包裹第一个 text 块
+				if !strings.Contains(c.Text, "<summary>") {
+					cleanText := strings.TrimSpace(c.Text)
+					contents[i].Text = "<analysis>\nGateway manually wrapped this context compaction.\n</analysis>\n<summary>\n" + cleanText + "\n</summary>"
+					slog.Info("🔍 [DEBUG] /compact 响应缺失 <summary> 标签，网关已自动补全", "trace_id", traceID)
+				}
+				break // 只处理第一个 text 块
 			}
 		}
 	}

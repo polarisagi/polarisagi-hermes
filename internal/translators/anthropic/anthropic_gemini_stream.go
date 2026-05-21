@@ -49,11 +49,38 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 	stopReason := "end_turn"
 	var matchedStopSeq string // 触发停止的序列（Gemini 不直接返回，通过文本尾部推断）
 	var streamError string    // 流中途出错信息
+	var compactTextBuf string // 用于 /compact 模式下缓冲完整文本
 
 	fallbackPrefix := "[Assistant called tool '"
 	fallbackPrefixXML := "<past_tool_execution "
 	var fallbackTextBuf string
 	var isBufferingFallback bool
+
+	flushCompactBuf := func() {
+		if compactTextBuf == "" {
+			return
+		}
+		writeSSE(w, flusher, "content_block_start", StreamEvent{
+			Type:  "content_block_start",
+			Index: ptrInt(blockIndex),
+			ContentBlock: &Content{
+				Type: "text",
+			},
+		})
+		
+		finalText := compactTextBuf
+		if !strings.Contains(finalText, "<summary>") {
+			finalText = "<analysis>\nGateway manually wrapped this context compaction.\n</analysis>\n<summary>\n" + strings.TrimSpace(finalText) + "\n</summary>"
+			slog.Info("🔍 [DEBUG] /compact 响应缺失 <summary> 标签，网关已自动补全 (Stream)", "trace_id", traceID)
+		}
+		
+		writeSSE(w, flusher, "content_block_delta", StreamEvent{
+			Type:  "content_block_delta",
+			Index: ptrInt(blockIndex),
+			Delta: &Delta{Type: "text_delta", Text: finalText},
+		})
+		compactTextBuf = ""
+	}
 
 	flushFallbackBuffer := func() {
 		if !isBufferingFallback {
@@ -382,6 +409,12 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 				if text != "" {
 					emittedText = true
 					
+					if isCompact {
+						compactTextBuf += text
+						inText = true // 标记为 inText，让收尾逻辑触发 content_block_stop
+						continue
+					}
+					
 					if !inText && !isBufferingFallback {
 						if strings.HasPrefix(fallbackPrefix, text) || strings.HasPrefix(text, fallbackPrefix) || strings.HasPrefix(fallbackPrefixXML, text) || strings.HasPrefix(text, fallbackPrefixXML) {
 							isBufferingFallback = true
@@ -396,21 +429,6 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 								},
 							})
 							inText = true
-							
-							// 如果是 compact，我们在真正内容开始前先注入前置 XML 标签
-							if isCompact {
-								writeSSE(w, flusher, "content_block_delta", StreamEvent{
-									Type:  "content_block_delta",
-									Index: ptrInt(blockIndex),
-									Delta: &Delta{Type: "text_delta", Text: "<analysis>\nGateway manually wrapped this context compaction.\n</analysis>\n<summary>\n"},
-								})
-							}
-
-							// 清洗可能由模型生成的冗余标签
-							text = strings.ReplaceAll(text, "<summary>", "")
-							text = strings.ReplaceAll(text, "</summary>", "")
-							text = strings.ReplaceAll(text, "<analysis>", "")
-							text = strings.ReplaceAll(text, "</analysis>", "")
 
 							writeSSE(w, flusher, "content_block_delta", StreamEvent{
 								Type:  "content_block_delta",
@@ -424,12 +442,6 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 							flushFallbackBuffer()
 						}
 					} else if inText {
-						// 清洗可能由模型生成的冗余标签
-						text = strings.ReplaceAll(text, "<summary>", "")
-						text = strings.ReplaceAll(text, "</summary>", "")
-						text = strings.ReplaceAll(text, "<analysis>", "")
-						text = strings.ReplaceAll(text, "</analysis>", "")
-
 						writeSSE(w, flusher, "content_block_delta", StreamEvent{
 							Type:  "content_block_delta",
 							Index: ptrInt(blockIndex),
@@ -445,11 +457,7 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 				}
 				if inText {
 					if isCompact {
-						writeSSE(w, flusher, "content_block_delta", StreamEvent{
-							Type:  "content_block_delta",
-							Index: ptrInt(blockIndex),
-							Delta: &Delta{Type: "text_delta", Text: "\n</summary>"},
-						})
+						flushCompactBuf()
 					}
 					writeSSE(w, flusher, "content_block_stop", StreamEvent{
 						Type:  "content_block_stop",
@@ -583,11 +591,7 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 	}
 	if inText {
 		if isCompact {
-			writeSSE(w, flusher, "content_block_delta", StreamEvent{
-				Type:  "content_block_delta",
-				Index: ptrInt(blockIndex),
-				Delta: &Delta{Type: "text_delta", Text: "\n</summary>"},
-			})
+			flushCompactBuf()
 		}
 		writeSSEContentBlockStop(w, flusher, blockIndex)
 	}
