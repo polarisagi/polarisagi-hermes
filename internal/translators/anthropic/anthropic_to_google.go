@@ -338,7 +338,7 @@ func handleGemini(ctx context.Context, w http.ResponseWriter, bodyBytes []byte, 
 		}
 		historyXML := sb.String()
 		systemPrompt := flattenAnthropicSystem(req.System)
-		promptInjection := fmt.Sprintf("System Context: %s\n\n<conversation_history>\n%s\n</conversation_history>\n\nSystem Task: You are performing a context compaction. Please distill the conversation history above into a highly compressed, concise summary. Focus strictly on preserving critical facts, the user's main intent, important context, and any established rules or constraints. Discard all conversational fluff, routine tool outputs, and redundant steps. Your output must be a highly dense summary in plain text. Do not return an empty response.", systemPrompt, historyXML)
+		promptInjection := fmt.Sprintf("System Context: %s\n\n<conversation_history>\n%s\n</conversation_history>\n\nSystem Task: You are performing a context compaction. Please distill the conversation history above into a highly compressed, concise summary. Focus strictly on preserving critical facts, the user's main intent, important context, and any established rules or constraints. Discard all conversational fluff, routine tool outputs, and redundant steps.\n\nCRITICAL FORMATTING REQUIREMENT:\nYou MUST strictly follow the formatting instructions provided by the user in the very last turn of the conversation history. Specifically, your response MUST contain an <analysis> block followed by a <summary> block, otherwise the client will crash. Do not return an empty response.", systemPrompt, historyXML)
 		
 		// Preserve all other settings (like thinkingConfig, safetySettings, labels) from mapToVertexRequest
 		vReq["contents"] = []map[string]interface{}{
