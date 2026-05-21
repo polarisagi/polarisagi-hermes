@@ -133,11 +133,15 @@ func AnthropicToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Reque
 			if strings.Contains(lastMsgStr, "<summary>") { features++ }
 			
 			// Claude Code 或其他官方客户端使用了上下文管理 API (去掉了日期后缀以防版本更新)
-			if bytes.Contains(bodyBytes, []byte(`"clear_thinking_`)) {
-				features++
-			}
-			if bytes.Contains(bodyBytes, []byte(`"compact_`)) {
-				features++
+			if req.ContextManagement != nil {
+				for _, edit := range req.ContextManagement.Edits {
+					if strings.HasPrefix(edit.Type, "clear_thinking_") {
+						features++
+					}
+					if strings.HasPrefix(edit.Type, "compact_") {
+						features++
+					}
+				}
 			}
 			
 			if features >= 3 {

@@ -6,19 +6,31 @@ package anthropic
 // MessageRequest Anthropic Messages API 请求结构
 // 对应 POST https://api.anthropic.com/v1/messages
 type MessageRequest struct {
-	Model         string          `json:"model"`                    // 模型名，如 "claude-sonnet-4-6"
-	Messages      []Message       `json:"messages"`                 // 对话消息列表
-	System        interface{}     `json:"system,omitempty"`         // 系统提示词 (string 或 []Content)
-	MaxTokens     int             `json:"max_tokens"`               // 最大生成 token 数
-	Temperature   *float64        `json:"temperature,omitempty"`    // 温度参数 [0,1]
-	TopP          *float64        `json:"top_p,omitempty"`          // Top-P 采样
-	TopK          *int            `json:"top_k,omitempty"`          // Top-K 采样
-	Stream        bool            `json:"stream,omitempty"`         // 是否流式响应
-	Tools         []Tool          `json:"tools,omitempty"`          // 可用工具列表
-	ToolChoice    *ToolChoice     `json:"tool_choice,omitempty"`    // 工具选择策略
-	StopSequences []string        `json:"stop_sequences,omitempty"` // 自定义停止序列
-	Thinking      *ThinkingConfig `json:"thinking,omitempty"`       // 扩展思考配置（Claude Code /effort 命令使用）
-	Metadata      *RequestMetadata `json:"metadata,omitempty"`      // 请求元数据（用户标识等）
+	Model             string             `json:"model"`                    // 模型名，如 "claude-sonnet-4-6"
+	Messages          []Message          `json:"messages"`                 // 对话消息列表
+	System            interface{}        `json:"system,omitempty"`         // 系统提示词 (string 或 []Content)
+	MaxTokens         int                `json:"max_tokens"`               // 最大生成 token 数
+	Temperature       *float64           `json:"temperature,omitempty"`    // 温度参数 [0,1]
+	TopP              *float64           `json:"top_p,omitempty"`          // Top-P 采样
+	TopK              *int               `json:"top_k,omitempty"`          // Top-K 采样
+	Stream            bool               `json:"stream,omitempty"`         // 是否流式响应
+	Tools             []Tool             `json:"tools,omitempty"`          // 可用工具列表
+	ToolChoice        *ToolChoice        `json:"tool_choice,omitempty"`    // 工具选择策略
+	StopSequences     []string           `json:"stop_sequences,omitempty"` // 自定义停止序列
+	Thinking          *ThinkingConfig    `json:"thinking,omitempty"`       // 扩展思考配置（Claude Code /effort 命令使用）
+	Metadata          *RequestMetadata   `json:"metadata,omitempty"`       // 请求元数据（用户标识等）
+	ContextManagement *ContextManagement `json:"context_management,omitempty"` // 上下文管理配置 (自动压缩/清理等)
+}
+
+// ContextManagement Anthropic 上下文管理配置 (beta 特性)
+type ContextManagement struct {
+	Edits []ContextEdit `json:"edits,omitempty"`
+}
+
+type ContextEdit struct {
+	Type     string `json:"type,omitempty"`     // 比如 "clear_thinking_20251015" 或 "compact_20260112"
+	Strategy string `json:"strategy,omitempty"` // "auto" 等
+	Keep     string `json:"keep,omitempty"`     // "all" 等
 }
 
 // ThinkingConfig Anthropic 扩展思考配置
