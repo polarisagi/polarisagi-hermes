@@ -24,10 +24,9 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
 	"net/http"
-	"time"
 	"strings"
+	"time"
 
 	"polaris-gateway/internal/router"
 )
@@ -94,14 +93,7 @@ func AnthropicToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Reque
 
 	slog.Debug("🔍 [DEBUG] Anthropic Headers", "trace_id", traceID, "headers", fmt.Sprintf("%+v", r.Header))
 	
-	// 为了方便排查，直接把整个原始请求体写入到本地文件中
-	// 每次请求都会覆盖这个文件，所以触发 /compact 后立刻去查看这个文件即可
-	errDump := os.WriteFile("claude_debug_body.json", bodyBytes, 0644)
-	if errDump == nil {
-		slog.Debug("🔍 [DEBUG] 已将完整的请求体保存到当前目录下的 claude_debug_body.json 文件中，请打开该文件查找 /compact 特征", "trace_id", traceID)
-	} else {
-		slog.Debug("🔍 [DEBUG] 保存请求体到文件失败", "trace_id", traceID, "error", errDump)
-	}
+	// (临时 Debug 文件写入已删除)
 
 	if len(req.Messages) > 0 {
 		lastMsg := req.Messages[len(req.Messages)-1]
