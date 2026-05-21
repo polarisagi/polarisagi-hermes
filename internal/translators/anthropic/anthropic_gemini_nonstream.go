@@ -261,6 +261,22 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 			break
 		}
 	}
+	if isCompact && hasRealContent {
+		// 网关层强行包裹返回的纯文本内容，避免依赖大模型自己生成 XML
+		for i, c := range contents {
+			if c.Type == "text" {
+				// 清洗掉模型可能自己生成的冗余标签
+				cleanText := strings.ReplaceAll(c.Text, "<summary>", "")
+				cleanText = strings.ReplaceAll(cleanText, "</summary>", "")
+				cleanText = strings.ReplaceAll(cleanText, "<analysis>", "")
+				cleanText = strings.ReplaceAll(cleanText, "</analysis>", "")
+				cleanText = strings.TrimSpace(cleanText)
+
+				contents[i].Text = "<analysis>\nGateway manually wrapped this context compaction.\n</analysis>\n<summary>\n" + cleanText + "\n</summary>"
+				break // 只包裹第一个 text 块
+			}
+		}
+	}
 
 	if !hasRealContent {
 		// 上游返回空响应 → 返回 Anthropic 错误而非空 content
