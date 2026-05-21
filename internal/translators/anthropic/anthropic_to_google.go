@@ -115,14 +115,17 @@ func AnthropicToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Reque
 		slog.Debug("🔍 [DEBUG] req.Messages is EMPTY!", "trace_id", traceID)
 	}
 
-	// 检测 compact-2026-01-12 beta：Claude Code /compact 触发的上下文压缩请求
-	// Gemini 不原生支持 compaction 块，由网关在响应侧合成正确的 compaction 内容块格式
+	// 检测 Claude Code /compact 触发的上下文压缩请求
+	// 随着版本更新，Claude Code 已不再发送专用的 compact-2026-01-12 头
+	// 现在的特征是：最后一条用户消息中包含明确的压缩指令，例如 "Respond with TEXT ONLY" 和 "summary of the conversation so far"
 	isCompact := false
-	if betaHeaders, ok := r.Header["Anthropic-Beta"]; ok {
-		for _, betaVal := range betaHeaders {
-			if strings.Contains(betaVal, "compact-2026-01-12") {
+	if len(req.Messages) > 0 {
+		lastMsg := req.Messages[len(req.Messages)-1]
+		if lastMsg.Role == "user" {
+			lastMsgBytes, _ := json.Marshal(lastMsg.Content)
+			lastMsgStr := string(lastMsgBytes)
+			if strings.Contains(lastMsgStr, "Respond with TEXT ONLY") && strings.Contains(lastMsgStr, "summary of the conversation so far") {
 				isCompact = true
-				break
 			}
 		}
 	}
