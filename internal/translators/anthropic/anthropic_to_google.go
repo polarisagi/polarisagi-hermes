@@ -132,8 +132,11 @@ func AnthropicToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Reque
 			if strings.Contains(lastMsgStr, "<analysis>") { features++ }
 			if strings.Contains(lastMsgStr, "<summary>") { features++ }
 			
-			// Claude Code 使用了上下文管理 API 来清除旧的思考过程
-			if bytes.Contains(bodyBytes, []byte("clear_thinking_20251015")) {
+			// Claude Code 或其他官方客户端使用了上下文管理 API (去掉了日期后缀以防版本更新)
+			if bytes.Contains(bodyBytes, []byte(`"clear_thinking_`)) {
+				features++
+			}
+			if bytes.Contains(bodyBytes, []byte(`"compact_`)) {
 				features++
 			}
 			
