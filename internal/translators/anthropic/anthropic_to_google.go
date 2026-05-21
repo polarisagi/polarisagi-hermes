@@ -261,7 +261,7 @@ func handleGemini(ctx context.Context, w http.ResponseWriter, bodyBytes []byte, 
 		historyJSON, _ := json.MarshalIndent(req.Messages, "", "  ")
 		systemPrompt := flattenAnthropicSystem(req.System)
 		
-		promptInjection := fmt.Sprintf("System Context: %s\n\n<conversation_history>\n%s\n</conversation_history>\n\nSystem Task: You are currently performing a context compaction for Claude Code. You MUST provide a detailed and comprehensive summary of the conversation history above. Do not return an empty response. Output the summary in plain text.", systemPrompt, string(historyJSON))
+		promptInjection := fmt.Sprintf("System Context: %s\n\n<conversation_history>\n%s\n</conversation_history>\n\nSystem Task: You are performing a context compaction for an AI coding assistant. Please distill the conversation history above into a highly compressed, concise summary. Focus strictly on preserving critical facts, current goal state, architectural decisions, and important environmental constraints. Discard all conversational fluff, routine tool outputs, and redundant steps. Your output must be a highly dense summary in plain text. Do not return an empty response.", systemPrompt, string(historyJSON))
 		
 		vReq = map[string]interface{}{
 			"contents": []map[string]interface{}{
