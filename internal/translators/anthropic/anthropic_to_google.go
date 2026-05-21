@@ -292,18 +292,26 @@ func handleGemini(ctx context.Context, w http.ResponseWriter, bodyBytes []byte, 
 		systemPrompt := flattenAnthropicSystem(req.System)
 		promptInjection := fmt.Sprintf("System Context: %s\n\n<conversation_history>\n%s\n</conversation_history>\n\nSystem Task: You are performing a context compaction. Please distill the conversation history above into a highly compressed, concise summary. Focus strictly on preserving critical facts, the user's main intent, important context, and any established rules or constraints. Discard all conversational fluff, routine tool outputs, and redundant steps. Your output must be a highly dense summary in plain text. Do not return an empty response.", systemPrompt, historyXML)
 		
-		vReq = map[string]interface{}{
-			"contents": []map[string]interface{}{
-				{
-					"role": "user",
-					"parts": []map[string]interface{}{
-						{"text": promptInjection},
-					},
+		// Preserve all other settings (like thinkingConfig, safetySettings, labels) from mapToVertexRequest
+		vReq["contents"] = []map[string]interface{}{
+			{
+				"role": "user",
+				"parts": []map[string]interface{}{
+					{"text": promptInjection},
 				},
 			},
-			"generationConfig": map[string]interface{}{
-				"temperature": 0.0, // 压缩上下文需要确定性
-			},
+		}
+		
+		delete(vReq, "systemInstruction")
+		delete(vReq, "tools")
+		delete(vReq, "toolConfig")
+		
+		if genCfg, ok := vReq["generationConfig"].(map[string]interface{}); ok {
+			genCfg["temperature"] = 0.0
+		} else {
+			vReq["generationConfig"] = map[string]interface{}{
+				"temperature": 0.0,
+			}
 		}
 	}
 
