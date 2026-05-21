@@ -265,40 +265,67 @@ func handleGemini(ctx context.Context, w http.ResponseWriter, bodyBytes []byte, 
 	}
 	targetURL := buildGEAPURL(dest.Node, "google", subpath, "global")
 
-	proxyReq, _ := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(vReqBytes))
-	proxyReq.Header.Set("Content-Type", "application/json")
-	q := proxyReq.URL.Query()
-	q.Set("key", dest.Node.Credentials)
-	if req.Stream {
-		q.Set("alt", "sse")
+	maxRetries := 0
+	if isCompact && !req.Stream {
+		maxRetries = 5 // 对于非流式的 /compact 压缩请求，内部最多重试 5 次以获取摘要
 	}
-	proxyReq.URL.RawQuery = q.Encode()
 
-	router.ExecuteAndStream(w, proxyReq, dest, "google", clientType, "anthropic_adapter", traceID, "Anthropic(Gemini)",
-		func(finalResp *http.Response, startTime time.Time) bool {
-			if finalResp.StatusCode != http.StatusOK {
-				errBody, _ := io.ReadAll(finalResp.Body)
-				finalResp.Body.Close()
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(finalResp.StatusCode)
-				errResp := map[string]interface{}{
-					"type": "error",
-					"error": map[string]interface{}{
-						"type":    "api_error",
-						"message": fmt.Sprintf("Google Agent Platform API returned status %d: %s", finalResp.StatusCode, string(errBody)),
-					},
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		recorder := router.NewResponseRecorder()
+
+		proxyReq, _ := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(vReqBytes))
+		proxyReq.Header.Set("Content-Type", "application/json")
+		q := proxyReq.URL.Query()
+		q.Set("key", dest.Node.Credentials)
+		if req.Stream {
+			q.Set("alt", "sse")
+		}
+		proxyReq.URL.RawQuery = q.Encode()
+
+		router.ExecuteAndStream(recorder, proxyReq, dest, "google", clientType, "anthropic_adapter", traceID, "Anthropic(Gemini)",
+			func(finalResp *http.Response, startTime time.Time) bool {
+				if finalResp.StatusCode != http.StatusOK {
+					errBody, _ := io.ReadAll(finalResp.Body)
+					finalResp.Body.Close()
+					recorder.Header().Set("Content-Type", "application/json")
+					recorder.WriteHeader(finalResp.StatusCode)
+					errResp := map[string]interface{}{
+						"type": "error",
+						"error": map[string]interface{}{
+							"type":    "api_error",
+							"message": fmt.Sprintf("Google Agent Platform API returned status %d: %s", finalResp.StatusCode, string(errBody)),
+						},
+					}
+					_ = json.NewEncoder(recorder).Encode(errResp)
+					return false
 				}
-				_ = json.NewEncoder(w).Encode(errResp)
-				return false
-			}
 
-			if req.Stream {
-				streamOK := streamAnthropicResponse(ctx, w, finalResp, req, traceID, dest, clientType, model, bodyBytes, isCompact)
-				return !streamOK // streamOK=false → streamFailed=true → 触发节点惩罚
+				if req.Stream {
+					streamOK := streamAnthropicResponse(ctx, recorder, finalResp, req, traceID, dest, clientType, model, bodyBytes, isCompact)
+					return !streamOK
+				}
+				handleAnthropicNonStreamResponse(recorder, finalResp, req, traceID, dest, clientType, model, bodyBytes, isCompact)
+				return false
+			})
+
+		// 检查是否是因为空响应导致的自动重试报错
+		if recorder.Code == http.StatusTooManyRequests && strings.Contains(recorder.Body.String(), "triggering automatic retry") {
+			if attempt < maxRetries {
+				time.Sleep(1 * time.Second) // 退避 1 秒后重试
+				continue
 			}
-			handleAnthropicNonStreamResponse(w, finalResp, req, traceID, dest, clientType, model, bodyBytes, isCompact)
-			return false
-		})
+		}
+
+		// 将 recorder 的结果刷回真正的 http.ResponseWriter
+		for k, vv := range recorder.Header() {
+			for _, v := range vv {
+				w.Header().Add(k, v)
+			}
+		}
+		w.WriteHeader(recorder.Code)
+		w.Write(recorder.Body.Bytes())
+		break
+	}
 }
 
 func init() {
