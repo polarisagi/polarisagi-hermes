@@ -271,6 +271,15 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 			})
 			hasRealContent = true
 			slog.Warn("⚠️ [NonStream] GEAP 返回空响应，已注入兜底 compaction 文本", "trace_id", traceID)
+		} else {
+			// 常规请求如果是由于上下文超长或工具返回后无话可说，也会返回空响应
+			// 强行塞入常规兜底文本，打破无限重试循环
+			contents = append(contents, Content{
+				Type: "text",
+				Text: "Acknowledged. I have processed the context.",
+			})
+			hasRealContent = true
+			slog.Warn("⚠️ [NonStream] GEAP 返回空响应，由于是常规请求，已注入默认确认文本兜底", "trace_id", traceID)
 		}
 	}
 
