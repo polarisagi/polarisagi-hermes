@@ -252,19 +252,29 @@ func handleGemini(ctx context.Context, w http.ResponseWriter, bodyBytes []byte, 
 
 	vReq, _ := mapToVertexRequest(req, model)
 	if isCompact {
-		// 强制注入总结提示词，防止 Gemini 因为没有工具或被长上下文混淆而输出空字符
-		promptInjection := "\n\nSystem Note: You are currently performing a context compaction. You MUST provide a detailed summary of the conversation above. Do not return an empty response. Output the summary in plain text."
+		// 用户的终极重构方案：借鉴之前我们处理 thoughtSignature 缺失的思路
+		// 直接把完整的 Claude Code 请求（包含系统提示和所有的历史消息、工具调用记录）
+		// 序列化成一段纯文本/XML/JSON 包装起来，作为一个单纯的 user 文本消息发给 Gemini！
+		// 这样 Gemini 就再也不会受到复杂的 history 结构、未知的工具调用、角色交替等因素影响，
+		// 从而彻底解决它拒绝生成摘要（返回空响应）或报错的问题！
 		
-		// 将注入提示追加到 user 消息的最后
-		contents, ok := vReq["contents"].([]map[string]interface{})
-		if ok && len(contents) > 0 {
-			lastMsg := contents[len(contents)-1]
-			if lastMsg["role"] == "user" {
-				if parts, ok := lastMsg["parts"].([]map[string]interface{}); ok {
-					parts = append(parts, map[string]interface{}{"text": promptInjection})
-					lastMsg["parts"] = parts
-				}
-			}
+		historyJSON, _ := json.MarshalIndent(req.Messages, "", "  ")
+		systemPrompt := flattenAnthropicSystem(req.System)
+		
+		promptInjection := fmt.Sprintf("System Context: %s\n\n<conversation_history>\n%s\n</conversation_history>\n\nSystem Task: You are currently performing a context compaction for Claude Code. You MUST provide a detailed and comprehensive summary of the conversation history above. Do not return an empty response. Output the summary in plain text.", systemPrompt, string(historyJSON))
+		
+		vReq = map[string]interface{}{
+			"contents": []map[string]interface{}{
+				{
+					"role": "user",
+					"parts": []map[string]interface{}{
+						{"text": promptInjection},
+					},
+				},
+			},
+			"generationConfig": map[string]interface{}{
+				"temperature": 0.0, // 压缩上下文需要确定性
+			},
 		}
 	}
 
