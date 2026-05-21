@@ -251,6 +251,23 @@ func handleGemini(ctx context.Context, w http.ResponseWriter, bodyBytes []byte, 
 	const clientType = "Anthropic-Adapter"
 
 	vReq, _ := mapToVertexRequest(req, model)
+	if isCompact {
+		// 强制注入总结提示词，防止 Gemini 因为没有工具或被长上下文混淆而输出空字符
+		promptInjection := "\n\nSystem Note: You are currently performing a context compaction. You MUST provide a detailed summary of the conversation above. Do not return an empty response. Output the summary in plain text."
+		
+		// 将注入提示追加到 user 消息的最后
+		contents, ok := vReq["contents"].([]map[string]interface{})
+		if ok && len(contents) > 0 {
+			lastMsg := contents[len(contents)-1]
+			if lastMsg["role"] == "user" {
+				if parts, ok := lastMsg["parts"].([]map[string]interface{}); ok {
+					parts = append(parts, map[string]interface{}{"text": promptInjection})
+					lastMsg["parts"] = parts
+				}
+			}
+		}
+	}
+
 	vReqBytes, _ := json.Marshal(vReq)
 
 	if model == "" {
@@ -265,67 +282,40 @@ func handleGemini(ctx context.Context, w http.ResponseWriter, bodyBytes []byte, 
 	}
 	targetURL := buildGEAPURL(dest.Node, "google", subpath, "global")
 
-	maxRetries := 0
-	if isCompact && !req.Stream {
-		maxRetries = 5 // 对于非流式的 /compact 压缩请求，内部最多重试 5 次以获取摘要
+	proxyReq, _ := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(vReqBytes))
+	proxyReq.Header.Set("Content-Type", "application/json")
+	q := proxyReq.URL.Query()
+	q.Set("key", dest.Node.Credentials)
+	if req.Stream {
+		q.Set("alt", "sse")
 	}
+	proxyReq.URL.RawQuery = q.Encode()
 
-	for attempt := 0; attempt <= maxRetries; attempt++ {
-		recorder := router.NewResponseRecorder()
-
-		proxyReq, _ := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(vReqBytes))
-		proxyReq.Header.Set("Content-Type", "application/json")
-		q := proxyReq.URL.Query()
-		q.Set("key", dest.Node.Credentials)
-		if req.Stream {
-			q.Set("alt", "sse")
-		}
-		proxyReq.URL.RawQuery = q.Encode()
-
-		router.ExecuteAndStream(recorder, proxyReq, dest, "google", clientType, "anthropic_adapter", traceID, "Anthropic(Gemini)",
-			func(finalResp *http.Response, startTime time.Time) bool {
-				if finalResp.StatusCode != http.StatusOK {
-					errBody, _ := io.ReadAll(finalResp.Body)
-					finalResp.Body.Close()
-					recorder.Header().Set("Content-Type", "application/json")
-					recorder.WriteHeader(finalResp.StatusCode)
-					errResp := map[string]interface{}{
-						"type": "error",
-						"error": map[string]interface{}{
-							"type":    "api_error",
-							"message": fmt.Sprintf("Google Agent Platform API returned status %d: %s", finalResp.StatusCode, string(errBody)),
-						},
-					}
-					_ = json.NewEncoder(recorder).Encode(errResp)
-					return false
+	router.ExecuteAndStream(w, proxyReq, dest, "google", clientType, "anthropic_adapter", traceID, "Anthropic(Gemini)",
+		func(finalResp *http.Response, startTime time.Time) bool {
+			if finalResp.StatusCode != http.StatusOK {
+				errBody, _ := io.ReadAll(finalResp.Body)
+				finalResp.Body.Close()
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(finalResp.StatusCode)
+				errResp := map[string]interface{}{
+					"type": "error",
+					"error": map[string]interface{}{
+						"type":    "api_error",
+						"message": fmt.Sprintf("Google Agent Platform API returned status %d: %s", finalResp.StatusCode, string(errBody)),
+					},
 				}
-
-				if req.Stream {
-					streamOK := streamAnthropicResponse(ctx, recorder, finalResp, req, traceID, dest, clientType, model, bodyBytes, isCompact)
-					return !streamOK
-				}
-				handleAnthropicNonStreamResponse(recorder, finalResp, req, traceID, dest, clientType, model, bodyBytes, isCompact)
+				_ = json.NewEncoder(w).Encode(errResp)
 				return false
-			})
-
-		// 检查是否是因为空响应导致的自动重试报错
-		if recorder.Code == http.StatusTooManyRequests && strings.Contains(recorder.Body.String(), "triggering automatic retry") {
-			if attempt < maxRetries {
-				time.Sleep(1 * time.Second) // 退避 1 秒后重试
-				continue
 			}
-		}
 
-		// 将 recorder 的结果刷回真正的 http.ResponseWriter
-		for k, vv := range recorder.Header() {
-			for _, v := range vv {
-				w.Header().Add(k, v)
+			if req.Stream {
+				streamOK := streamAnthropicResponse(ctx, w, finalResp, req, traceID, dest, clientType, model, bodyBytes, isCompact)
+				return !streamOK
 			}
-		}
-		w.WriteHeader(recorder.Code)
-		w.Write(recorder.Body.Bytes())
-		break
-	}
+			handleAnthropicNonStreamResponse(w, finalResp, req, traceID, dest, clientType, model, bodyBytes, isCompact)
+			return false
+		})
 }
 
 func init() {
