@@ -25,6 +25,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -93,7 +94,15 @@ func AnthropicToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Reque
 
 	slog.Debug("🔍 [DEBUG] Anthropic Headers", "trace_id", traceID, "headers", fmt.Sprintf("%+v", r.Header))
 	
-	// (临时 Debug 文件写入已删除)
+	// 仅在开启 DEBUG 日志级别时，将请求体写入文件供本地排查
+	if slog.Default().Enabled(ctx, slog.LevelDebug) {
+		errDump := os.WriteFile("claude_debug_body.json", bodyBytes, 0644)
+		if errDump == nil {
+			slog.Debug("🔍 [DEBUG] 已将完整的请求体保存到当前目录下的 claude_debug_body.json 文件中", "trace_id", traceID)
+		} else {
+			slog.Debug("🔍 [DEBUG] 保存请求体到文件失败", "trace_id", traceID, "error", errDump)
+		}
+	}
 
 	if len(req.Messages) > 0 {
 		lastMsg := req.Messages[len(req.Messages)-1]
