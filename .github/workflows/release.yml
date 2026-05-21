@@ -7,10 +7,8 @@ on:
 
 jobs:
   build:
-    name: Build and Release
+    name: Build
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
 
     strategy:
       matrix:
@@ -44,9 +42,29 @@ jobs:
         fi
         go build -ldflags="${LDFLAGS}" -o $BINARY_NAME ./cmd/polaris
 
-    - name: Upload Release Asset
-      uses: softprops/action-gh-release@v2
+    - name: Upload Build Artifact
+      uses: actions/upload-artifact@v4
       with:
-        files: polaris-gateway-*
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        name: polaris-gateway-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: polaris-gateway-*
+        retention-days: 1
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
