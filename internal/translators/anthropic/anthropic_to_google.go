@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"time"
 	"strings"
@@ -88,6 +89,18 @@ func AnthropicToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Reque
 	if isCountTokensPath(r.URL.Path) {
 		handleCountTokensLocal(w, bodyBytes, traceID)
 		return
+	}
+
+	// 注入 Debug 日志：打印所有 Header，以及最后一条消息的部分内容，用于排查 /compact 的真实特征
+	slog.Debug("🔍 [DEBUG] Anthropic Headers", "trace_id", traceID, "headers", fmt.Sprintf("%+v", r.Header))
+	if len(req.Messages) > 0 {
+		lastMsg := req.Messages[len(req.Messages)-1]
+		lastMsgBytes, _ := json.Marshal(lastMsg)
+		preview := string(lastMsgBytes)
+		if len(preview) > 500 {
+			preview = preview[:500] + "... [truncated]"
+		}
+		slog.Debug("🔍 [DEBUG] Last message preview", "trace_id", traceID, "last_msg", preview)
 	}
 
 	// 检测 compact-2026-01-12 beta：Claude Code /compact 触发的上下文压缩请求
