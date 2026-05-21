@@ -529,25 +529,10 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 			blockIndex++
 			stopReason = "end_turn"
 		} else {
-			slog.Warn("⚠️ [Stream] GEAP 返回空响应，由于是常规请求，已注入默认确认文本兜底",
+			slog.Warn("⚠️ [Stream] GEAP 返回空响应，上游未生成任何内容块",
 				"trace_id", traceID, "account", dest.Node.Name,
 				"prompt_tokens", promptTokens)
-			writeSSE(w, flusher, "content_block_start", StreamEvent{
-				Type:  "content_block_start",
-				Index: ptrInt(blockIndex),
-				ContentBlock: &Content{
-					Type: "text",
-					Text: "",
-				},
-			})
-			writeSSE(w, flusher, "content_block_delta", StreamEvent{
-				Type:  "content_block_delta",
-				Index: ptrInt(blockIndex),
-				Delta: &Delta{Type: "text_delta", Text: "Acknowledged. I have processed the context."},
-			})
-			writeSSEContentBlockStop(w, flusher, blockIndex)
-			blockIndex++
-			stopReason = "end_turn"
+			streamError = "upstream model returned empty response — triggering automatic retry"
 		}
 	}
 
