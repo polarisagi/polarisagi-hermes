@@ -225,7 +225,7 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if r.Method == http.MethodGet {
-		rows, err := db.DB().Query("SELECT id, name, provider, base_url, credentials, project_id, location, priority, balance, used_amount, limit_percent, valid_from, valid_to, status, COALESCE(min_request_interval_sec, 0) FROM sys_nodes ORDER BY provider, priority DESC")
+		rows, err := db.DB().Query("SELECT id, name, provider, base_url, credentials, project_id, location, priority, balance, used_amount, limit_percent, valid_from, valid_to, status, COALESCE(min_request_interval_sec, 0), COALESCE(concurrency, 0) FROM sys_nodes ORDER BY provider, priority DESC")
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -234,11 +234,11 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 
 		var nodes []map[string]interface{}
 		for rows.Next() {
-			var id, priority, status, minRequestIntervalSec int
+			var id, priority, status, minRequestIntervalSec, concurrency int
 			var name, provider, baseURL, credentials, projectID, location, validFrom, validTo string
 			var balance, usedAmount, limitPercent float64
 			
-			if err := rows.Scan(&id, &name, &provider, &baseURL, &credentials, &projectID, &location, &priority, &balance, &usedAmount, &limitPercent, &validFrom, &validTo, &status, &minRequestIntervalSec); err != nil {
+			if err := rows.Scan(&id, &name, &provider, &baseURL, &credentials, &projectID, &location, &priority, &balance, &usedAmount, &limitPercent, &validFrom, &validTo, &status, &minRequestIntervalSec, &concurrency); err != nil {
 				continue
 			}
 			
@@ -262,6 +262,7 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 				"used_amount":            usedAmount,
 				"limit_percent":          limitPercent,
 				"min_request_interval_sec": minRequestIntervalSec,
+				"concurrency":            concurrency,
 				"valid_from":             validFrom,
 				"valid_to":               validTo,
 				"status":                 status,
@@ -283,6 +284,7 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 			Balance              float64 `json:"balance"`
 			LimitPercent         float64 `json:"limit_percent"`
 			MinRequestIntervalSec int     `json:"min_request_interval_sec"`
+			Concurrency           int     `json:"concurrency"`
 			ValidFrom            string  `json:"valid_from"`
 			ValidTo              string  `json:"valid_to"`
 			Status               int     `json:"status"`
@@ -294,6 +296,10 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 
 		if req.Provider == "google" && strings.TrimSpace(req.ProjectID) == "" {
 			http.Error(w, `{"error":"project_id is required for Google Agent Platform nodes"}`, http.StatusBadRequest)
+			return
+		}
+		if req.Concurrency < 0 || req.Concurrency > 1000 {
+			http.Error(w, `{"error":"concurrency must be between 0 and 1000"}`, http.StatusBadRequest)
 			return
 		}
 		if req.LimitPercent == 0 {
@@ -309,9 +315,9 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		_, err := db.DB().Exec(`
-			INSERT INTO sys_nodes (name, provider, base_url, credentials, project_id, location, priority, balance, used_amount, limit_percent, min_request_interval_sec, valid_from, valid_to, status)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0.0, ?, ?, ?, ?, ?)`,
-			req.Name, req.Provider, req.BaseURL, req.Credentials, req.ProjectID, req.Location, req.Priority, req.Balance, req.LimitPercent, req.MinRequestIntervalSec, req.ValidFrom, req.ValidTo, req.Status)
+			INSERT INTO sys_nodes (name, provider, base_url, credentials, project_id, location, priority, balance, used_amount, limit_percent, min_request_interval_sec, concurrency, valid_from, valid_to, status)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0.0, ?, ?, ?, ?, ?, ?)`,
+			req.Name, req.Provider, req.BaseURL, req.Credentials, req.ProjectID, req.Location, req.Priority, req.Balance, req.LimitPercent, req.MinRequestIntervalSec, req.Concurrency, req.ValidFrom, req.ValidTo, req.Status)
 		
 		if err != nil {
 			slog.Error("节点写入数据库失败", "error", err)
@@ -338,6 +344,7 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 			Balance              float64 `json:"balance"`
 			LimitPercent         float64 `json:"limit_percent"`
 			MinRequestIntervalSec int     `json:"min_request_interval_sec"`
+			Concurrency           int     `json:"concurrency"`
 			ValidFrom            string  `json:"valid_from"`
 			ValidTo              string  `json:"valid_to"`
 			Status               int     `json:"status"`
@@ -351,22 +358,26 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, `{"error":"project_id is required for Google Agent Platform nodes"}`, http.StatusBadRequest)
 			return
 		}
+		if req.Concurrency < 0 || req.Concurrency > 1000 {
+			http.Error(w, `{"error":"concurrency must be between 0 and 1000"}`, http.StatusBadRequest)
+			return
+		}
 		req.ValidFrom = normalizeDatetime(req.ValidFrom, "00:00:00")
 		req.ValidTo = normalizeDatetime(req.ValidTo, "23:59:59")
 		if !strings.Contains(req.Credentials, "......") && req.Credentials != "***" && req.Credentials != "" {
 			_, err := db.DB().Exec(`
-				UPDATE sys_nodes SET name=?, provider=?, base_url=?, credentials=?, project_id=?, location=?, priority=?, balance=?, limit_percent=?, min_request_interval_sec=?, valid_from=?, valid_to=?, status=?
+				UPDATE sys_nodes SET name=?, provider=?, base_url=?, credentials=?, project_id=?, location=?, priority=?, balance=?, limit_percent=?, min_request_interval_sec=?, concurrency=?, valid_from=?, valid_to=?, status=?
 				WHERE id=?`,
-				req.Name, req.Provider, req.BaseURL, req.Credentials, req.ProjectID, req.Location, req.Priority, req.Balance, req.LimitPercent, req.MinRequestIntervalSec, req.ValidFrom, req.ValidTo, req.Status, req.ID)
+				req.Name, req.Provider, req.BaseURL, req.Credentials, req.ProjectID, req.Location, req.Priority, req.Balance, req.LimitPercent, req.MinRequestIntervalSec, req.Concurrency, req.ValidFrom, req.ValidTo, req.Status, req.ID)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 		} else {
 			_, err := db.DB().Exec(`
-				UPDATE sys_nodes SET name=?, provider=?, base_url=?, project_id=?, location=?, priority=?, balance=?, limit_percent=?, min_request_interval_sec=?, valid_from=?, valid_to=?, status=?
+				UPDATE sys_nodes SET name=?, provider=?, base_url=?, project_id=?, location=?, priority=?, balance=?, limit_percent=?, min_request_interval_sec=?, concurrency=?, valid_from=?, valid_to=?, status=?
 				WHERE id=?`,
-				req.Name, req.Provider, req.BaseURL, req.ProjectID, req.Location, req.Priority, req.Balance, req.LimitPercent, req.MinRequestIntervalSec, req.ValidFrom, req.ValidTo, req.Status, req.ID)
+				req.Name, req.Provider, req.BaseURL, req.ProjectID, req.Location, req.Priority, req.Balance, req.LimitPercent, req.MinRequestIntervalSec, req.Concurrency, req.ValidFrom, req.ValidTo, req.Status, req.ID)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return

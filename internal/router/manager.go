@@ -295,6 +295,13 @@ func tryAcquire(sourceProtocol, reqModel string) (dest *MatchedDestination, reas
 
 			state.mu.Lock()
 			isIdleOrProb := (state.Status == StatusIdle || state.Status == StatusProbation)
+			if isIdleOrProb {
+				if state.Status == StatusIdle && state.Concurrency > 0 && state.ConcurrentConnections >= state.Concurrency {
+					isIdleOrProb = false
+				} else if state.Status == StatusProbation && state.ConcurrentConnections >= 1 {
+					isIdleOrProb = false
+				}
+			}
 			// 强制最小请求间隔：优先用节点自身配置，0 则回退到全局 Breaker 默认，防止上游 RPM 429
 			if isIdleOrProb && !state.LastAcquireTime.IsZero() {
 				nodeInterval := state.MinRequestIntervalSec
@@ -386,6 +393,16 @@ func tryAcquire(sourceProtocol, reqModel string) (dest *MatchedDestination, reas
 			racedCount++
 			continue
 		}
+		if candidate.State.Status == StatusIdle && candidate.State.Concurrency > 0 && candidate.State.ConcurrentConnections >= candidate.State.Concurrency {
+			candidate.State.mu.Unlock()
+			racedCount++
+			continue
+		}
+		if candidate.State.Status == StatusProbation && candidate.State.ConcurrentConnections >= 1 {
+			candidate.State.mu.Unlock()
+			racedCount++
+			continue
+		}
 		// TOCTOU re-check request interval in CAS phase
 		if !candidate.State.LastAcquireTime.IsZero() {
 			nodeInterval := candidate.State.MinRequestIntervalSec
@@ -399,7 +416,12 @@ func tryAcquire(sourceProtocol, reqModel string) (dest *MatchedDestination, reas
 			}
 		}
 		isProbationRun := (candidate.State.Status == StatusProbation)
-		candidate.State.Status = StatusBusy
+		candidate.State.ConcurrentConnections++
+		if candidate.State.Concurrency > 0 && candidate.State.ConcurrentConnections >= candidate.State.Concurrency {
+			if !isProbationRun {
+				candidate.State.Status = StatusBusy
+			}
+		}
 		candidate.State.LastAcquireTime = time.Now()
 		candidate.State.mu.Unlock()
 
@@ -436,6 +458,9 @@ func ReleaseNode(dest *MatchedDestination) {
 
 	if state, exists := nodesMap[dest.Node.ID]; exists {
 		state.mu.Lock()
+		if state.ConcurrentConnections > 0 {
+			state.ConcurrentConnections--
+		}
 		if state.Status == StatusBusy {
 			state.Status = StatusIdle
 		}

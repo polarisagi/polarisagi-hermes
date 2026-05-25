@@ -32,6 +32,7 @@ type AccountDetail struct {
 	UsedAmount           float64 `json:"used_amount"`             // 已使用金额
 	LimitPercent         float64 `json:"limit_percent"`           // 熔断水位线百分比，超过后自动隔离节点
 	MinRequestIntervalSec   int     `json:"min_request_interval_sec"` // 同节点两次请求最小间隔（秒），0=使用全局默认，防上游 RPM 429
+	Concurrency          int     `json:"concurrency"`             // 最大并发请求数，0=不限制
 	ValidFrom            string  `json:"valid_from"`              // 有效期起始时间
 	ValidTo              string  `json:"valid_to"`                // 有效期截止时间
 	Status               int     `json:"status"`                  // 1=正常, 0=手动禁用, -1=熔断/过期
@@ -135,7 +136,7 @@ func ReloadFromDB() error {
 	}
 
 	// Load Nodes
-	rows, err := db.DB().Query("SELECT id, name, provider, base_url, credentials, project_id, location, priority, balance, used_amount, limit_percent, COALESCE(min_request_interval_sec, 0), valid_from, valid_to, status FROM sys_nodes")
+	rows, err := db.DB().Query("SELECT id, name, provider, base_url, credentials, project_id, location, priority, balance, used_amount, limit_percent, COALESCE(min_request_interval_sec, 0), COALESCE(concurrency, 0), valid_from, valid_to, status FROM sys_nodes")
 	if err != nil {
 		return fmt.Errorf("读取节点列表失败: %v", err)
 	}
@@ -145,7 +146,7 @@ func ReloadFromDB() error {
 
 	for rows.Next() {
 		var acc AccountDetail
-		if err := rows.Scan(&acc.ID, &acc.Name, &acc.Provider, &acc.BaseURL, &acc.Credentials, &acc.ProjectID, &acc.Location, &acc.Priority, &acc.Balance, &acc.UsedAmount, &acc.LimitPercent, &acc.MinRequestIntervalSec, &acc.ValidFrom, &acc.ValidTo, &acc.Status); err != nil {
+		if err := rows.Scan(&acc.ID, &acc.Name, &acc.Provider, &acc.BaseURL, &acc.Credentials, &acc.ProjectID, &acc.Location, &acc.Priority, &acc.Balance, &acc.UsedAmount, &acc.LimitPercent, &acc.MinRequestIntervalSec, &acc.Concurrency, &acc.ValidFrom, &acc.ValidTo, &acc.Status); err != nil {
 			slog.Error("扫描节点数据失败", "error", err)
 			continue
 		}

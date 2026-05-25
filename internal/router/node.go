@@ -36,6 +36,7 @@ type NodeState struct {
 	CurrentCooldown       time.Duration                      // 当前冷却时长（失败后翻倍增长）
 	CooldownUntil         time.Time                          // 冷却结束时间
 	TotalConsumed         float64                            // 当前账期累计消费金额
+	ConcurrentConnections int                                // 当前并发连接数
 	LastAcquireTime       time.Time                          // 上次被分配的时间，用于强制最小请求间隔防 RPM 429
 	mu                    sync.Mutex                         // 保护并发状态修改
 }
@@ -71,7 +72,11 @@ func (s *NodeState) UpdateOnSuccess() {
 	}
 	s.FailureTimestamps = nil
 	s.CurrentCooldown = time.Duration(config.AppConfig.Breaker.InitialCooldownSeconds) * time.Second
-	s.Status = StatusIdle
+	if s.Concurrency == 0 || s.ConcurrentConnections < s.Concurrency {
+		s.Status = StatusIdle
+	} else {
+		s.Status = StatusBusy
+	}
 }
 
 // UpdateOnFailure 请求失败后更新节点状态

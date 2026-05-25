@@ -23,7 +23,7 @@ export default {
 
         const nodeForm = ref({
             id: 0, provider: 'openai', name: '', credentials: '', project_id: '', location: 'global', base_url: '',
-            priority: 10, limit_percent: 90.0, balance: 0.0, min_request_interval_sec: 0,
+            priority: 10, limit_percent: 90.0, balance: 0.0, min_request_interval_sec: 0, concurrency: 0,
             valid_from: `${todayPrefix()}T00:00:00`, valid_to: `2099-12-31T23:59:59`, status: 1
         });
 
@@ -53,7 +53,7 @@ export default {
                 const today = todayPrefix();
                 nodeForm.value = {
                     id: 0, provider: 'openai', name: '', credentials: '', project_id: '', location: 'global', base_url: '',
-                    priority: 10, limit_percent: 90.0, balance: 0.0, min_request_interval_sec: 0,
+                    priority: 10, limit_percent: 90.0, balance: 0.0, min_request_interval_sec: 0, concurrency: 0,
                     valid_from: `${today}T00:00:00`, valid_to: `2099-12-31T23:59:59`, status: 1
                 };
                 nodeModal.value = { show: true, isEdit: false };
@@ -75,6 +75,10 @@ export default {
             }
             if (nodeForm.value.limit_percent > 100) {
                 showToast(t('err_limit_exceed'), 'error');
+                return;
+            }
+            if (nodeForm.value.concurrency < 0 || nodeForm.value.concurrency > 1000) {
+                showToast('并发限制必须在 0 到 1000 之间', 'error');
                 return;
             }
 
@@ -150,6 +154,14 @@ export default {
             if (newTab === 'nodes') fetchNodes();
         });
 
+        Vue.watch(() => nodeForm.value.provider, (newVal) => {
+            if (!nodeModal.value.isEdit && newVal === 'google') {
+                nodeForm.value.concurrency = 1;
+            } else if (!nodeModal.value.isEdit && newVal !== 'google') {
+                nodeForm.value.concurrency = 0;
+            }
+        });
+
         return {
             state, t, formatNum, formatShortDate, protocolLabel, protocolBadge,
             nodeModal, nodeForm, openNodeModal, saveNode, deleteNode, startGoogleAuth,
@@ -171,7 +183,7 @@ export default {
                             <tr>
                                 <th class="px-4 py-3">{{ t("table_platform") }}</th>
                                 <th class="px-4 py-3">{{ t("node_name") }}</th>
-                                <th class="px-4 py-3 w-16 text-center">{{ t("priority") }}</th>
+                                <th class="px-4 py-3 text-center">Pri / Concurrency</th>
                                 <th class="px-4 py-3">{{ t("table_limit_usage") }}</th>
                                 <th class="px-4 py-3">{{ t("valid_range") }}</th>
                                 <th class="px-4 py-3 text-center w-20">{{ t("table_status") }}</th>
@@ -185,7 +197,10 @@ export default {
                                         class="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase border">{{ protocolLabel(node.provider) }}</span>
                                 </td>
                                 <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{{ node.name }}</td>
-                                <td class="px-4 py-3 text-center">{{ node.priority }}</td>
+                                <td class="px-4 py-3 text-center text-xs">
+                                    <div class="font-bold">Pri: {{ node.priority }}</div>
+                                    <div class="text-gray-500">Con: {{ node.concurrency === 0 ? '∞' : node.concurrency }}</div>
+                                </td>
                                 <td class="px-4 py-3">
                                     <div v-if="node.balance > 0" class="space-y-1">
                                         <div class="flex items-center justify-between text-[10px]">
@@ -285,6 +300,11 @@ export default {
                                         <option :value="0">{{ t("status_option_disable") }}</option>
                                         <option :value="-1">{{ t("status_option_exhaust") }}</option>
                                     </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Concurrency (并发限制)</label>
+                                    <input v-model.number="nodeForm.concurrency" type="number" min="0" max="1000" class="w-full bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg p-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                                    <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">0 为无限制，上限 1000</p>
                                 </div>
                             </div>
                         </div>
