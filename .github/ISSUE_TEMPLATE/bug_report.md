@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Create a report to help us improve Polaris Gateway
+about: Create a report to help us improve Polaris Hermes
 title: '[BUG] '
 labels: 'bug'
 assignees: ''
@@ -20,7 +20,7 @@ A clear and concise description of what you expected to happen.
 
 **Environment (please complete the following information):**
  - OS: [e.g. Ubuntu 22.04, macOS, Windows 11]
- - Polaris Gateway Version [e.g. v2.1.7 or commit hash]
+ - Polaris Hermes Version [e.g. v2.1.7 or commit hash]
  - Go Version [e.g. 1.22.1] (if compiling from source)
  - Client used [e.g. Claude Code, curl, Postman]
 

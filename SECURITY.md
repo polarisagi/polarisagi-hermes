@@ -11,7 +11,7 @@ Currently, only the latest release is actively supported with security updates.
 
 ## Reporting a Vulnerability
 
-We take the security of Polaris Gateway seriously. If you discover a security vulnerability, we appreciate your help in disclosing it to us in a responsible manner.
+We take the security of Polaris Hermes seriously. If you discover a security vulnerability, we appreciate your help in disclosing it to us in a responsible manner.
 
 Please **do not** report security vulnerabilities through public GitHub issues.
 
@@ -21,7 +21,7 @@ Instead, please report them via email to: **mrlaoliai@gmail.com**.
 When reporting a vulnerability, please include:
 - A description of the vulnerability and its impact.
 - Steps to reproduce the issue.
-- The version(s) of Polaris Gateway affected.
+- The version(s) of Polaris Hermes affected.
 - Any suggested mitigation or fix.
 
 ### Response Timeline
@@ -29,4 +29,4 @@ When reporting a vulnerability, please include:
 - We will provide a status update every 7 days until the issue is resolved.
 - We will coordinate public disclosure with you once the patch is released.
 
-Thank you for helping keep Polaris Gateway and its users safe!
+Thank you for helping keep Polaris Hermes and its users safe!

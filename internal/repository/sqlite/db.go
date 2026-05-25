@@ -24,16 +24,16 @@ func getDBPath() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		slog.Error("❌ 无法获取用户主目录，回退到当前目录", "error", err)
-		return "./polaris_gateway.db"
+		return "./polaris_hermes.db"
 	}
 
-	dir := filepath.Join(home, ".polaris-gateway")
+	dir := filepath.Join(home, ".polaris-hermes")
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		slog.Error("❌ 无法创建配置目录，回退到当前目录", "error", err)
-		return "./polaris_gateway.db"
+		return "./polaris_hermes.db"
 	}
 
-	return filepath.Join(dir, "polaris_gateway.db")
+	return filepath.Join(dir, "polaris_hermes.db")
 }
 
 // InitDB 初始化 SQLite 数据库连接并运行 Migrations

@@ -1,4 +1,4 @@
-Write-Host "🌌 正在安装/更新 Polaris Gateway (Windows)..." -ForegroundColor Cyan
+Write-Host "🌌 正在安装/更新 Polaris Hermes (Windows)..." -ForegroundColor Cyan
 
 # 检查管理员权限
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -7,8 +7,8 @@ if (-not $isAdmin) {
     exit 1
 }
 
-$Repo = "mrlaoliai/polaris-gateway"
-$BinName = "polaris-gateway.exe"
+$Repo = "mrlaoliai/polaris-hermes"
+$BinName = "polaris-hermes.exe"
 $InstallDir = "C:\ProgramData\PolarisGateway"
 
 if (-not (Test-Path $InstallDir)) {
@@ -16,7 +16,7 @@ if (-not (Test-Path $InstallDir)) {
 }
 
 $Arch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "arm64" } else { "amd64" }
-$DownloadUrl = "https://github.com/$Repo/releases/latest/download/polaris-gateway-windows-$Arch.exe"
+$DownloadUrl = "https://github.com/$Repo/releases/latest/download/polaris-hermes-windows-$Arch.exe"
 
 $TaskName = "PolarisGatewayService"
 
@@ -27,10 +27,10 @@ if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
     Start-Sleep -Seconds 2
 }
 
-$Process = Get-Process -Name "polaris-gateway" -ErrorAction SilentlyContinue
+$Process = Get-Process -Name "polaris-hermes" -ErrorAction SilentlyContinue
 if ($Process) {
     Write-Host "🛑 正在结束旧进程..." -ForegroundColor Cyan
-    Stop-Process -Name "polaris-gateway" -Force -ErrorAction SilentlyContinue
+    Stop-Process -Name "polaris-hermes" -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 2
 }
 
@@ -53,5 +53,5 @@ Register-ScheduledTask -Action $Action -Trigger $Trigger -Settings $Settings -Pr
 Write-Host "▶️ 正在启动服务..."
 Start-ScheduledTask -TaskName $TaskName
 
-Write-Host "🎉 安装完成！Polaris Gateway 已在后台服务运行。" -ForegroundColor Green
+Write-Host "🎉 安装完成！Polaris Hermes 已在后台服务运行。" -ForegroundColor Green
 Write-Host "请打开浏览器访问: http://127.0.0.1:28888/dashboard 进入控制台" -ForegroundColor Yellow

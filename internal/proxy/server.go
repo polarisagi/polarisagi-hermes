@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"strings"
 
-	"polaris-gateway/internal/service/channel"
-	"polaris-gateway/internal/service/router"
-	"polaris-gateway/internal/translator"
+	"polaris-hermes/internal/service/channel"
+	"polaris-hermes/internal/service/router"
+	"polaris-hermes/internal/translator"
 )
 
 // Server 网关的 HTTP 代理数据面

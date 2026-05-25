@@ -3,7 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
-	"polaris-gateway/internal/domain"
+	"polaris-hermes/internal/domain"
 )
 
 type IntentRepo struct{}

@@ -7,7 +7,7 @@ import (
 
 // ClientConfigurator defines the interface for configuring different AI clients
 type ClientConfigurator interface {
-	// Apply applies the configuration to point to Polaris Gateway.
+	// Apply applies the configuration to point to Polaris Hermes.
 	// gatewayAddr is the base listen address of the gateway (e.g., "127.0.0.1:28888").
 	Apply(gatewayAddr string) error
 

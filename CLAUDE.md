@@ -41,7 +41,7 @@ make run-test           # 本地测试模式启动 (监听 28889 端口，避免
 go test ./...           # 运行全部测试
 go build ./...          # 仅做编译检查
 ```
-数据目录：`~/.polaris-gateway/`（SQLite 数据库）  
+数据目录：`~/.polaris-hermes/`（SQLite 数据库）  
 管理后台：`http://127.0.0.1:28888/dashboard`
 
 > **🤖 AI 编程客户端本地测试须知**：
@@ -50,7 +50,7 @@ go build ./...          # 仅做编译检查
 
 ## 项目概览 & 架构
 
-**Polaris Gateway** 是多协议 LLM API 代理网关，支持 OpenAI、Anthropic、Google Agent Platform 互转，提供负载均衡、熔断保护与用量计费，规避单账号速率限制。
+**Polaris Hermes** 是多协议 LLM API 代理网关，支持 OpenAI、Anthropic、Google Agent Platform 互转，提供负载均衡、熔断保护与用量计费，规避单账号速率限制。
 
 ### 请求处理流程
 1. HTTP 入口检测源协议 -> 2. 提取模型名 -> 3. 路由匹配可用节点 -> 4. 协议转换并转发 -> 5. 响应转换并归还节点。

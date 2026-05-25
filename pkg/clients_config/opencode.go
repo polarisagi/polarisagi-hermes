@@ -50,7 +50,7 @@ func (c *OpenCodeConfigurator) Apply(gatewayAddr string) error {
 	polarisProvider := map[string]interface{}{
 		"apiEndpoint": fmt.Sprintf("http://%s/v1/openai/", gatewayAddr),
 		"apiKey":      "polaris",
-		"name":        "Polaris Gateway",
+		"name":        "Polaris Hermes",
 	}
 
 	providers["polaris"] = polarisProvider

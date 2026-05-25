@@ -148,7 +148,7 @@ window.messages = {
         
         tab_clients_title: "客户端自动配置",
         clients_setup_desc_title: "代理网关接入配置",
-        clients_setup_desc: "自动为常用的 AI 客户端软件注入 Polaris Gateway 的网络代理与凭证设置。应用配置前，系统会自动创建备份文件（.bak），以便随时恢复原样。",
+        clients_setup_desc: "自动为常用的 AI 客户端软件注入 Polaris Hermes 的网络代理与凭证设置。应用配置前，系统会自动创建备份文件（.bak），以便随时恢复原样。",
         client_name: "客户端名称",
         client_status: "当前状态",
         client_backup: "备份文件",
@@ -344,7 +344,7 @@ window.messages = {
 
         tab_clients_title: "Client Auto-Config",
         clients_setup_desc_title: "Gateway Proxy Setup",
-        clients_setup_desc: "Automatically inject Polaris Gateway proxy and credentials into popular AI clients. A backup file (.bak) will be created before applying, allowing you to restore the original config at any time.",
+        clients_setup_desc: "Automatically inject Polaris Hermes proxy and credentials into popular AI clients. A backup file (.bak) will be created before applying, allowing you to restore the original config at any time.",
         client_name: "Client Name",
         client_status: "Status",
         client_backup: "Backup",

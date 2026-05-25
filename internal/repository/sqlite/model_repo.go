@@ -3,7 +3,7 @@ package sqlite
 import (
 	"context"
 
-	"polaris-gateway/internal/domain"
+	"polaris-hermes/internal/domain"
 )
 
 type ModelRepo struct{}

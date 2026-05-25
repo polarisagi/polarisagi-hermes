@@ -88,7 +88,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         checkForUpdates(currentVer) {
-            fetch('https://api.github.com/repos/mrlaoliai/polaris-gateway/releases/latest')
+            fetch('https://api.github.com/repos/mrlaoliai/polaris-hermes/releases/latest')
                 .then(r => r.json())
                 .then(d => {
                     if (d.tag_name && d.tag_name !== currentVer) {

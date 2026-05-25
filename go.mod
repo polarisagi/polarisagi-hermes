@@ -1,4 +1,4 @@
-module polaris-gateway
+module polaris-hermes
 
 go 1.26.2
 
@@ -7,7 +7,6 @@ require modernc.org/sqlite v1.48.2 // 以及其他你用到的依赖
 require (
 	github.com/joho/godotenv v1.5.1
 	github.com/pelletier/go-toml/v2 v2.3.1
-	github.com/pkoukk/tiktoken-go v0.1.8
 	github.com/titanous/json5 v1.0.0
 	golang.org/x/oauth2 v0.36.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
@@ -16,7 +15,6 @@ require (
 
 require (
 	cloud.google.com/go/compute/metadata v0.3.0 // indirect
-	github.com/dlclark/regexp2 v1.10.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/mattn/go-isatty v0.0.21 // indirect

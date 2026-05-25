@@ -7,7 +7,7 @@
 *.db-*
 .DS_Store
 /polaris
-/polaris-gateway
+/polaris-hermes
 docs/superpowers/
 *.md
 !README.md

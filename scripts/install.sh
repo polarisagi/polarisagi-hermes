@@ -1,12 +1,12 @@
 #!/bin/bash
 set -e
 
-REPO="mrlaoliai/polaris-gateway"
-BIN_NAME="polaris-gateway"
-INSTALL_DIR="$HOME/.polaris-gateway/bin"
+REPO="mrlaoliai/polaris-hermes"
+BIN_NAME="polaris-hermes"
+INSTALL_DIR="$HOME/.polaris-hermes/bin"
 PLIST_PATH="$HOME/Library/LaunchAgents/com.polaris.gateway.plist"
 
-echo "🌌 正在安装/更新 Polaris Gateway (用户态模式)..."
+echo "🌌 正在安装/更新 Polaris Hermes (用户态模式)..."
 
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
@@ -32,16 +32,16 @@ chmod +x /tmp/${BIN_NAME}
 
 # 停止旧服务
 if [ "$OS" = "linux" ] && command -v systemctl >/dev/null; then
-    if systemctl --user is-active --quiet polaris-gateway 2>/dev/null; then
+    if systemctl --user is-active --quiet polaris-hermes 2>/dev/null; then
         echo "🛑 正在停止运行中的 Linux 用户级服务..."
-        systemctl --user stop polaris-gateway || true
+        systemctl --user stop polaris-hermes || true
     fi
     # 清理遗留的全局系统服务（如果之前用 sudo 安装过）
-    if systemctl is-active --quiet polaris-gateway 2>/dev/null || [ -f "/etc/systemd/system/polaris-gateway.service" ]; then
+    if systemctl is-active --quiet polaris-hermes 2>/dev/null || [ -f "/etc/systemd/system/polaris-hermes.service" ]; then
         echo "🧹 发现旧的全局 Systemd 服务，尝试停止并清理 (可能需要 sudo 密码)..."
-        sudo systemctl stop polaris-gateway 2>/dev/null || true
-        sudo systemctl disable polaris-gateway 2>/dev/null || true
-        sudo rm -f /etc/systemd/system/polaris-gateway.service
+        sudo systemctl stop polaris-hermes 2>/dev/null || true
+        sudo systemctl disable polaris-hermes 2>/dev/null || true
+        sudo rm -f /etc/systemd/system/polaris-hermes.service
         sudo systemctl daemon-reload
     fi
 elif [ "$OS" = "darwin" ]; then
@@ -65,7 +65,7 @@ if [ "$OS" = "linux" ] && command -v systemctl >/dev/null; then
     SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
     mkdir -p "$SYSTEMD_USER_DIR"
     
-    cat <<EOF > "$SYSTEMD_USER_DIR/polaris-gateway.service"
+    cat <<EOF > "$SYSTEMD_USER_DIR/polaris-hermes.service"
 [Unit]
 Description=Polaris AI Gateway (User Service)
 After=network.target
@@ -83,9 +83,9 @@ EOF
     loginctl enable-linger $USER 2>/dev/null || true
 
     systemctl --user daemon-reload
-    systemctl --user enable polaris-gateway
-    systemctl --user restart polaris-gateway
-    echo "✅ Systemd 服务已启动。可通过 systemctl --user status polaris-gateway 查看状态。"
+    systemctl --user enable polaris-hermes
+    systemctl --user restart polaris-hermes
+    echo "✅ Systemd 服务已启动。可通过 systemctl --user status polaris-hermes 查看状态。"
 
 elif [ "$OS" = "darwin" ]; then
     echo "⚙️ 正在配置 macOS launchd 后台服务..."
@@ -117,4 +117,4 @@ EOF
 fi
 
 echo "🎉 安装完成！请打开浏览器访问 http://127.0.0.1:28888/dashboard 进入控制台。"
-echo "💡 提示：如果需要在命令行直接使用 polaris-gateway，请将 ${INSTALL_DIR} 加入环境变量。"
+echo "💡 提示：如果需要在命令行直接使用 polaris-hermes，请将 ${INSTALL_DIR} 加入环境变量。"

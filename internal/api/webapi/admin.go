@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"polaris-gateway/internal/repository/sqlite"
+	"polaris-hermes/internal/repository/sqlite"
 )
 
 // AdminHandler 处理后台管理面板的 RESTful API 请求

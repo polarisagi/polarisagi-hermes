@@ -1,8 +1,8 @@
-# Polaris Gateway 🌌
+# Polaris Hermes 🌌
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/mrlaoliai/polaris-gateway)](https://goreportcard.com/report/github.com/mrlaoliai/polaris-gateway)
+[![Go Report Card](https://goreportcard.com/badge/github.com/mrlaoliai/polaris-hermes)](https://goreportcard.com/report/github.com/mrlaoliai/polaris-hermes)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Release](https://img.shields.io/github/v/release/mrlaoliai/polaris-gateway)](https://github.com/mrlaoliai/polaris-gateway/releases)
+[![Release](https://img.shields.io/github/v/release/mrlaoliai/polaris-hermes)](https://github.com/mrlaoliai/polaris-hermes/releases)
 
 <p align="center">
   <strong>🇬🇧 English</strong> | <a href="README_zh.md">🇨🇳 简体中文</a>
@@ -10,14 +10,14 @@
 
 ---
 
-**Polaris Gateway** is a lightweight, intelligent **LLM API Proxy & Concurrency Control Gateway**. 
+**Polaris Hermes** is a lightweight, intelligent **LLM API Proxy & Concurrency Control Gateway**. 
 It is designed to efficiently and safely route requests to the **Gemini Enterprise Agent Platform** (formerly Google Cloud Vertex AI) and other providers like OpenAI and Anthropic. It completely solves business interruptions caused by API Key rate limits, bans, or depleted balances by utilizing multi-account rotation and intelligent concurrency queuing.
 
 Latest version is purely **Zero-Config**, driven by an embedded **SQLite** database, and comes with a built-in **Web Admin Dashboard**.
 
 ### ✨ Core Features
 1. **Visual Admin Dashboard & Hot Reload**: Add/Edit/Disable API nodes via Web UI. Changes take effect instantly without restarting the service.
-2. **Client Auto-Config**: One-click inject Polaris Gateway proxy and credentials into popular AI clients (Claude Code, OpenCode, Gemini CLI, Hermes, OpenClaw, etc.) via the Admin Dashboard.
+2. **Client Auto-Config**: One-click inject Polaris Hermes proxy and credentials into popular AI clients (Claude Code, OpenCode, Gemini CLI, Hermes, OpenClaw, etc.) via the Admin Dashboard.
 3. **Multi-Account Pool & Single Concurrency Isolation**: Requests are queued based on physical accounts. Strict single-concurrency isolation prevents Vertex AI bans.
 4. **Dynamic Circuit Breaker & Fallback**: 4-State Machine (🟢 Idle | 🟡 Busy | 🔴 Cooldown | 🟠 Probation) with customizable failure thresholds and backoff times. Supports cross-protocol fallback and automatic retries upon upstream failures.
 5. **Billing & Quota Management**: Tracks token usage via SQLite. Supports setting maximum spend limits (`limit_percent`) to auto-disable accounts near exhaustion.
@@ -37,19 +37,19 @@ The gateway supports 6 routing paths. Each route is configured via the Admin Das
 | google | google | Pure passthrough — multi-account round-robin with billing |
 
 ### 📂 Default Directory
-All configurations, database files (`polaris_gateway.db`), and local state are safely stored in:
-`~/.polaris-gateway/`
+All configurations, database files (`polaris_hermes.db`), and local state are safely stored in:
+`~/.polaris-hermes/`
 
 ### 🚀 Quick Install
 
 **macOS / Linux:**
 ```bash
-curl -sSL https://raw.githubusercontent.com/mrlaoliai/polaris-gateway/main/scripts/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/mrlaoliai/polaris-hermes/main/scripts/install.sh | bash
 ```
 
 **Windows (PowerShell as Admin):**
 ```powershell
-iwr -useb https://raw.githubusercontent.com/mrlaoliai/polaris-gateway/main/scripts/install.ps1 | iex
+iwr -useb https://raw.githubusercontent.com/mrlaoliai/polaris-hermes/main/scripts/install.ps1 | iex
 ```
 *The gateway will run as a background service and auto-start on boot.*
 
@@ -83,13 +83,13 @@ AI coding clients (like Claude Code) should change the target API URL to `http:/
 
 **macOS / Linux:**
 ```bash
-curl -sSL https://raw.githubusercontent.com/mrlaoliai/polaris-gateway/main/scripts/uninstall.sh | bash
+curl -sSL https://raw.githubusercontent.com/mrlaoliai/polaris-hermes/main/scripts/uninstall.sh | bash
 ```
 **Windows:**
 ```powershell
-iwr -useb https://raw.githubusercontent.com/mrlaoliai/polaris-gateway/main/scripts/uninstall.ps1 | iex
+iwr -useb https://raw.githubusercontent.com/mrlaoliai/polaris-hermes/main/scripts/uninstall.ps1 | iex
 ```
-> **Note**: Uninstalling only removes the service and binary. Data remains safely in `~/.polaris-gateway/`.
+> **Note**: Uninstalling only removes the service and binary. Data remains safely in `~/.polaris-hermes/`.
 
 ### 📄 License
 MIT License. *(If you use this code, please retain the original author credit: `mrlaoliai`)*

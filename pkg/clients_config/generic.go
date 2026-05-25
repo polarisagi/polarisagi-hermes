@@ -25,7 +25,7 @@ func (c *GenericConfigurator) Status() (bool, bool, error) {
 }
 
 // GetGenericEnvMap returns the environment variables required to configure a generic client
-// to point to Polaris Gateway's OpenAI-compatible endpoint.
+// to point to Polaris Hermes's OpenAI-compatible endpoint.
 func GetGenericEnvMap(gatewayAddr string) map[string]string {
 	return map[string]string{
 		"OPENAI_API_KEY":  "polaris",

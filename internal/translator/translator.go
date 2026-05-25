@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"polaris-gateway/internal/service/channel"
+	"polaris-hermes/internal/service/channel"
 )
 
 // Translator 是协议大翻译官的插件式黑盒抽象接口。

@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"polaris-gateway/internal/domain"
-	"polaris-gateway/internal/repository/sqlite"
+	"polaris-hermes/internal/domain"
+	"polaris-hermes/internal/repository/sqlite"
 )
 
 // IntentInferer 负责推断未知模型的意图标签

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"log/slog"
 
-	"polaris-gateway/internal/repository/sqlite"
-	"polaris-gateway/internal/service/channel"
+	"polaris-hermes/internal/repository/sqlite"
+	"polaris-hermes/internal/service/channel"
 )
 
 var ErrNoAvailableModel = errors.New("no available model found for the requested capability tier")

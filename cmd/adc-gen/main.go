@@ -25,7 +25,7 @@ const (
 
 func main() {
 	fmt.Println("==================================================")
-	fmt.Println("  Polaris Gateway - Google ADC 自动授权工具")
+	fmt.Println("  Polaris Hermes - Google ADC 自动授权工具")
 	fmt.Println("==================================================")
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")

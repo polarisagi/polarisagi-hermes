@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"polaris-gateway/internal/domain"
+	"polaris-hermes/internal/domain"
 )
 
 // ProviderRepo 处理供应商和用户渠道的数据存取

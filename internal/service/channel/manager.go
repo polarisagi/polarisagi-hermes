@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"polaris-gateway/internal/domain"
-	"polaris-gateway/internal/repository/sqlite"
+	"polaris-hermes/internal/domain"
+	"polaris-hermes/internal/repository/sqlite"
 )
 
 var (

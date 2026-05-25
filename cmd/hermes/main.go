@@ -6,13 +6,13 @@ import (
 	"net/http"
 	"os"
 
-	"polaris-gateway/internal/api/webapi"
-	"polaris-gateway/internal/proxy"
-	"polaris-gateway/internal/repository/sqlite"
-	"polaris-gateway/internal/service/channel"
-	"polaris-gateway/internal/service/router"
-	"polaris-gateway/internal/translator"
-	"polaris-gateway/internal/translator/anthropic"
+	"polaris-hermes/internal/api/webapi"
+	"polaris-hermes/internal/proxy"
+	"polaris-hermes/internal/repository/sqlite"
+	"polaris-hermes/internal/service/channel"
+	"polaris-hermes/internal/service/router"
+	"polaris-hermes/internal/translator"
+	"polaris-hermes/internal/translator/anthropic"
 )
 
 func main() {
@@ -60,7 +60,7 @@ func main() {
 	mux.Handle("/v1/", proxyServer)
 
 	// 9. 启动服务
-	slog.Info("🚀 Polaris Gateway v2 (2026 AI Standard) is starting on :8080...")
+	slog.Info("🚀 Polaris Hermes v2 (2026 AI Standard) is starting on :8080...")
 	if err := http.ListenAndServe(":8080", mux); err != nil {
 		slog.Error("Server crashed", "error", err)
 	}
