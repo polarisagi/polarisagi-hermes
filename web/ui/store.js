@@ -4,6 +4,7 @@ export const state = reactive({
     lang: window.getSystemLanguage(),
     theme: window.getSystemTheme(),
     currentTab: 'dashboard',
+    proMode: localStorage.getItem('polaris_pro_mode') === 'true',
     toast: { show: false, message: '', type: 'success' },
     apiData: [],
     concurrency: { active: 0, waiting: 0, max: 0 },
@@ -64,6 +65,11 @@ export const protocolBadge = (p) => {
 export const setLang = (l) => {
     window.setSystemLanguage(l);
     state.lang = l;
+};
+
+export const toggleProMode = () => {
+    state.proMode = !state.proMode;
+    localStorage.setItem('polaris_pro_mode', state.proMode);
 };
 
 export const setTheme = (t) => {

@@ -283,7 +283,7 @@ export default {
                                     :placeholder="nodeModal.isEdit ? t('placeholder_key_edit') : t('placeholder_key_new')"
                                     class="w-full bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg p-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none">
                             </div>
-                            <div class="grid grid-cols-2 gap-4">
+                            <div class="grid grid-cols-2 gap-4" v-if="state.proMode">
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">{{ t("priority") }}</label>
                                     <input v-model.number="nodeForm.priority" type="number" min="0" class="w-full bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg p-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none">
@@ -295,7 +295,7 @@ export default {
                                     <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">{{ t("min_interval_hint") }}</p>
                                 </div>
                             </div>
-                            <div class="grid grid-cols-2 gap-4">
+                            <div class="grid grid-cols-2 gap-4" v-if="state.proMode">
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">{{ t("status") }}</label>
                                     <select v-model="nodeForm.status" class="w-full bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg p-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none">
@@ -326,7 +326,7 @@ export default {
                                     <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">{{ t("hint_location") }}</p>
                                 </div>
                             </div>
-                            <div>
+                            <div v-if="state.proMode">
                                 <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">{{ t("base_url_optional") }}</label>
                                 <input v-model="nodeForm.base_url" type="text" :placeholder="t('placeholder_baseurl')" class="w-full bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg p-2 text-gray-900 dark:text-white outline-none focus:ring-1 focus:ring-blue-500">
                                 <p class="text-xs text-gray-500 dark:text-slate-500 mt-1">{{ t("hint_custom_endpoint") }}</p>
@@ -334,7 +334,7 @@ export default {
                         </div>
 
                         <!-- 区块 3: 计费与有效期 -->
-                        <div class="p-4 bg-gray-50 dark:bg-slate-900/40 rounded-lg border border-gray-300 dark:border-slate-700/60 space-y-4">
+                        <div v-if="state.proMode" class="p-4 bg-gray-50 dark:bg-slate-900/40 rounded-lg border border-gray-300 dark:border-slate-700/60 space-y-4">
                             <h4 class="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">{{ t("section_billing_validity") }}</h4>
                             <div class="grid grid-cols-2 gap-4">
                                 <div>

@@ -1,4 +1,4 @@
-import { state, t, setLang, setTheme, checkForUpdates, triggerUpdate } from './store.js';
+import { state, t, setLang, setTheme, checkForUpdates, triggerUpdate, toggleProMode } from './store.js';
 import Dashboard from './components/Dashboard.js';
 import Channels from './components/Channels.js';
 import Rules from './components/Rules.js';
@@ -34,7 +34,8 @@ const app = createApp({
             t,
             setLang,
             setTheme,
-            triggerUpdate
+            triggerUpdate,
+            toggleProMode
         };
     }
 });

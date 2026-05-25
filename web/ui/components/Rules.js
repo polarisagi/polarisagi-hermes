@@ -322,7 +322,7 @@ export default {
                             </div>
                         </div>
 
-                        <div>
+                        <div v-if="state.proMode">
                             <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">{{ t("label_route_status") }}</label>
                             <select v-model="routeForm.status" class="w-full bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg p-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none">
                                 <option :value="1">{{ t("status_enabled_short") }}</option>
