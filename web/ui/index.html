@@ -63,12 +63,12 @@
                         <span>{{ t("tab_dashboard") }}</span>
                     </div>
                 </a>
-                <a @click="state.currentTab = 'nodes'" :class="state.currentTab === 'nodes' ? 'bg-emerald-600/20 text-emerald-400 border-emerald-500/50' : 'text-gray-500 dark:text-slate-400 hover:bg-white dark:bg-slate-800 hover:text-gray-800 dark:text-slate-200 border-transparent'" class="block px-4 py-3 rounded-lg cursor-pointer transition border">
+                <a @click="state.currentTab = 'channels'" :class="state.currentTab === 'channels' ? 'bg-emerald-600/20 text-emerald-400 border-emerald-500/50' : 'text-gray-500 dark:text-slate-400 hover:bg-white dark:bg-slate-800 hover:text-gray-800 dark:text-slate-200 border-transparent'" class="block px-4 py-3 rounded-lg cursor-pointer transition border">
                     <div class="flex items-center gap-3 font-medium">
                         <span>{{ t("tab_nodes") }}</span>
                     </div>
                 </a>
-                <a @click="state.currentTab = 'routes'" :class="state.currentTab === 'routes' ? 'bg-pink-600/20 text-pink-400 border-pink-500/50' : 'text-gray-500 dark:text-slate-400 hover:bg-white dark:bg-slate-800 hover:text-gray-800 dark:text-slate-200 border-transparent'" class="block px-4 py-3 rounded-lg cursor-pointer transition border">
+                <a @click="state.currentTab = 'rules'" :class="state.currentTab === 'rules' ? 'bg-pink-600/20 text-pink-400 border-pink-500/50' : 'text-gray-500 dark:text-slate-400 hover:bg-white dark:bg-slate-800 hover:text-gray-800 dark:text-slate-200 border-transparent'" class="block px-4 py-3 rounded-lg cursor-pointer transition border">
                     <div class="flex items-center gap-3 font-medium">
                         <span>{{ t("tab_routes") }}</span>
                     </div>
@@ -104,8 +104,8 @@
 
             <!-- Components -->
             <Dashboard></Dashboard>
-            <Nodes></Nodes>
-            <Routes></Routes>
+            <Channels></Channels>
+            <Rules></Rules>
             <Clients></Clients>
             <Settings></Settings>
             <Logs></Logs>

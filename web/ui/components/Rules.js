@@ -3,7 +3,7 @@ import { state, t, showToast, protocolLabel, protocolClass, protocolBadge } from
 const { ref, computed, onMounted } = Vue;
 
 export default {
-    name: 'Routes',
+    name: 'Rules',
     setup() {
         const routeModal = ref({ show: false, isEdit: false });
         const routeForm = ref({
@@ -195,7 +195,7 @@ export default {
         };
     },
     template: `
-            <div v-show="state.currentTab === 'routes'" class="max-w-6xl mx-auto">
+            <div v-show="state.currentTab === 'rules'" class="max-w-6xl mx-auto">
                 <div class="flex justify-between items-center mb-6">
                     <div>
                         <h2 class="text-2xl font-bold text-gray-900 dark:text-white">{{ t("tab_routes_title") }}</h2>

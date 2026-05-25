@@ -1,7 +1,7 @@
 import { state, t, setLang, setTheme, checkForUpdates, triggerUpdate } from './store.js';
 import Dashboard from './components/Dashboard.js';
-import Nodes from './components/Nodes.js';
-import Routes from './components/Routes.js';
+import Channels from './components/Channels.js';
+import Rules from './components/Rules.js';
 import Clients from './components/Clients.js';
 import Settings from './components/Settings.js';
 import Logs from './components/Logs.js';
@@ -11,8 +11,8 @@ const { createApp, onMounted } = Vue;
 const app = createApp({
     components: {
         Dashboard,
-        Nodes,
-        Routes,
+        Channels,
+        Rules,
         Clients,
         Settings,
         Logs

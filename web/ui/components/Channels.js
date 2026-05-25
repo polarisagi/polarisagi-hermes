@@ -3,7 +3,7 @@ import { state, t, showToast, formatNum, formatShortDate, protocolLabel, protoco
 const { ref, onMounted } = Vue;
 
 export default {
-    name: 'Nodes',
+    name: 'Channels',
     setup() {
         const nodeModal = ref({ show: false, isEdit: false });
         
@@ -169,7 +169,7 @@ export default {
         };
     },
     template: `
-            <div v-show="state.currentTab === 'nodes'" class="max-w-6xl mx-auto">
+            <div v-show="state.currentTab === 'channels'" class="max-w-6xl mx-auto">
                 <div class="flex justify-between items-center mb-6">
                     <h2 class="text-2xl font-bold text-gray-900 dark:text-white">{{ t("tab_nodes_title") }}</h2>
                     <button @click="openNodeModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition font-medium text-sm flex items-center gap-2">
