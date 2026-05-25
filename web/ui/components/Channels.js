@@ -171,8 +171,11 @@ export default {
     template: `
             <div v-show="state.currentTab === 'channels'" class="max-w-6xl mx-auto">
                 <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">{{ t("tab_nodes_title") }}</h2>
-                    <button @click="openNodeModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition font-medium text-sm flex items-center gap-2">
+                    <div>
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">{{ t("tab_nodes_title") }}</h2>
+                        <p class="text-gray-500 dark:text-slate-400 text-sm mt-1">{{ t("channels_subtitle") }}</p>
+                    </div>
+                    <button @click="openNodeModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition font-medium text-sm flex items-center gap-2 shadow-lg shadow-blue-500/20">
                         <span>+</span> {{ t("btn_add_new_node") }}
                     </button>
                 </div>
