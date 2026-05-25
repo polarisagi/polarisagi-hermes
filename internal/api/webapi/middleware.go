@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"polaris-gateway/internal/config"
-	"polaris-gateway/internal/db"
-	"polaris-gateway/internal/router"
+	"polaris-gateway/internal/store"
+	"polaris-gateway/internal/core/router"
 )
 
 // InitMiddleware 初始化并发限制，concurrency 为活跃节点总数
@@ -55,7 +55,7 @@ func StatsHandler(w http.ResponseWriter, r *http.Request) {
 		WHERE date(created_at, 'localtime') >= date(?) AND date(created_at, 'localtime') <= date(?)
 		GROUP BY platform, node_name, client_id, method_name`
 
-	rows, err := db.DB().Query(query, startStr, endStr)
+	rows, err := store.DB().Query(query, startStr, endStr)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -96,8 +96,8 @@ func StatsHandler(w http.ResponseWriter, r *http.Request) {
 	var details []map[string]interface{}
 	for _, r := range memRows {
 		budget, limitPercent, startDate := getAccountMeta(r.platform, r.name)
-		absoluteTotal := db.GetTotalCost(r.name)
-		cycleCost := db.GetConsumedSince(r.name, startDate)
+		absoluteTotal := store.GetTotalCost(r.name)
+		cycleCost := store.GetConsumedSince(r.name, startDate)
 
 		details = append(details, map[string]interface{}{
 			"platform":          r.platform, // 🆕 将 platform 抛给前端

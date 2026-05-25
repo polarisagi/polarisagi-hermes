@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"polaris-gateway/internal/router"
+	"polaris-gateway/internal/core/router"
 )
 
 // GoogleToGoogle 将 Google Agent Platform 原生请求协议直通到 GEAP 后端：不做协议转换，仅替换端点 URL 和认证方式

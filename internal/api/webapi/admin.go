@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"polaris-gateway/internal/clients_config"
+	"polaris-gateway/pkg/clients_config"
 	"polaris-gateway/internal/config"
-	"polaris-gateway/internal/db"
-	"polaris-gateway/internal/logger"
+	"polaris-gateway/internal/store"
+	"polaris-gateway/pkg/logger"
 	"polaris-gateway/internal/models"
 )
 
@@ -98,7 +98,7 @@ func AdminSettingsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		_, err := db.DB().Exec("UPDATE sys_settings SET listen_addr=?, breaker_initial_cooldown_seconds=?, breaker_max_cooldown_seconds=?, breaker_failure_threshold=?, breaker_failure_window_seconds=?, google_oauth_client_id=?, google_oauth_client_secret=? WHERE id=1",
+		_, err := store.DB().Exec("UPDATE sys_settings SET listen_addr=?, breaker_initial_cooldown_seconds=?, breaker_max_cooldown_seconds=?, breaker_failure_threshold=?, breaker_failure_window_seconds=?, google_oauth_client_id=?, google_oauth_client_secret=? WHERE id=1",
 			req.ListenAddr, req.InitialCooldownSeconds, req.MaxCooldownSeconds, req.FailureThreshold, req.FailureWindowSeconds, req.GoogleOAuthClientID, req.GoogleOAuthClientSecret)
 
 		if err != nil {
@@ -226,7 +226,7 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if r.Method == http.MethodGet {
-		rows, err := db.DB().Query("SELECT id, name, provider, base_url, credentials, project_id, location, priority, balance, used_amount, limit_percent, valid_from, valid_to, status, COALESCE(min_request_interval_sec, 0), COALESCE(concurrency, 0) FROM sys_nodes ORDER BY provider, priority DESC")
+		rows, err := store.DB().Query("SELECT id, name, provider, base_url, credentials, project_id, location, priority, balance, used_amount, limit_percent, valid_from, valid_to, status, COALESCE(min_request_interval_sec, 0), COALESCE(concurrency, 0) FROM sys_nodes ORDER BY provider, priority DESC")
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -315,7 +315,7 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 			req.ValidTo = "2099-12-31 23:59:59"
 		}
 
-		_, err := db.DB().Exec(`
+		_, err := store.DB().Exec(`
 			INSERT INTO sys_nodes (name, provider, base_url, credentials, project_id, location, priority, balance, used_amount, limit_percent, min_request_interval_sec, concurrency, valid_from, valid_to, status)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0.0, ?, ?, ?, ?, ?, ?)`,
 			req.Name, req.Provider, req.BaseURL, req.Credentials, req.ProjectID, req.Location, req.Priority, req.Balance, req.LimitPercent, req.MinRequestIntervalSec, req.Concurrency, req.ValidFrom, req.ValidTo, req.Status)
@@ -366,7 +366,7 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 		req.ValidFrom = normalizeDatetime(req.ValidFrom, "00:00:00")
 		req.ValidTo = normalizeDatetime(req.ValidTo, "23:59:59")
 		if !strings.Contains(req.Credentials, "......") && req.Credentials != "***" && req.Credentials != "" {
-			_, err := db.DB().Exec(`
+			_, err := store.DB().Exec(`
 				UPDATE sys_nodes SET name=?, provider=?, base_url=?, credentials=?, project_id=?, location=?, priority=?, balance=?, limit_percent=?, min_request_interval_sec=?, concurrency=?, valid_from=?, valid_to=?, status=?
 				WHERE id=?`,
 				req.Name, req.Provider, req.BaseURL, req.Credentials, req.ProjectID, req.Location, req.Priority, req.Balance, req.LimitPercent, req.MinRequestIntervalSec, req.Concurrency, req.ValidFrom, req.ValidTo, req.Status, req.ID)
@@ -375,7 +375,7 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		} else {
-			_, err := db.DB().Exec(`
+			_, err := store.DB().Exec(`
 				UPDATE sys_nodes SET name=?, provider=?, base_url=?, project_id=?, location=?, priority=?, balance=?, limit_percent=?, min_request_interval_sec=?, concurrency=?, valid_from=?, valid_to=?, status=?
 				WHERE id=?`,
 				req.Name, req.Provider, req.BaseURL, req.ProjectID, req.Location, req.Priority, req.Balance, req.LimitPercent, req.MinRequestIntervalSec, req.Concurrency, req.ValidFrom, req.ValidTo, req.Status, req.ID)
@@ -398,7 +398,7 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		id, _ := strconv.Atoi(idStr)
-		_, err := db.DB().Exec("DELETE FROM sys_nodes WHERE id=?", id)
+		_, err := store.DB().Exec("DELETE FROM sys_nodes WHERE id=?", id)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -450,7 +450,7 @@ func AdminRoutesHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if r.Method == http.MethodGet {
-		rows, err := db.DB().Query("SELECT id, source_protocol, target_protocol, model_mappings, status FROM sys_routes ORDER BY id DESC")
+		rows, err := store.DB().Query("SELECT id, source_protocol, target_protocol, model_mappings, status FROM sys_routes ORDER BY id DESC")
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -501,7 +501,7 @@ func AdminRoutesHandler(w http.ResponseWriter, r *http.Request) {
 
 		modelMappingsJSON, _ := json.Marshal(req.ModelMappings)
 
-		_, err := db.DB().Exec(`
+		_, err := store.DB().Exec(`
 			INSERT INTO sys_routes (source_protocol, target_protocol, model_mappings, status)
 			VALUES (?, ?, ?, ?)`,
 			req.SourceProtocol, req.TargetProtocol, string(modelMappingsJSON), req.Status)
@@ -533,7 +533,7 @@ func AdminRoutesHandler(w http.ResponseWriter, r *http.Request) {
 
 		modelMappingsJSON, _ := json.Marshal(req.ModelMappings)
 
-		_, err := db.DB().Exec(`
+		_, err := store.DB().Exec(`
 			UPDATE sys_routes SET source_protocol=?, target_protocol=?, model_mappings=?, status=?
 			WHERE id=?`,
 			req.SourceProtocol, req.TargetProtocol, string(modelMappingsJSON), req.Status, req.ID)
@@ -556,7 +556,7 @@ func AdminRoutesHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		id, _ := strconv.Atoi(idStr)
-		_, err := db.DB().Exec("DELETE FROM sys_routes WHERE id=?", id)
+		_, err := store.DB().Exec("DELETE FROM sys_routes WHERE id=?", id)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

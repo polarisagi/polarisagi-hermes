@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"polaris-gateway/internal/router"
+	"polaris-gateway/internal/core/router"
 )
 
 

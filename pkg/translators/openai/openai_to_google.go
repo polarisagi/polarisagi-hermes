@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"polaris-gateway/internal/router"
+	"polaris-gateway/internal/core/router"
 )
 
 // OpenAIToGoogle 将 OpenAI Chat Completions 请求转发到 Google Agent Platform 端点

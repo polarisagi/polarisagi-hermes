@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"polaris-gateway/internal/router"
+	"polaris-gateway/internal/core/router"
 )
 
 // streamAndSettleUsage 流式转发上游响应到客户端，同时在尾部窗口收集 usage 数据完成计费

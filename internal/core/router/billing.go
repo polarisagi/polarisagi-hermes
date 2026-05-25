@@ -1,6 +1,6 @@
 // 统一计费引擎：模型定价 + 费用计算 + Token 估算 + 用量解析 + 结算入口
 // 所有协议转换器在处理完响应后调用 SettleBilling() 完成计费结算
-// 禁止在协议层直接调用 db.SaveUsage 或 Node.RecordCost
+// 禁止在协议层直接调用 store.SaveUsage 或 Node.RecordCost
 package router
 
 import (
@@ -13,7 +13,7 @@ import (
 	"sync"
 
 	"github.com/pkoukk/tiktoken-go"
-	"polaris-gateway/internal/db"
+	"polaris-gateway/internal/store"
 )
 
 // ── tiktoken 高精度分词器 ──
@@ -278,7 +278,7 @@ func ParseUsageFromStreamTail(tailBuf []byte) (prompt, completion, cached int64,
 
 // SettleBilling 全局统一计费入口
 // 所有协议转换器在处理完响应后调用此函数完成计费结算
-// 禁止在协议层直接调用 db.SaveUsage 或 Node.RecordCost
+// 禁止在协议层直接调用 store.SaveUsage 或 Node.RecordCost
 func SettleBilling(provider, nodeName, clientType, methodName, modelName string,
 	promptTokens, completionTokens, cachedTokens int64,
 	statusCode int, dest *MatchedDestination, reqBody []byte, traceID string) {
@@ -286,7 +286,7 @@ func SettleBilling(provider, nodeName, clientType, methodName, modelName string,
 		return
 	}
 	cost := CalculateCost(provider, modelName, promptTokens, completionTokens, cachedTokens, reqBody)
-	db.SaveUsage(provider, nodeName, clientType, methodName, promptTokens, completionTokens, cost, statusCode)
+	store.SaveUsage(provider, nodeName, clientType, methodName, promptTokens, completionTokens, cost, statusCode)
 	dest.Node.RecordCost(cost, traceID)
 	if cachedTokens > 0 {
 		slog.Info("💰 结算完成", "trace_id", traceID, "account", nodeName, "model", modelName, "prompt", promptTokens, "cached", cachedTokens, "completion", completionTokens, "cost", fmt.Sprintf("%.4f", cost))

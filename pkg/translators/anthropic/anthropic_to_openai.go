@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"polaris-gateway/internal/router"
+	"polaris-gateway/internal/core/router"
 )
 
 // Anthropic → OpenAI 协议转换器

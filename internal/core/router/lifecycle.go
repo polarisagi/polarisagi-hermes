@@ -11,14 +11,14 @@ import (
 	"net/http"
 	"time"
 
-	"polaris-gateway/internal/db"
+	"polaris-gateway/internal/store"
 )
 
 // HandleNetworkError 处理向上游代理时的网络级错误，触发节点惩罚
 func HandleNetworkError(err error, dest *MatchedDestination, platform, clientType, methodName, traceID, logPrefix string) {
 	errMsg := err.Error()
 	dest.MarkFinalized()
-	db.SaveUsage(platform, dest.Node.Name, clientType, methodName, 0, 0, 0, http.StatusBadGateway)
+	store.SaveUsage(platform, dest.Node.Name, clientType, methodName, 0, 0, 0, http.StatusBadGateway)
 	dest.Node.UpdateOnFailure(dest.IsProbationRun, traceID)
 	slog.Error("物理网络断联", "prefix", logPrefix, "trace_id", traceID, "account", dest.Node.Name, "error", errMsg)
 }
@@ -38,14 +38,14 @@ func CheckResponseStatus(finalResp *http.Response, dest *MatchedDestination, pla
 			isQuotaExhausted = true
 		}
 
-		db.SaveUsage(platform, dest.Node.Name, clientType, methodName, 0, 0, 0, statusCode)
+		store.SaveUsage(platform, dest.Node.Name, clientType, methodName, 0, 0, 0, statusCode)
 		slog.Warn("节点异常/限流，记入熔断惩罚队列", "prefix", logPrefix, "trace_id", traceID, "account", dest.Node.Name, "status", statusCode)
 	} else if statusCode >= 400 {
 		errBody, _ := io.ReadAll(finalResp.Body)
 		finalResp.Body.Close()
 		finalResp.Body = io.NopCloser(bytes.NewReader(errBody))
 
-		db.SaveUsage(platform, dest.Node.Name, clientType, methodName, 0, 0, 0, statusCode)
+		store.SaveUsage(platform, dest.Node.Name, clientType, methodName, 0, 0, 0, statusCode)
 		slog.Warn("客户端业务请求参数错误", "prefix", logPrefix, "trace_id", traceID, "account", dest.Node.Name, "status", statusCode, "body", string(errBody))
 	}
 

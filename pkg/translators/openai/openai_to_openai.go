@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"polaris-gateway/internal/router"
+	"polaris-gateway/internal/core/router"
 )
 
 // OpenAIToOpenAI 处理 OpenAI 协议到 OpenAI 兼容后端的直通转发

@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"polaris-gateway/internal/config"
-	"polaris-gateway/internal/db"
+	"polaris-gateway/internal/store"
 
 	"golang.org/x/oauth2/google"
 )
@@ -58,7 +58,7 @@ func ReloadFromConfig() {
 	// Build nodes map from all providers
 	for _, providers := range config.AppConfig.Providers {
 		for _, acc := range providers {
-			cycleConsumed := db.GetConsumedSince(acc.Name, acc.ValidFrom)
+			cycleConsumed := store.GetConsumedSince(acc.Name, acc.ValidFrom)
 			state := &NodeState{
 				AccountDetail:   acc,
 				CurrentCooldown: time.Duration(config.AppConfig.Breaker.InitialCooldownSeconds) * time.Second,

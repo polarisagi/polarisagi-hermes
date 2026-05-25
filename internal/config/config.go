@@ -8,7 +8,7 @@ import (
 	"sort"
 	"time"
 
-	"polaris-gateway/internal/db"
+	"polaris-gateway/internal/store"
 )
 
 // Version 运行期版本号，构建时由 -ldflags 注入（如 VERSION=$(git describe --tags --always)）
@@ -108,7 +108,7 @@ func ReloadFromDB() error {
 	}()
 
 	// Load Settings
-	err := db.DB().QueryRow("SELECT listen_addr, breaker_initial_cooldown_seconds, breaker_max_cooldown_seconds, breaker_failure_threshold, breaker_failure_window_seconds, COALESCE(google_oauth_client_id, '') AS google_oauth_client_id, COALESCE(google_oauth_client_secret, '') AS google_oauth_client_secret FROM sys_settings WHERE id = 1").Scan(
+	err := store.DB().QueryRow("SELECT listen_addr, breaker_initial_cooldown_seconds, breaker_max_cooldown_seconds, breaker_failure_threshold, breaker_failure_window_seconds, COALESCE(google_oauth_client_id, '') AS google_oauth_client_id, COALESCE(google_oauth_client_secret, '') AS google_oauth_client_secret FROM sys_settings WHERE id = 1").Scan(
 		&AppConfig.ListenAddr,
 		&AppConfig.Breaker.InitialCooldownSeconds,
 		&AppConfig.Breaker.MaxCooldownSeconds,
@@ -136,7 +136,7 @@ func ReloadFromDB() error {
 	}
 
 	// Load Nodes
-	rows, err := db.DB().Query("SELECT id, name, provider, base_url, credentials, project_id, location, priority, balance, used_amount, limit_percent, COALESCE(min_request_interval_sec, 0), COALESCE(concurrency, 0), valid_from, valid_to, status FROM sys_nodes")
+	rows, err := store.DB().Query("SELECT id, name, provider, base_url, credentials, project_id, location, priority, balance, used_amount, limit_percent, COALESCE(min_request_interval_sec, 0), COALESCE(concurrency, 0), valid_from, valid_to, status FROM sys_nodes")
 	if err != nil {
 		return fmt.Errorf("读取节点列表失败: %v", err)
 	}
@@ -189,7 +189,7 @@ func ReloadFromDB() error {
 	}
 
 	// Load Routes (new schema)
-	routeRows, err := db.DB().Query("SELECT id, source_protocol, target_protocol, model_mappings, status FROM sys_routes WHERE status = 1")
+	routeRows, err := store.DB().Query("SELECT id, source_protocol, target_protocol, model_mappings, status FROM sys_routes WHERE status = 1")
 	if err != nil {
 		slog.Warn("读取路由列表失败(非致命)", "error", err)
 	} else {

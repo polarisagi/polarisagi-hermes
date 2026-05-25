@@ -30,7 +30,7 @@ import (
 	"strings"
 	"time"
 
-	"polaris-gateway/internal/router"
+	"polaris-gateway/internal/core/router"
 )
 
 // anthropicVersionGEAP GEAP 平台要求的 Claude 请求体版本字段，Google 官方文档中写死

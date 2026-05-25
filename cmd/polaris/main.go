@@ -9,20 +9,20 @@ import (
 	"os"
 
 	"polaris-gateway/internal/config"
-	"polaris-gateway/internal/db"
-	"polaris-gateway/internal/logger"
-	"polaris-gateway/internal/router"
-	_ "polaris-gateway/internal/translators/anthropic" // 通过 init() 自动注册协议转换器
-	_ "polaris-gateway/internal/translators/google"
-	_ "polaris-gateway/internal/translators/openai"
-	"polaris-gateway/internal/webapi"
+	"polaris-gateway/internal/store"
+	"polaris-gateway/pkg/logger"
+	"polaris-gateway/internal/core/router"
+	_ "polaris-gateway/pkg/translators/anthropic" // 通过 init() 自动注册协议转换器
+	_ "polaris-gateway/pkg/translators/google"
+	_ "polaris-gateway/pkg/translators/openai"
+	"polaris-gateway/internal/api/webapi"
 )
 
 func main() {
 	logger.InitLogger()
 
-	db.InitDB()
-	defer db.CloseDB()
+	store.InitDB()
+	defer store.CloseDB()
 
 	if err := config.LoadConfig("config.yaml", ".env"); err != nil {
 		slog.Error("配置栈装载故障", "error", err)

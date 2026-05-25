@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"strings"
 
-	"polaris-gateway/internal/router"
+	"polaris-gateway/internal/core/router"
 )
 
 // AnthropicToAnthropic is a pure passthrough: no protocol conversion, just load balancing + billing.
