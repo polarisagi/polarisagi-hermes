@@ -113,7 +113,7 @@ func (c *CodexConfigurator) Status() (bool, bool, error) {
 			if providersMap, ok := config["model_providers"].(map[string]interface{}); ok {
 				if providerConfig, ok := providersMap[modelProvider].(map[string]interface{}); ok {
 					if url, ok := providerConfig["base_url"].(string); ok {
-						isConfigured = url != "" && url == fmt.Sprintf("http://127.0.0.1:28888/v1/openai/") // Rough check
+						isConfigured = url != "" && url == "http://127.0.0.1:28888/v1/openai/" // Rough check
 					}
 				}
 			}
@@ -123,7 +123,7 @@ func (c *CodexConfigurator) Status() (bool, bool, error) {
 	// Fallback check top level
 	if !isConfigured {
 		if url, ok := config["base_url"].(string); ok {
-			isConfigured = url != "" && url == fmt.Sprintf("http://127.0.0.1:28888/v1/openai/")
+			isConfigured = url != "" && url == "http://127.0.0.1:28888/v1/openai/"
 		}
 	}
 

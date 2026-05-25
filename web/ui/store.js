@@ -1,108 +1,120 @@
-const { ref, reactive } = Vue;
-
-export const state = reactive({
-    lang: window.getSystemLanguage(),
-    theme: window.getSystemTheme(),
-    currentTab: 'dashboard',
-    proMode: localStorage.getItem('polaris_pro_mode') === 'true',
-    toast: { show: false, message: '', type: 'success' },
-    apiData: [],
-    concurrency: { active: 0, waiting: 0, max: 0 },
-    nodes: [],
-    routes: [],
-    allModels: [],
-    settings: {
-        listen_addr: '127.0.0.1:28888',
-        breaker: {
-            initial_cooldown_seconds: 60,
-            max_cooldown_seconds: 3600,
-            failure_threshold: 3,
-            failure_window_seconds: 120
+document.addEventListener('alpine:init', () => {
+    Alpine.store('global', {
+        lang: window.getSystemLanguage(),
+        theme: window.getSystemTheme(),
+        currentTab: 'dashboard',
+        proMode: localStorage.getItem('polaris_pro_mode') === 'true',
+        toast: { show: false, message: '', type: 'success' },
+        apiData: [],
+        concurrency: { active: 0, waiting: 0, max: 0 },
+        nodes: [],
+        routes: [],
+        allModels: [],
+        settings: {
+            listen_addr: '127.0.0.1:28888',
+            breaker: {
+                initial_cooldown_seconds: 60,
+                max_cooldown_seconds: 3600,
+                failure_threshold: 3,
+                failure_window_seconds: 120
+            },
+            google_oauth_client_id: '',
+            google_oauth_client_secret: ''
         },
-        google_oauth_client_id: '',
-        google_oauth_client_secret: ''
-    },
-    version: '',
-    latestVersion: '',
-    updateAvailable: false,
-    isUpdating: false,
-    debugEnabled: false,
-    logLevelFilter: 'all',
-    logsText: 'Loading logs...',
-    isAutoScroll: true,
-    availableAccounts: [],
-    selectedAccount: 'all',
-    activePreset: 'today',
-    startDate: '',
-    endDate: ''
-});
+        version: '',
+        latestVersion: '',
+        updateAvailable: false,
+        isUpdating: false,
+        debugEnabled: false,
+        logLevelFilter: 'all',
+        logsText: 'Loading logs...',
+        isAutoScroll: true,
+        availableAccounts: [],
+        selectedAccount: 'all',
+        activePreset: 'today',
+        startDate: '',
+        endDate: '',
 
-export const t = (key) => window.messages[state.lang][key] || key;
+        t(key) {
+            return window.messages[this.lang][key] || key;
+        },
 
-export const showToast = (msg, type = 'success') => {
-    state.toast = { show: true, message: msg, type };
-    setTimeout(() => { state.toast.show = false }, 3000);
-};
+        showToast(msg, type = 'success') {
+            this.toast = { show: true, message: msg, type };
+            setTimeout(() => { this.toast.show = false }, 3000);
+        },
 
-export const formatNum = (num) => Number(num || 0).toFixed(4);
-export const formatToken = (num) => new Intl.NumberFormat().format(num);
-export const formatShortDate = (dt) => dt ? dt.split('T')[0].split(' ')[0] : '-';
-export const successRateColor = (rate) => rate > 95 ? 'border-emerald-500' : (rate > 80 ? 'border-yellow-500' : 'border-red-500');
+        formatNum(num) { return Number(num || 0).toFixed(4); },
+        formatToken(num) { return new Intl.NumberFormat().format(num); },
+        formatShortDate(dt) { return dt ? dt.split('T')[0].split(' ')[0] : '-'; },
+        
+        successRateColor(rate) { 
+            return rate > 95 ? 'border-success' : (rate > 80 ? 'border-warning' : 'border-error');
+        },
 
-export const protocolLabel = (p) => {
-    const labels = { openai: 'OpenAI', google: 'Google Agent Platform', anthropic: 'Anthropic' };
-    return labels[p] || p;
-};
-export const protocolClass = (p) => {
-    const classes = { openai: 'text-indigo-400', google: 'text-emerald-400', anthropic: 'text-orange-400' };
-    return classes[p] || 'text-slate-400';
-};
-export const protocolBadge = (p) => {
-    const badges = { openai: 'bg-indigo-600 border-indigo-500/50', google: 'bg-emerald-600 border-emerald-500/50', anthropic: 'bg-orange-600 border-orange-500/50' };
-    return badges[p] || 'bg-slate-600 border-slate-500/50';
-};
+        protocolLabel(p) {
+            const labels = { 
+                openai: 'OpenAI', google: 'Google (Gemini)', anthropic: 'Anthropic',
+                deepseek: 'DeepSeek', siliconflow: 'SiliconFlow', grok: 'Grok',
+                openrouter: 'OpenRouter', ollama: 'Ollama'
+            };
+            return labels[p] || p;
+        },
+        protocolClass(p) {
+            const classes = { openai: 'text-primary', google: 'text-success', anthropic: 'text-warning', deepseek: 'text-info', siliconflow: 'text-secondary', grok: 'text-neutral', openrouter: 'text-accent', ollama: 'text-base-content' };
+            return classes[p] || 'text-base-content/50';
+        },
+        protocolBadge(p) {
+            const badges = { openai: 'badge-primary', google: 'badge-success', anthropic: 'badge-warning', deepseek: 'badge-info', siliconflow: 'badge-secondary', grok: 'badge-neutral', openrouter: 'badge-accent', ollama: 'badge-ghost' };
+            return badges[p] || 'badge-neutral';
+        },
 
-export const setLang = (l) => {
-    window.setSystemLanguage(l);
-    state.lang = l;
-};
+        setLang(l) {
+            window.setSystemLanguage(l);
+            this.lang = l;
+        },
 
-export const toggleProMode = () => {
-    state.proMode = !state.proMode;
-    localStorage.setItem('polaris_pro_mode', state.proMode);
-};
-
-export const setTheme = (t) => {
-    state.theme = t;
-    window.applyTheme(t);
-};
-
-export const checkForUpdates = (currentVer) => {
-    fetch('https://api.github.com/repos/mrlaoliai/polaris-gateway/releases/latest')
-        .then(r => r.json())
-        .then(d => {
-            if (d.tag_name && d.tag_name !== currentVer) {
-                state.latestVersion = d.tag_name;
-                state.updateAvailable = true;
+        toggleProMode() {
+            this.proMode = !this.proMode;
+            localStorage.setItem('polaris_pro_mode', this.proMode);
+            if (!this.proMode && this.currentTab === 'rules') {
+                this.currentTab = 'channels';
             }
-        }).catch(console.error);
-};
+        },
 
-export const triggerUpdate = () => {
-    if (!confirm(state.lang === 'zh' ? `确定要平滑热更新到 ${state.latestVersion} 吗？\n整个过程完全自动化，并且不会中断正在处理的流量。` : `Are you sure you want to smooth update to ${state.latestVersion}?\nThe process is fully automated and will not interrupt active traffic.`)) return;
-    
-    state.isUpdating = true;
-    fetch('/api/admin/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target_version: state.latestVersion })
-    }).then(r => r.json()).then(d => {
-        showToast(d.message || t("update_started"), "success");
-        setTimeout(() => {
-            window.location.reload();
-        }, 3500);
-    }).catch(e => {
-        showToast(t("update_failed"), "error");
-        state.isUpdating = false;
+        setTheme(t) {
+            this.theme = t;
+            window.applyTheme(t);
+        },
+
+        checkForUpdates(currentVer) {
+            fetch('https://api.github.com/repos/mrlaoliai/polaris-gateway/releases/latest')
+                .then(r => r.json())
+                .then(d => {
+                    if (d.tag_name && d.tag_name !== currentVer) {
+                        this.latestVersion = d.tag_name;
+                        this.updateAvailable = true;
+                    }
+                }).catch(console.error);
+        },
+
+        triggerUpdate() {
+            if (!confirm(this.lang === 'zh' ? `确定要平滑热更新到 ${this.latestVersion} 吗？\n整个过程完全自动化，并且不会中断正在处理的流量。` : `Are you sure you want to smooth update to ${this.latestVersion}?\nThe process is fully automated and will not interrupt active traffic.`)) return;
+            
+            this.isUpdating = true;
+            fetch('/api/admin/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ target_version: this.latestVersion })
+            }).then(r => r.json()).then(d => {
+                this.showToast(d.message || this.t("update_started"), "success");
+                setTimeout(() => {
+                    window.location.reload();
+                }, 3500);
+            }).catch(e => {
+                this.showToast(this.t("update_failed"), "error");
+                this.isUpdating = false;
+            });
+        }
     });
-};
+});

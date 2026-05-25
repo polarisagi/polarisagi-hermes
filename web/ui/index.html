@@ -1,125 +1,133 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
-
+<html lang="zh-CN" x-data :data-theme="$store.global.theme === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : $store.global.theme">
 <head>
     <meta charset="UTF-8">
     <title>Polaris Admin Panel</title>
+    <!-- DaisyUI + Tailwind CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.10.1/dist/full.min.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = { darkMode: 'class' }
-    </script>
+    
+    <!-- Alpine JS -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <!-- i18n messages -->
     <script src="i18n.js"></script>
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    
+    <!-- Alpine Store -->
+    <script src="store.js"></script>
+    
+    <!-- Flatpickr -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css" id="flatpickr-dark-theme" disabled>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/zh.js"></script>
-    <link rel="stylesheet" href="app.css">
-    <style type="text/tailwindcss">
-        .card {
-            @apply bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700;
-        }
-    </style>
+    
+    <script>
+        // Set initial theme setup script (before Alpine loads)
+        window.getSystemTheme = () => localStorage.getItem('polaris_theme') || 'system';
+        window.applyTheme = (theme) => {
+            localStorage.setItem('polaris_theme', theme);
+            if (theme === 'system') {
+                const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+            } else {
+                document.documentElement.setAttribute('data-theme', theme);
+            }
+        };
+        window.getSystemLanguage = () => localStorage.getItem('polaris_lang') || 'zh';
+        window.setSystemLanguage = (l) => localStorage.setItem('polaris_lang', l);
+    </script>
 </head>
 
-<body class="flex h-screen overflow-hidden bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100">
-    <div id="app" v-cloak class="flex w-full">
-        <!-- Sidebar -->
-        <div class="w-64 bg-gray-50 dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800 flex flex-col h-full flex-shrink-0">
-            <div class="p-6 border-b border-gray-200 dark:border-slate-800">
-                <h1 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">
-                    Polaris
-                </h1>
-                <p class="text-gray-500 dark:text-slate-500 text-xs mt-1 uppercase tracking-wider">{{ t("app_subtitle") }} <span v-if="state.version" class="ml-2 lowercase text-gray-500 dark:text-slate-400 font-mono">{{ state.version }}</span></p>
-                
-                <!-- 一键更新按钮 -->
-                <div v-if="state.updateAvailable" class="mt-4">
-                    <button @click="triggerUpdate" class="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white text-xs font-bold py-2 px-3 rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all transform hover:scale-[1.02]" :disabled="state.isUpdating">
-                        <span v-if="!state.isUpdating">{{ t("new_version_found") }} {{ state.latestVersion }}</span>
-                        <span v-else class="flex items-center gap-2">
-                            <svg class="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                            {{ t("updating") }}
-                        </span>
-                    </button>
-                </div>
-            </div>
-            
-            <!-- Theme & Lang Switcher -->
-            <div class="px-6 py-3 flex items-center justify-between border-b border-gray-200 dark:border-slate-800">
-                <div class="flex items-center gap-2">
-                    <span class="text-xs font-medium" :class="state.proMode ? 'text-blue-500' : 'text-gray-500 dark:text-slate-400'">{{ state.proMode ? t("pro_mode") : t("simple_mode") }}</span>
-                    <button @click="toggleProMode()" :class="state.proMode ? 'bg-blue-500' : 'bg-gray-300 dark:bg-slate-700'" class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none shadow-inner">
-                        <span :class="state.proMode ? 'translate-x-4' : 'translate-x-1'" class="inline-block h-3 w-3 transform rounded-full bg-white transition-transform shadow-sm"></span>
-                    </button>
-                </div>
-            </div>
-            <div class="px-6 py-2 flex items-center justify-between border-b border-gray-200 dark:border-slate-800 text-sm">
-                <div class="flex gap-2">
-                    <button @click="setTheme('light')" :class="state.theme === 'light' ? 'text-blue-500' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'">🌞</button>
-                    <button @click="setTheme('dark')" :class="state.theme === 'dark' ? 'text-blue-500' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'">🌙</button>
-                    <button @click="setTheme('system')" :class="state.theme === 'system' ? 'text-blue-500' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'">💻</button>
-                </div>
-                <div class="flex gap-2 text-gray-500 font-medium">
-                    <button @click="setLang('zh')" :class="state.lang === 'zh' ? 'text-blue-500' : 'hover:text-gray-900 dark:hover:text-white'">中</button>
-                    <button @click="setLang('en')" :class="state.lang === 'en' ? 'text-blue-500' : 'hover:text-gray-900 dark:hover:text-white'">EN</button>
-                </div>
-            </div>
-
-            <nav class="flex-1 p-4 space-y-2">
-                <a @click="state.currentTab = 'dashboard'" :class="state.currentTab === 'dashboard' ? 'bg-blue-600/20 text-blue-400 border-blue-500/50' : 'text-gray-500 dark:text-slate-400 hover:bg-white dark:bg-slate-800 hover:text-gray-800 dark:text-slate-200 border-transparent'" class="block px-4 py-3 rounded-lg cursor-pointer transition border">
-                    <div class="flex items-center gap-3 font-medium">
-                        <span>{{ t("tab_dashboard") }}</span>
-                    </div>
-                </a>
-                <a @click="state.currentTab = 'channels'" :class="state.currentTab === 'channels' ? 'bg-emerald-600/20 text-emerald-400 border-emerald-500/50' : 'text-gray-500 dark:text-slate-400 hover:bg-white dark:bg-slate-800 hover:text-gray-800 dark:text-slate-200 border-transparent'" class="block px-4 py-3 rounded-lg cursor-pointer transition border">
-                    <div class="flex items-center gap-3 font-medium">
-                        <span>{{ t("tab_nodes") }}</span>
-                    </div>
-                </a>
-                <a @click="state.currentTab = 'rules'" :class="state.currentTab === 'rules' ? 'bg-pink-600/20 text-pink-400 border-pink-500/50' : 'text-gray-500 dark:text-slate-400 hover:bg-white dark:bg-slate-800 hover:text-gray-800 dark:text-slate-200 border-transparent'" class="block px-4 py-3 rounded-lg cursor-pointer transition border">
-                    <div class="flex items-center gap-3 font-medium">
-                        <span>{{ t("tab_routes") }}</span>
-                    </div>
-                </a>
-                <a @click="state.currentTab = 'clients'" :class="state.currentTab === 'clients' ? 'bg-indigo-600/20 text-indigo-400 border-indigo-500/50' : 'text-gray-500 dark:text-slate-400 hover:bg-white dark:bg-slate-800 hover:text-gray-800 dark:text-slate-200 border-transparent'" class="block px-4 py-3 rounded-lg cursor-pointer transition border">
-                    <div class="flex items-center gap-3 font-medium">
-                        <span>{{ t("tab_clients") }}</span>
-                    </div>
-                </a>
-                <a @click="state.currentTab = 'settings'" :class="state.currentTab === 'settings' ? 'bg-purple-600/20 text-purple-400 border-purple-500/50' : 'text-gray-500 dark:text-slate-400 hover:bg-white dark:bg-slate-800 hover:text-gray-800 dark:text-slate-200 border-transparent'" class="block px-4 py-3 rounded-lg cursor-pointer transition border">
-                    <div class="flex items-center gap-3 font-medium">
-                        <span>{{ t("tab_settings") }}</span>
-                    </div>
-                </a>
-                <a @click="state.currentTab = 'logs'" :class="state.currentTab === 'logs' ? 'bg-amber-600/20 text-amber-400 border-amber-500/50' : 'text-gray-500 dark:text-slate-400 hover:bg-white dark:bg-slate-800 hover:text-gray-800 dark:text-slate-200 border-transparent'" class="block px-4 py-3 rounded-lg cursor-pointer transition border">
-                    <div class="flex items-center gap-3 font-medium">
-                        <span>{{ t("tab_logs") }}</span>
-                    </div>
-                </a>
-            </nav>
-        </div>
-
-        <!-- Main Content -->
-        <div class="flex-1 overflow-auto p-8 relative">
-            
-            <!-- Toast Notification -->
-            <div v-if="state.toast.show" class="fixed top-5 right-5 z-[200] flex items-center gap-3 px-5 py-3 rounded-xl shadow-2xl text-white text-sm font-medium pointer-events-none select-none"
-                :class="state.toast.type === 'success' ? 'bg-emerald-500/95 ring-1 ring-emerald-400/50' : 'bg-red-500/95 ring-1 ring-red-400/50'">
-                <span v-if="state.toast.type === 'success'">✓</span>
-                <span v-else>✕</span>
-                {{ state.toast.message }}
-            </div>
-
-            <!-- Components -->
-            <Dashboard></Dashboard>
-            <Channels></Channels>
-            <Rules></Rules>
-            <Clients></Clients>
-            <Settings></Settings>
-            <Logs></Logs>
+<body class="flex h-screen overflow-hidden bg-base-200" x-init="
+    fetch('/api/admin/info')
+        .then(r => r.json())
+        .then(d => {
+            $store.global.version = d.version;
+            $store.global.debugEnabled = d.debug;
+            $store.global.checkForUpdates(d.version);
+        })
+        .catch(e => console.error(e));
+">
+    <!-- Toast Notification -->
+    <div class="toast toast-top toast-end z-[200]" x-show="$store.global.toast.show" x-transition>
+        <div class="alert shadow-lg" :class="$store.global.toast.type === 'success' ? 'alert-success' : 'alert-error'">
+            <span x-text="$store.global.toast.message"></span>
         </div>
     </div>
 
+    <!-- Sidebar Layout using DaisyUI Drawer/Menu -->
+    <div class="drawer lg:drawer-open">
+        <input id="my-drawer-2" type="checkbox" class="drawer-toggle" />
+        
+        <!-- Main Content -->
+        <div class="drawer-content flex flex-col p-8 relative h-screen overflow-auto">
+            <!-- Mobile drawer toggle -->
+            <label for="my-drawer-2" class="btn btn-primary drawer-button lg:hidden mb-4">☰ Menu</label>
+            
+            <!-- Dynamic Components Container -->
+            <div id="components-container"></div>
+            
+        </div> 
+        
+        <!-- Sidebar -->
+        <div class="drawer-side">
+            <label for="my-drawer-2" aria-label="close sidebar" class="drawer-overlay"></label> 
+            <div class="menu w-64 min-h-full bg-base-100 text-base-content border-r border-base-300 flex flex-col pt-6">
+                <!-- Branding -->
+                <div class="px-6 mb-4">
+                    <h1 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-success">
+                        Polaris
+                    </h1>
+                    <p class="text-xs mt-1 uppercase tracking-wider opacity-60">
+                        <span x-text="$store.global.t('app_subtitle')"></span>
+                        <span x-show="$store.global.version" class="ml-2 lowercase font-mono" x-text="$store.global.version"></span>
+                    </p>
+                    
+                    <!-- Update Button -->
+                    <button class="btn btn-success btn-sm w-full mt-4" 
+                            x-show="$store.global.updateAvailable" 
+                            @click="$store.global.triggerUpdate()"
+                            :disabled="$store.global.isUpdating">
+                        <span x-show="!$store.global.isUpdating" x-text="$store.global.t('new_version_found') + ' ' + $store.global.latestVersion"></span>
+                        <span x-show="$store.global.isUpdating" class="loading loading-spinner loading-xs"></span>
+                        <span x-show="$store.global.isUpdating" x-text="$store.global.t('updating')"></span>
+                    </button>
+                </div>
+                
+                <!-- Theme & Lang & Pro Mode Switcher -->
+                <div class="px-6 py-4 border-y border-base-300 text-sm space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex gap-2">
+                            <button class="btn btn-ghost btn-xs px-1" @click="$store.global.setTheme('light')" :class="$store.global.theme === 'light' ? 'text-primary' : 'opacity-50'">🌞</button>
+                            <button class="btn btn-ghost btn-xs px-1" @click="$store.global.setTheme('dark')" :class="$store.global.theme === 'dark' ? 'text-primary' : 'opacity-50'">🌙</button>
+                            <button class="btn btn-ghost btn-xs px-1" @click="$store.global.setTheme('system')" :class="$store.global.theme === 'system' ? 'text-primary' : 'opacity-50'">💻</button>
+                        </div>
+                        <div class="flex gap-2 font-medium">
+                            <button class="btn btn-ghost btn-xs px-1" @click="$store.global.setLang('zh')" :class="$store.global.lang === 'zh' ? 'text-primary' : 'opacity-50'">中</button>
+                            <button class="btn btn-ghost btn-xs px-1" @click="$store.global.setLang('en')" :class="$store.global.lang === 'en' ? 'text-primary' : 'opacity-50'">EN</button>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-medium opacity-60" :class="$store.global.proMode ? 'text-primary' : ''" x-text="$store.global.proMode ? $store.global.t('pro_mode') : $store.global.t('simple_mode')"></span>
+                        <input type="checkbox" class="toggle toggle-primary toggle-sm" :checked="$store.global.proMode" @click="$store.global.toggleProMode()" />
+                    </div>
+                </div>
+                
+                <!-- Nav Links -->
+                <ul class="menu w-full px-4 mt-2 gap-1 flex-1">
+                    <li><a @click="$store.global.currentTab = 'dashboard'" :class="{'active': $store.global.currentTab === 'dashboard'}" x-text="$store.global.t('tab_dashboard')"></a></li>
+                    <li><a @click="$store.global.currentTab = 'channels'" :class="{'active': $store.global.currentTab === 'channels'}" x-text="$store.global.t('tab_nodes')"></a></li>
+                    <li x-show="$store.global.proMode"><a @click="$store.global.currentTab = 'rules'" :class="{'active': $store.global.currentTab === 'rules'}" x-text="$store.global.t('tab_routes')"></a></li>
+                    <li><a @click="$store.global.currentTab = 'clients'" :class="{'active': $store.global.currentTab === 'clients'}" x-text="$store.global.t('tab_clients')"></a></li>
+                    <li><a @click="$store.global.currentTab = 'settings'" :class="{'active': $store.global.currentTab === 'settings'}" x-text="$store.global.t('tab_settings')"></a></li>
+                    <li><a @click="$store.global.currentTab = 'logs'" :class="{'active': $store.global.currentTab === 'logs'}" x-text="$store.global.t('tab_logs')"></a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Alpine JS App Script -->
     <script type="module" src="app.js"></script>
 </body>
 </html>

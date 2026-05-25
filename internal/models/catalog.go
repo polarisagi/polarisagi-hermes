@@ -151,4 +151,11 @@ var modelCatalog = map[string][]ModelInfo{
 		{Name: "google/gemini-1.5-pro", DisplayName: "Gemini 1.5 Pro (OpenAI兼容)", Protocol: "google", Category: "legacy"},
 		{Name: "google/gemini-1.5-flash", DisplayName: "Gemini 1.5 Flash (OpenAI兼容)", Protocol: "google", Category: "legacy"},
 	},
+	"ollama": {
+		{Name: "*", DisplayName: "全部本地模型 (通配符)", Protocol: "ollama", Category: "wildcard"},
+		{Name: "llama3", DisplayName: "Llama 3 (需本地 pull)", Protocol: "ollama", Category: "cost-efficient"},
+		{Name: "qwen2", DisplayName: "Qwen 2 (需本地 pull)", Protocol: "ollama", Category: "cost-efficient"},
+		{Name: "phi3", DisplayName: "Phi 3 (需本地 pull)", Protocol: "ollama", Category: "cost-efficient"},
+		{Name: "mistral", DisplayName: "Mistral (需本地 pull)", Protocol: "ollama", Category: "cost-efficient"},
+	},
 }
