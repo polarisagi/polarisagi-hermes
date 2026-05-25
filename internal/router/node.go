@@ -20,25 +20,25 @@ type NodeStatus int
 
 const (
 	StatusIdle      NodeStatus = iota // 空闲，可接收新请求
-	StatusBusy                         // 繁忙，正在处理请求
-	StatusCooldown                     // 冷却中，暂时不可用（熔断惩罚期）
-	StatusProbation                    // 试用期，刚从冷却恢复，再次失败将快速回到冷却
-	StatusExhausted                    // 已耗尽，预算超限或手动禁用
+	StatusBusy                        // 繁忙，正在处理请求
+	StatusCooldown                    // 冷却中，暂时不可用（熔断惩罚期）
+	StatusProbation                   // 试用期，刚从冷却恢复，再次失败将快速回到冷却
+	StatusExhausted                   // 已耗尽，预算超限或手动禁用
 )
 
 // NodeState 节点运行时状态，包装了静态配置（AccountDetail）和动态状态机
 // 每个节点是 goroutine-safe 的，通过内部的 sync.Mutex 保护状态转换
 type NodeState struct {
-	config.AccountDetail                                     // 内嵌静态配置
-	TokenSource           oauth2.TokenSource                 // (可选) 如果配置了 ADC JSON，将在此处生成 OAuth2 TokenSource
-	Status                NodeStatus                         // 当前状态
-	FailureTimestamps     []time.Time                        // 失败时间戳列表（用于滑动窗口计数）
-	CurrentCooldown       time.Duration                      // 当前冷却时长（失败后翻倍增长）
-	CooldownUntil         time.Time                          // 冷却结束时间
-	TotalConsumed         float64                            // 当前账期累计消费金额
-	ConcurrentConnections int                                // 当前并发连接数
-	LastAcquireTime       time.Time                          // 上次被分配的时间，用于强制最小请求间隔防 RPM 429
-	mu                    sync.Mutex                         // 保护并发状态修改
+	config.AccountDetail                     // 内嵌静态配置
+	TokenSource           oauth2.TokenSource // (可选) 如果配置了 ADC JSON，将在此处生成 OAuth2 TokenSource
+	Status                NodeStatus         // 当前状态
+	FailureTimestamps     []time.Time        // 失败时间戳列表（用于滑动窗口计数）
+	CurrentCooldown       time.Duration      // 当前冷却时长（失败后翻倍增长）
+	CooldownUntil         time.Time          // 冷却结束时间
+	TotalConsumed         float64            // 当前账期累计消费金额
+	ConcurrentConnections int                // 当前并发连接数
+	LastAcquireTime       time.Time          // 上次被分配的时间，用于强制最小请求间隔防 RPM 429
+	mu                    sync.Mutex         // 保护并发状态修改
 }
 
 // checkFailureWindow 检查在滑动窗口内是否有足够多的失败以触发熔断

@@ -47,7 +47,7 @@ func getOAuthConfig(r *http.Request) *oauth2.Config {
 	if !strings.Contains(host, ":") {
 		host = host + ":80"
 	}
-	
+
 	parts := strings.Split(host, ":")
 	redirectURL := fmt.Sprintf("http://127.0.0.1:%s/api/admin/oauth/google/callback", parts[1])
 
@@ -69,9 +69,9 @@ func generateStateOauthCookie(w http.ResponseWriter) string {
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)
 	state := base64.URLEncoding.EncodeToString(b)
-	
+
 	oauthStates.Store(state, time.Now().Add(10*time.Minute))
-	
+
 	go func() {
 		oauthStates.Range(func(key, value interface{}) bool {
 			if time.Now().After(value.(time.Time)) {

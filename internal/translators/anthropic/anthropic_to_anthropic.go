@@ -16,11 +16,11 @@ import (
 
 // AnthropicToAnthropic is a pure passthrough: no protocol conversion, just load balancing + billing.
 // It proxies the Anthropic request body as-is to the target upstream and streams the response back.
-func AnthropicToAnthropic(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) {
+func AnthropicToAnthropic(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) error {
 	// count_tokens 端点优化：直接使用本地估算，避免网络请求带来的延迟及 UI 撕裂
 	if isCountTokensPath(r.URL.Path) {
 		handleCountTokensLocal(w, bodyBytes, traceID)
-		return
+		return nil
 	}
 
 	clientType := "Anthropic-Passthrough"
@@ -64,7 +64,7 @@ func AnthropicToAnthropic(ctx context.Context, w http.ResponseWriter, r *http.Re
 	proxyReq.Header.Set("anthropic-version", "2023-06-01")
 	proxyReq.Header.Set("Content-Type", "application/json")
 
-	router.ExecuteAndStream(w, proxyReq, dest, "anthropic", clientType, "passthrough", traceID, "Anthropic Passthrough",
+	return router.ExecuteAndStream(w, proxyReq, dest, "anthropic", clientType, "passthrough", traceID, "Anthropic Passthrough",
 		func(finalResp *http.Response, startTime time.Time) bool {
 			if req.Stream {
 				anthropicPassthroughStream(w, finalResp, traceID, dest, clientType, modelName, bodyBytes)

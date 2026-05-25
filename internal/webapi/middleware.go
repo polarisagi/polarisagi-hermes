@@ -14,8 +14,6 @@ import (
 	"polaris-gateway/internal/router"
 )
 
-
-
 // InitMiddleware 初始化并发限制，concurrency 为活跃节点总数
 func InitMiddleware(concurrency int) {
 	if concurrency <= 0 {

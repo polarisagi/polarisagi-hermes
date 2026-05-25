@@ -2,6 +2,7 @@ import { state, t, setLang, setTheme, checkForUpdates, triggerUpdate } from './s
 import Dashboard from './components/Dashboard.js';
 import Nodes from './components/Nodes.js';
 import Routes from './components/Routes.js';
+import Clients from './components/Clients.js';
 import Settings from './components/Settings.js';
 import Logs from './components/Logs.js';
 
@@ -12,6 +13,7 @@ const app = createApp({
         Dashboard,
         Nodes,
         Routes,
+        Clients,
         Settings,
         Logs
     },

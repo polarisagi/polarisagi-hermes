@@ -41,11 +41,11 @@ type oaiRequest struct {
 }
 
 // AnthropicToOpenAI 主入口：解析 Anthropic 请求 → 构造 OpenAI 请求 → 发送 → 流式/非流式回写 Anthropic 格式
-func AnthropicToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) {
+func AnthropicToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) error {
 	// count_tokens 端点：OpenAI 协议无对等接口，本地估算返回
 	if isCountTokensPath(r.URL.Path) {
 		handleCountTokensLocal(w, bodyBytes, traceID)
-		return
+		return nil
 	}
 
 	clientType := "Anthropic-Adapter"
@@ -53,7 +53,7 @@ func AnthropicToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Reque
 	var req MessageRequest
 	if err := json.Unmarshal(bodyBytes, &req); err != nil {
 		http.Error(w, `{"type": "error", "error": {"type": "invalid_request_error", "message": "invalid json"}}`, 400)
-		return
+		return nil
 	}
 
 	extractedBillingHeader := ExtractAndStripBillingHeader(&req)
@@ -92,7 +92,7 @@ func AnthropicToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Reque
 	proxyReq.Header.Set("Content-Type", "application/json")
 	proxyReq.Header.Set("Authorization", "Bearer "+dest.Node.Credentials)
 
-	router.ExecuteAndStream(w, proxyReq, dest, "openai", clientType, "anthropic_adapter", traceID, "Anthropic→OpenAI",
+	return router.ExecuteAndStream(w, proxyReq, dest, "openai", clientType, "anthropic_adapter", traceID, "Anthropic→OpenAI",
 		func(finalResp *http.Response, startTime time.Time) bool {
 			// 上游 OpenAI 返回错误时，转换为 Anthropic 错误格式返回给 Claude Code
 			if finalResp.StatusCode != http.StatusOK {

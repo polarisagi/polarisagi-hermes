@@ -17,7 +17,7 @@ import (
 )
 
 // GoogleToGoogle 将 Google Agent Platform 原生请求协议直通到 GEAP 后端：不做协议转换，仅替换端点 URL 和认证方式
-func GoogleToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) {
+func GoogleToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) error {
 	clientType := router.IdentifyClient(r)
 	methodName := router.ExtractMethodName(r.URL.Path)
 
@@ -46,10 +46,10 @@ func GoogleToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	if err := dest.Node.InjectGoogleAuth(proxyReq); err != nil {
 		slog.Error("❌ [GoogleToGoogle] 注入认证信息失败", "node", dest.Node.Name, "err", err)
 		http.Error(w, "Failed to generate ADC Token", http.StatusInternalServerError)
-		return
+		return nil
 	}
 
-	router.ExecuteAndStream(w, proxyReq, dest, "google", clientType, methodName, traceID, "Google Agent Platform",
+	return router.ExecuteAndStream(w, proxyReq, dest, "google", clientType, methodName, traceID, "Google Agent Platform",
 		func(finalResp *http.Response, startTime time.Time) bool {
 			streamGoogleResponse(w, finalResp, dest, dest.TargetModel, clientType, methodName, traceID, startTime, bodyBytes)
 			return false

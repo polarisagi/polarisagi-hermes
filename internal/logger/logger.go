@@ -9,13 +9,12 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	
+
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-var logWriter io.Writer    // 多路输出 writer（stdout + 文件）
-var mu sync.Mutex          // 保护 debugEnabled 和 slog handler 切换
-
+var logWriter io.Writer // 多路输出 writer（stdout + 文件）
+var mu sync.Mutex       // 保护 debugEnabled 和 slog handler 切换
 
 // GetLogPath 返回日志文件的完整路径：~/.polaris-gateway/polaris-gateway.log
 func GetLogPath() string {
@@ -23,12 +22,12 @@ func GetLogPath() string {
 	if err != nil {
 		return "./polaris-gateway.log"
 	}
-	
+
 	dir := filepath.Join(home, ".polaris-gateway")
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return "./polaris-gateway.log"
 	}
-	
+
 	return filepath.Join(dir, "polaris-gateway.log")
 }
 
@@ -64,7 +63,7 @@ func InitLogger() {
 	}
 
 	logPath := GetLogPath()
-	
+
 	// 使用 lumberjack 实现日志按大小、时间自动滚动归档
 	lj := &lumberjack.Logger{
 		Filename:   logPath,

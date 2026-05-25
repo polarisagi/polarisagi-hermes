@@ -13,8 +13,8 @@ import (
 	"polaris-gateway/internal/logger"
 	"polaris-gateway/internal/router"
 	_ "polaris-gateway/internal/translators/anthropic" // 通过 init() 自动注册协议转换器
-	_ "polaris-gateway/internal/translators/openai"
 	_ "polaris-gateway/internal/translators/google"
+	_ "polaris-gateway/internal/translators/openai"
 	"polaris-gateway/internal/webapi"
 )
 
@@ -59,6 +59,11 @@ func main() {
 	mux.HandleFunc("/api/admin/oauth/google/start", webapi.AdminOAuthGoogleStartHandler)
 	mux.HandleFunc("/api/admin/oauth/google/callback", webapi.AdminOAuthGoogleCallbackHandler)
 
+	// Client auto-configuration routes
+	mux.HandleFunc("/api/admin/clients/apply", webapi.AdminClientsConfigApplyHandler)
+	mux.HandleFunc("/api/admin/clients/restore", webapi.AdminClientsConfigRestoreHandler)
+	mux.HandleFunc("/api/admin/clients/status", webapi.AdminClientsConfigStatusHandler)
+
 	// Unified Router Catch-All
 	mux.HandleFunc("/v1/", router.ServeHTTP)
 
@@ -69,7 +74,7 @@ func main() {
 			_, _ = w.Write([]byte(`{"status": "Polaris Gateway Active"}`))
 			return
 		}
-		
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = w.Write([]byte(`{"error": "Endpoint not found"}`))
@@ -90,4 +95,3 @@ func main() {
 		os.Exit(1)
 	}
 }
-

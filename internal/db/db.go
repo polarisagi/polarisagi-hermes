@@ -17,13 +17,13 @@ func getDBPath() string {
 		slog.Error("❌ 无法获取用户主目录，回退到当前目录", "error", err)
 		return "./polaris_gateway.db"
 	}
-	
+
 	dir := filepath.Join(home, ".polaris-gateway")
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		slog.Error("❌ 无法创建配置目录，回退到当前目录", "error", err)
 		return "./polaris_gateway.db"
 	}
-	
+
 	return filepath.Join(dir, "polaris_gateway.db")
 }
 
@@ -39,14 +39,14 @@ func DB() *sql.DB {
 // UsageLog 请求用量记录，通过 channel 异步写入数据库
 // 避免同步 I/O 阻塞 API 请求路径，以 1024 缓冲区缓解写入峰值
 type UsageLog struct {
-	Platform    string  // 所属平台标识: "openai"/"google"/"anthropic"（google 对应 Google Agent Platform）
-	NodeName   string   // 节点名称
-	ClientID   string   // 客户端识别标识（从 User-Agent 推导）
-	MethodName string   // 调用方法名，如 "chat/completions"
-	Prompt      int64   // 提示词 token 数
-	Completion  int64   // 生成 token 数
-	Cost        float64 // 本次调用费用（美元）
-	Status      int     // HTTP 状态码
+	Platform   string  // 所属平台标识: "openai"/"google"/"anthropic"（google 对应 Google Agent Platform）
+	NodeName   string  // 节点名称
+	ClientID   string  // 客户端识别标识（从 User-Agent 推导）
+	MethodName string  // 调用方法名，如 "chat/completions"
+	Prompt     int64   // 提示词 token 数
+	Completion int64   // 生成 token 数
+	Cost       float64 // 本次调用费用（美元）
+	Status     int     // HTTP 状态码
 }
 
 var logChan = make(chan UsageLog, 1024) // 异步写入通道，缓冲区 1024 条
@@ -237,11 +237,11 @@ func SaveUsage(platform, name, client, method string, prompt, completion int64, 
 		Platform:   platform,
 		NodeName:   name,
 		ClientID:   client,
-		MethodName:  method,
-		Prompt:      prompt,
-		Completion:  completion,
-		Cost:        cost,
-		Status:      status,
+		MethodName: method,
+		Prompt:     prompt,
+		Completion: completion,
+		Cost:       cost,
+		Status:     status,
 	}
 }
 

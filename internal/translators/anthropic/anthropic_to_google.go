@@ -68,11 +68,11 @@ func buildGEAPURL(node *router.NodeState, publisher, subpath, defaultLocation st
 //	match=claude-*, target=claude-sonnet-4-6  → GEAP Claude 直通（Google 官方 Claude）
 //	match=claude-*, target=gemini-2.5-pro     → Gemini 格式转换
 //	match=*, target=""                        → 按客户端 req.Model 前缀自动分流
-func AnthropicToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) {
+func AnthropicToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) error {
 	var req MessageRequest
 	if err := json.Unmarshal(bodyBytes, &req); err != nil {
 		http.Error(w, `{"type": "error", "error": {"type": "invalid_request_error", "message": "invalid json"}}`, 400)
-		return
+		return nil
 	}
 
 	extractedBillingHeader := ExtractAndStripBillingHeader(&req)
@@ -90,7 +90,7 @@ func AnthropicToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Reque
 
 	if isCountTokensPath(r.URL.Path) {
 		handleCountTokensLocal(w, bodyBytes, traceID)
-		return
+		return nil
 	}
 
 	slog.Debug("🔍 [DEBUG] Anthropic Headers", "trace_id", traceID, "headers", fmt.Sprintf("%+v", r.Header))
@@ -167,9 +167,9 @@ func AnthropicToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Reque
 	}
 
 	if useGEAPClaude {
-		handleGEAPClaude(ctx, w, r, bodyBytes, dest, traceID, finalModel, req.Stream)
+		return handleGEAPClaude(ctx, w, r, bodyBytes, dest, traceID, finalModel, req.Stream)
 	} else {
-		handleGemini(ctx, w, bodyBytes, dest, traceID, finalModel, req, isCompact)
+		return handleGemini(ctx, w, bodyBytes, dest, traceID, finalModel, req, isCompact)
 	}
 }
 
@@ -180,13 +180,13 @@ func AnthropicToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Reque
 
 // handleGEAPClaude 将 Anthropic 请求直通到 GEAP Claude 端点
 // r 用于透传 anthropic-beta 等扩展头（如 interleaved-thinking-2025-05-14、prompt-caching-2024-07-31）
-func handleGEAPClaude(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID, model string, stream bool) {
+func handleGEAPClaude(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID, model string, stream bool) error {
 	const clientType = "Anthropic-GEAP-Claude"
 
 	geapBody, err := rewriteBodyForGEAPClaude(bodyBytes, false, "")
 	if err != nil {
 		http.Error(w, `{"type":"error","error":{"type":"invalid_request_error","message":"failed to rewrite body"}}`, http.StatusBadRequest)
-		return
+		return nil
 	}
 
 	var subpath string
@@ -216,7 +216,7 @@ func handleGEAPClaude(ctx context.Context, w http.ResponseWriter, r *http.Reques
 	q.Set("key", dest.Node.Credentials)
 	proxyReq.URL.RawQuery = q.Encode()
 
-	router.ExecuteAndStream(w, proxyReq, dest, "google", clientType, "anthropic_geap_claude", traceID, "Anthropic(GEAP-Claude)",
+	return router.ExecuteAndStream(w, proxyReq, dest, "google", clientType, "anthropic_geap_claude", traceID, "Anthropic(GEAP-Claude)",
 		func(finalResp *http.Response, startTime time.Time) bool {
 			if finalResp.StatusCode != http.StatusOK {
 				errBody, _ := io.ReadAll(finalResp.Body)
@@ -305,7 +305,7 @@ func nonStreamGEAPClaude(w http.ResponseWriter, upstreamResp *http.Response, des
 // 响应体：Gemini 格式 → Anthropic 格式（streamAnthropicResponse / handleAnthropicNonStreamResponse）
 
 // handleGemini 将 Anthropic 请求转换为 Gemini GenerateContent 格式后转发
-func handleGemini(ctx context.Context, w http.ResponseWriter, bodyBytes []byte, dest *router.MatchedDestination, traceID, model string, req MessageRequest, isCompact bool) {
+func handleGemini(ctx context.Context, w http.ResponseWriter, bodyBytes []byte, dest *router.MatchedDestination, traceID, model string, req MessageRequest, isCompact bool) error {
 	const clientType = "Anthropic-Adapter"
 
 	vReq, _ := mapToVertexRequest(req, model)
@@ -396,7 +396,7 @@ func handleGemini(ctx context.Context, w http.ResponseWriter, bodyBytes []byte, 
 	}
 	proxyReq.URL.RawQuery = q.Encode()
 
-	router.ExecuteAndStream(w, proxyReq, dest, "google", clientType, "anthropic_adapter", traceID, "Anthropic(Gemini)",
+	return router.ExecuteAndStream(w, proxyReq, dest, "google", clientType, "anthropic_adapter", traceID, "Anthropic(Gemini)",
 		func(finalResp *http.Response, startTime time.Time) bool {
 			if finalResp.StatusCode != http.StatusOK {
 				errBody, _ := io.ReadAll(finalResp.Body)

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"polaris-gateway/internal/clients_config"
 	"polaris-gateway/internal/config"
 	"polaris-gateway/internal/db"
 	"polaris-gateway/internal/logger"
@@ -84,13 +85,13 @@ func AdminSettingsHandler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodPost {
 		var req struct {
-			ListenAddr               string `json:"listen_addr"`
-			InitialCooldownSeconds   int    `json:"initial_cooldown_seconds"`
-			MaxCooldownSeconds       int    `json:"max_cooldown_seconds"`
-			FailureThreshold         int    `json:"failure_threshold"`
-			FailureWindowSeconds     int    `json:"failure_window_seconds"`
-			GoogleOAuthClientID      string `json:"google_oauth_client_id"`
-			GoogleOAuthClientSecret  string `json:"google_oauth_client_secret"`
+			ListenAddr              string `json:"listen_addr"`
+			InitialCooldownSeconds  int    `json:"initial_cooldown_seconds"`
+			MaxCooldownSeconds      int    `json:"max_cooldown_seconds"`
+			FailureThreshold        int    `json:"failure_threshold"`
+			FailureWindowSeconds    int    `json:"failure_window_seconds"`
+			GoogleOAuthClientID     string `json:"google_oauth_client_id"`
+			GoogleOAuthClientSecret string `json:"google_oauth_client_secret"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -99,7 +100,7 @@ func AdminSettingsHandler(w http.ResponseWriter, r *http.Request) {
 
 		_, err := db.DB().Exec("UPDATE sys_settings SET listen_addr=?, breaker_initial_cooldown_seconds=?, breaker_max_cooldown_seconds=?, breaker_failure_threshold=?, breaker_failure_window_seconds=?, google_oauth_client_id=?, google_oauth_client_secret=? WHERE id=1",
 			req.ListenAddr, req.InitialCooldownSeconds, req.MaxCooldownSeconds, req.FailureThreshold, req.FailureWindowSeconds, req.GoogleOAuthClientID, req.GoogleOAuthClientSecret)
-		
+
 		if err != nil {
 			slog.Error("更新系统配置失败", "error", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -110,7 +111,7 @@ func AdminSettingsHandler(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"status": "success"}`))
 		return
 	}
-	
+
 	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 }
 
@@ -133,7 +134,7 @@ func AdminUpdateHandler(w http.ResponseWriter, r *http.Request) {
 	if goarch == "x86_64" {
 		goarch = "amd64" // Go reports amd64, but just in case
 	}
-	
+
 	downloadURL := fmt.Sprintf("https://github.com/mrlaoliai/polaris-gateway/releases/download/%s/polaris-gateway-%s-%s", req.TargetVersion, goos, goarch)
 
 	slog.Info("🔄 开始热更新程序...", "url", downloadURL)
@@ -237,11 +238,11 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 			var id, priority, status, minRequestIntervalSec, concurrency int
 			var name, provider, baseURL, credentials, projectID, location, validFrom, validTo string
 			var balance, usedAmount, limitPercent float64
-			
+
 			if err := rows.Scan(&id, &name, &provider, &baseURL, &credentials, &projectID, &location, &priority, &balance, &usedAmount, &limitPercent, &validFrom, &validTo, &status, &minRequestIntervalSec, &concurrency); err != nil {
 				continue
 			}
-			
+
 			maskedCred := credentials
 			if len(credentials) > 15 {
 				maskedCred = credentials[:5] + "......" + credentials[len(credentials)-5:]
@@ -250,22 +251,22 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			nodes = append(nodes, map[string]interface{}{
-				"id":                     id,
-				"name":                   name,
-				"provider":               provider,
-				"base_url":               baseURL,
-				"credentials":            maskedCred,
-				"project_id":             projectID,
-				"location":               location,
-				"priority":               priority,
-				"balance":                balance,
-				"used_amount":            usedAmount,
-				"limit_percent":          limitPercent,
+				"id":                       id,
+				"name":                     name,
+				"provider":                 provider,
+				"base_url":                 baseURL,
+				"credentials":              maskedCred,
+				"project_id":               projectID,
+				"location":                 location,
+				"priority":                 priority,
+				"balance":                  balance,
+				"used_amount":              usedAmount,
+				"limit_percent":            limitPercent,
 				"min_request_interval_sec": minRequestIntervalSec,
-				"concurrency":            concurrency,
-				"valid_from":             validFrom,
-				"valid_to":               validTo,
-				"status":                 status,
+				"concurrency":              concurrency,
+				"valid_from":               validFrom,
+				"valid_to":                 validTo,
+				"status":                   status,
 			})
 		}
 		_ = json.NewEncoder(w).Encode(nodes)
@@ -274,20 +275,20 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodPost {
 		var req struct {
-			Name                 string  `json:"name"`
-			Provider             string  `json:"provider"`
-			BaseURL              string  `json:"base_url"`
-			Credentials          string  `json:"credentials"`
-			ProjectID            string  `json:"project_id"`
-			Location             string  `json:"location"`
-			Priority             int     `json:"priority"`
-			Balance              float64 `json:"balance"`
-			LimitPercent         float64 `json:"limit_percent"`
+			Name                  string  `json:"name"`
+			Provider              string  `json:"provider"`
+			BaseURL               string  `json:"base_url"`
+			Credentials           string  `json:"credentials"`
+			ProjectID             string  `json:"project_id"`
+			Location              string  `json:"location"`
+			Priority              int     `json:"priority"`
+			Balance               float64 `json:"balance"`
+			LimitPercent          float64 `json:"limit_percent"`
 			MinRequestIntervalSec int     `json:"min_request_interval_sec"`
 			Concurrency           int     `json:"concurrency"`
-			ValidFrom            string  `json:"valid_from"`
-			ValidTo              string  `json:"valid_to"`
-			Status               int     `json:"status"`
+			ValidFrom             string  `json:"valid_from"`
+			ValidTo               string  `json:"valid_to"`
+			Status                int     `json:"status"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -318,13 +319,13 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 			INSERT INTO sys_nodes (name, provider, base_url, credentials, project_id, location, priority, balance, used_amount, limit_percent, min_request_interval_sec, concurrency, valid_from, valid_to, status)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0.0, ?, ?, ?, ?, ?, ?)`,
 			req.Name, req.Provider, req.BaseURL, req.Credentials, req.ProjectID, req.Location, req.Priority, req.Balance, req.LimitPercent, req.MinRequestIntervalSec, req.Concurrency, req.ValidFrom, req.ValidTo, req.Status)
-		
+
 		if err != nil {
 			slog.Error("节点写入数据库失败", "error", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		
+
 		_ = config.ReloadFromDB()
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"status": "success"}`))
@@ -333,21 +334,21 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodPut {
 		var req struct {
-			ID                   int     `json:"id"`
-			Name                 string  `json:"name"`
-			Provider             string  `json:"provider"`
-			BaseURL              string  `json:"base_url"`
-			Credentials          string  `json:"credentials"`
-			ProjectID            string  `json:"project_id"`
-			Location             string  `json:"location"`
-			Priority             int     `json:"priority"`
-			Balance              float64 `json:"balance"`
-			LimitPercent         float64 `json:"limit_percent"`
+			ID                    int     `json:"id"`
+			Name                  string  `json:"name"`
+			Provider              string  `json:"provider"`
+			BaseURL               string  `json:"base_url"`
+			Credentials           string  `json:"credentials"`
+			ProjectID             string  `json:"project_id"`
+			Location              string  `json:"location"`
+			Priority              int     `json:"priority"`
+			Balance               float64 `json:"balance"`
+			LimitPercent          float64 `json:"limit_percent"`
 			MinRequestIntervalSec int     `json:"min_request_interval_sec"`
 			Concurrency           int     `json:"concurrency"`
-			ValidFrom            string  `json:"valid_from"`
-			ValidTo              string  `json:"valid_to"`
-			Status               int     `json:"status"`
+			ValidFrom             string  `json:"valid_from"`
+			ValidTo               string  `json:"valid_to"`
+			Status                int     `json:"status"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -383,7 +384,7 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		
+
 		_ = config.ReloadFromDB()
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"status": "success"}`))
@@ -407,14 +408,14 @@ func AdminNodesHandler(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"status": "success"}`))
 		return
 	}
-	
+
 	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 }
 
 // AdminLogsHandler returns the tail of the polaris-gateway.log file
 func AdminLogsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	
+
 	logPath := logger.GetLogPath()
 	f, err := os.Open(logPath)
 	if err != nil {
@@ -460,7 +461,7 @@ func AdminRoutesHandler(w http.ResponseWriter, r *http.Request) {
 		for rows.Next() {
 			var id, status int
 			var sourceProtocol, targetProtocol, modelMappings string
-			
+
 			if err := rows.Scan(&id, &sourceProtocol, &targetProtocol, &modelMappings, &status); err != nil {
 				continue
 			}
@@ -488,10 +489,10 @@ func AdminRoutesHandler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodPost {
 		var req struct {
-			SourceProtocol  string                   `json:"source_protocol"`
-			TargetProtocol  string                   `json:"target_protocol"`
-			ModelMappings   []map[string]string      `json:"model_mappings"`
-			Status          int                      `json:"status"`
+			SourceProtocol string              `json:"source_protocol"`
+			TargetProtocol string              `json:"target_protocol"`
+			ModelMappings  []map[string]string `json:"model_mappings"`
+			Status         int                 `json:"status"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -504,13 +505,13 @@ func AdminRoutesHandler(w http.ResponseWriter, r *http.Request) {
 			INSERT INTO sys_routes (source_protocol, target_protocol, model_mappings, status)
 			VALUES (?, ?, ?, ?)`,
 			req.SourceProtocol, req.TargetProtocol, string(modelMappingsJSON), req.Status)
-		
+
 		if err != nil {
 			slog.Error("路由写入数据库失败", "error", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		
+
 		_ = config.ReloadFromDB()
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"status": "success"}`))
@@ -519,11 +520,11 @@ func AdminRoutesHandler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodPut {
 		var req struct {
-			ID              int                      `json:"id"`
-			SourceProtocol  string                   `json:"source_protocol"`
-			TargetProtocol  string                   `json:"target_protocol"`
-			ModelMappings   []map[string]string      `json:"model_mappings"`
-			Status          int                      `json:"status"`
+			ID             int                 `json:"id"`
+			SourceProtocol string              `json:"source_protocol"`
+			TargetProtocol string              `json:"target_protocol"`
+			ModelMappings  []map[string]string `json:"model_mappings"`
+			Status         int                 `json:"status"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -536,12 +537,12 @@ func AdminRoutesHandler(w http.ResponseWriter, r *http.Request) {
 			UPDATE sys_routes SET source_protocol=?, target_protocol=?, model_mappings=?, status=?
 			WHERE id=?`,
 			req.SourceProtocol, req.TargetProtocol, string(modelMappingsJSON), req.Status, req.ID)
-		
+
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		
+
 		_ = config.ReloadFromDB()
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"status": "success"}`))
@@ -565,6 +566,106 @@ func AdminRoutesHandler(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"status": "success"}`))
 		return
 	}
-	
+
 	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+}
+
+// AdminClientsConfigApplyHandler handles POST /api/admin/clients/apply
+func AdminClientsConfigApplyHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Client string `json:"client"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Client == "" {
+		http.Error(w, "invalid request or missing client", http.StatusBadRequest)
+		return
+	}
+
+	configurator, err := clients_config.GetConfigurator(req.Client)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	gatewayAddr := config.AppConfig.ListenAddr
+	// In some deployments, it might be behind a reverse proxy, but locally it is ListenAddr.
+	if err := configurator.Apply(gatewayAddr); err != nil {
+		slog.Error("Failed to apply client config", "client", req.Client, "error", err)
+		http.Error(w, fmt.Sprintf("failed to apply config: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{"status": "success"}`))
+}
+
+// AdminClientsConfigRestoreHandler handles POST /api/admin/clients/restore
+func AdminClientsConfigRestoreHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Client string `json:"client"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Client == "" {
+		http.Error(w, "invalid request or missing client", http.StatusBadRequest)
+		return
+	}
+
+	configurator, err := clients_config.GetConfigurator(req.Client)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := configurator.Restore(); err != nil {
+		slog.Error("Failed to restore client config", "client", req.Client, "error", err)
+		http.Error(w, fmt.Sprintf("failed to restore config: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{"status": "success"}`))
+}
+
+// AdminClientsConfigStatusHandler handles GET /api/admin/clients/status
+func AdminClientsConfigStatusHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var statuses []clients_config.ClientStatus
+	for _, client := range clients_config.GetAllSupportedClients() {
+		configurator, err := clients_config.GetConfigurator(client)
+		if err != nil {
+			continue
+		}
+
+		isConfigured, hasBackup, err := configurator.Status()
+		errMsg := ""
+		if err != nil {
+			errMsg = err.Error()
+		}
+
+		statuses = append(statuses, clients_config.ClientStatus{
+			Name:         client,
+			IsConfigured: isConfigured,
+			HasBackup:    hasBackup,
+			Error:        errMsg,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"clients": statuses,
+	})
 }

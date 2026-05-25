@@ -59,7 +59,9 @@ func getIncomingProtocol(path string) string {
 // stripProtocolPrefix 移除 URL 路径中的协议前缀段
 // 转换后下游转换器接收的是统一格式的干净路径
 // 例如: /v1/google/models/gemini-1.5-pro:generateContent → /v1/models/gemini-1.5-pro:generateContent
-//      /v1/vertex/models/gemini-1.5-pro:generateContent → /v1/models/gemini-1.5-pro:generateContent（向后兼容）
+//
+//	/v1/vertex/models/gemini-1.5-pro:generateContent → /v1/models/gemini-1.5-pro:generateContent（向后兼容）
+//
 // 支持 /v1/, /v1beta/, /v1alpha/ 等版本前缀
 func stripProtocolPrefix(path string) string {
 	parts := strings.SplitN(path, "/", 4)
@@ -75,7 +77,8 @@ func stripProtocolPrefix(path string) string {
 // extractModelName 从请求体中提取模型名
 // openai/anthropic: 从 body JSON 的 "model" 字段提取
 // google: 先尝试从 body JSON 的 "model" 字段提取，失败返回占位符 "_google_native_"
-//         (后续由调用方从 URL 路径再次提取)
+//
+//	(后续由调用方从 URL 路径再次提取)
 func extractModelName(body []byte, protocol string) string {
 	switch protocol {
 	case "openai", "anthropic":

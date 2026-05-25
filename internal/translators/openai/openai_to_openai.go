@@ -15,7 +15,7 @@ import (
 
 // OpenAIToOpenAI 处理 OpenAI 协议到 OpenAI 兼容后端的直通转发
 // 仅做: 模型名替换 + API Key 注入 + 头透传，不做协议格式转换
-func OpenAIToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) {
+func OpenAIToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) error {
 	clientType := router.IdentifyClient(r)
 	methodName := router.ExtractMethodName(r.URL.Path)
 
@@ -52,7 +52,7 @@ func OpenAIToOpenAI(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	proxyReq.Header.Set("Authorization", "Bearer "+dest.Node.Credentials)
 
 	// OpenAIToOpenAI 本身原本没有输出 Probation 探路日志，这里交给 ExecuteAndStream 统一处理
-	router.ExecuteAndStream(w, proxyReq, dest, "openai", clientType, methodName, traceID, "OAI",
+	return router.ExecuteAndStream(w, proxyReq, dest, "openai", clientType, methodName, traceID, "OAI",
 		func(finalResp *http.Response, startTime time.Time) bool {
 			streamAndSettleUsage(w, finalResp, dest, dest.TargetModel, clientType, methodName, traceID, startTime, bodyBytes)
 			return false

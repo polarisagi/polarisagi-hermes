@@ -25,7 +25,7 @@ import (
 // bodyBytes: 请求体字节
 // dest: 匹配到的目标路由（含节点、目标模型、目标协议）
 // traceID: 请求追踪 ID
-type TranslatorFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *MatchedDestination, traceID string)
+type TranslatorFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *MatchedDestination, traceID string) error
 
 // Translators 全局协议转换器注册表
 // key 格式: "{源协议}_to_{目标协议}", 例如 "anthropic_to_google"
@@ -115,7 +115,7 @@ func ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet && (strings.HasSuffix(r.URL.Path, "/models") || strings.HasSuffix(r.URL.Path, "/models/")) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		
+
 		if sourceProtocol == "anthropic" {
 			_, _ = w.Write([]byte(`{"data": [{"type": "model", "id": "claude-3-7-sonnet-20250219", "display_name": "Claude 3.7 Sonnet", "created_at": "2025-02-19T00:00:00Z"}, {"type": "model", "id": "claude-3-5-sonnet-20241022", "display_name": "Claude 3.5 Sonnet", "created_at": "2024-10-22T00:00:00Z"}, {"type": "model", "id": "claude-3-5-haiku-20241022", "display_name": "Claude 3.5 Haiku", "created_at": "2024-10-22T00:00:00Z"}], "has_more": false}`))
 		} else if sourceProtocol == "google" {
@@ -184,59 +184,88 @@ func ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	// 步骤6：路由分配与节点获取 — 在排队等待中轮询可用路由和节点
-	atomic.AddInt32(&WaitingCount, 1)
-	dest, err := MatchAndAcquireRoute(ctx, sourceProtocol, modelName)
-	atomic.AddInt32(&WaitingCount, -1)
+	const MaxRetries = 3
+	var lastErr error
 
-	// 路由匹配失败：无可用路由或无空闲节点 → 返回 503
-	if err != nil || dest == nil {
-		// ctx 已 cancel（如客户端断开）属正常退出，DEBUG 级别，不污染错误日志
-		if err != nil && ctx.Err() != nil {
-			slog.Debug("🔌 [入口] 客户端断开，排队请求退出", "trace_id", traceID, "model", modelName)
+	for attempt := 1; attempt <= MaxRetries; attempt++ {
+		if ctx.Err() != nil {
+			slog.Debug("🔌 [入口] 客户端断开，终止重试", "trace_id", traceID, "model", modelName)
 			return
 		}
-		slog.Error("路由分发失败或队列超时", "trace_id", traceID, "source_protocol", sourceProtocol, "model", modelName, "error", err)
-		http.Error(w, fmt.Sprintf("Polaris Gateway: No active routes available for model %s (%s) or queue timeout", modelName, sourceProtocol), http.StatusServiceUnavailable)
-		return
-	}
 
-	// 极端窗口保护：客户端可能在 tryAcquire 成功的瞬间断开
-	// 此时节点已被标记 Busy，但实际请求不会发起。立即归还避免节点空转锁定
-	if ctx.Err() != nil {
-		ReleaseNode(dest)
-		slog.Debug("🔌 [入口] 客户端在 acquire 节点的瞬间断开，立即归还", "trace_id", traceID, "node", dest.Node.Name)
-		return
-	}
+		if attempt > 1 {
+			slog.Warn("🔁 [重试机制] 节点不可用，发起自动重试 (跨节点/跨协议)", "trace_id", traceID, "attempt", attempt, "max_retries", MaxRetries, "last_error", lastErr)
+			time.Sleep(100 * time.Millisecond) // 轻微退避防止风暴
+		}
 
-	// 步骤7：节点已分配，增加活跃连接计数
-	atomic.AddInt32(&ActiveCount, 1)
-	defer atomic.AddInt32(&ActiveCount, -1)
-	defer ReleaseNode(dest)
+		atomic.AddInt32(&WaitingCount, 1)
+		dest, err := MatchAndAcquireRoute(ctx, sourceProtocol, modelName)
+		atomic.AddInt32(&WaitingCount, -1)
 
-	// 步骤8：查找协议转换器 (如 "anthropic_to_google")
-	translatorKey := fmt.Sprintf("%s_to_%s", sourceProtocol, dest.TargetProtocol)
-	translator, exists := Translators[translatorKey]
+		// 路由匹配失败：无可用路由或无空闲节点 -> 无法继续重试，直接跳出
+		if err != nil || dest == nil {
+			if err != nil && ctx.Err() != nil {
+				slog.Debug("🔌 [入口] 客户端断开，排队请求退出", "trace_id", traceID, "model", modelName)
+				return
+			}
+			lastErr = err
+			slog.Error("路由分发失败或队列超时，无法继续重试", "trace_id", traceID, "source_protocol", sourceProtocol, "model", modelName, "error", err)
+			break
+		}
 
-	if !exists {
-		slog.Error("未找到对应的协议转换器", "trace_id", traceID, "key", translatorKey)
-		dest.Node.UpdateOnFailure(dest.IsProbationRun, traceID)
-		http.Error(w, fmt.Sprintf("Polaris Gateway: No translator available for %s", translatorKey), http.StatusNotImplemented)
-		return
-	}
+		// 极端窗口保护：客户端可能在 tryAcquire 成功的瞬间断开
+		if ctx.Err() != nil {
+			ReleaseNode(dest)
+			slog.Debug("🔌 [入口] 客户端在 acquire 节点的瞬间断开，立即归还", "trace_id", traceID, "node", dest.Node.Name)
+			return
+		}
 
-	slog.Info("🔗 [路由转发]", "trace_id", traceID, "source_protocol", sourceProtocol, "target_protocol", dest.TargetProtocol, "target_node", dest.Node.Name, "original_model", modelName, "target_model", dest.TargetModel)
+		// 步骤7：节点已分配，增加活跃连接计数
+		atomic.AddInt32(&ActiveCount, 1)
 
-	slog.Debug("🔄 [协议转换] 开始执行翻译器", "trace_id", traceID, "translator_key", translatorKey, "target_node", dest.Node.Name, "is_probation", dest.IsProbationRun)
+		// 步骤8：查找协议转换器
+		translatorKey := fmt.Sprintf("%s_to_%s", sourceProtocol, dest.TargetProtocol)
+		translator, exists := Translators[translatorKey]
 
-	// OpenAI 流式请求自动注入 stream_options.include_usage，确保能提取 token 用量
-	if sourceProtocol == "openai" {
-		if bytes.Contains(bodyBytes, []byte(`"stream": true`)) || bytes.Contains(bodyBytes, []byte(`"stream":true`)) {
-			if !bytes.Contains(bodyBytes, []byte(`"include_usage"`)) {
-				bodyBytes = bytes.Replace(bodyBytes, []byte(`"stream": true`), []byte(`"stream": true, "stream_options": {"include_usage": true}`), 1)
-				bodyBytes = bytes.Replace(bodyBytes, []byte(`"stream":true`), []byte(`"stream":true,"stream_options":{"include_usage":true}`), 1)
+		if !exists {
+			slog.Error("未找到对应的协议转换器", "trace_id", traceID, "key", translatorKey)
+			dest.Node.UpdateOnFailure(dest.IsProbationRun, traceID)
+			atomic.AddInt32(&ActiveCount, -1)
+			ReleaseNode(dest)
+			lastErr = fmt.Errorf("no translator available for %s", translatorKey)
+			break // 配置缺失，重试也没有意义
+		}
+
+		slog.Info("🔗 [路由转发]", "trace_id", traceID, "source_protocol", sourceProtocol, "target_protocol", dest.TargetProtocol, "target_node", dest.Node.Name, "original_model", modelName, "target_model", dest.TargetModel, "attempt", attempt)
+
+		slog.Debug("🔄 [协议转换] 开始执行翻译器", "trace_id", traceID, "translator_key", translatorKey, "target_node", dest.Node.Name, "is_probation", dest.IsProbationRun)
+
+		// OpenAI 流式请求自动注入 stream_options.include_usage
+		if sourceProtocol == "openai" {
+			if bytes.Contains(bodyBytes, []byte(`"stream": true`)) || bytes.Contains(bodyBytes, []byte(`"stream":true`)) {
+				if !bytes.Contains(bodyBytes, []byte(`"include_usage"`)) {
+					bodyBytes = bytes.Replace(bodyBytes, []byte(`"stream": true`), []byte(`"stream": true, "stream_options": {"include_usage": true}`), 1)
+					bodyBytes = bytes.Replace(bodyBytes, []byte(`"stream":true`), []byte(`"stream":true,"stream_options":{"include_usage":true}`), 1)
+				}
 			}
 		}
+
+		err = translator(ctx, w, r, bodyBytes, dest, traceID)
+
+		atomic.AddInt32(&ActiveCount, -1)
+		ReleaseNode(dest) // dest.finalized 会防止二次释放
+
+		if err == nil {
+			// 请求成功，直接退出
+			return
+		}
+
+		// 发生可重试错误（如节点 429, 500, 或网络断开），记录错误并进入下一次重试循环
+		lastErr = err
+		slog.Warn("⚠️ [网关异常] 节点请求失败，准备尝试其他节点或降级协议", "trace_id", traceID, "node", dest.Node.Name, "error", err)
 	}
 
-	translator(ctx, w, r, bodyBytes, dest, traceID)
+	// 所有重试均失败，返回 502 Bad Gateway
+	slog.Error("❌ [网关异常] 路由所有重试均失败", "trace_id", traceID, "last_error", lastErr)
+	http.Error(w, fmt.Sprintf("Polaris Gateway: All retry attempts failed. Last error: %v", lastErr), http.StatusBadGateway)
 }

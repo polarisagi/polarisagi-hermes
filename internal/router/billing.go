@@ -64,36 +64,36 @@ type ModelPrice struct {
 
 var modelPriceDict = map[string]ModelPrice{
 	// ── DeepSeek 系列 ──────────────────────────────────────────
-	"deepseek-chat":     {Prompt1M: 0.14, Candidate1M: 0.28},  // deepseek-v4-flash (non-thinking, alias)
-	"deepseek-reasoner": {Prompt1M: 0.55, Candidate1M: 2.19},  // deepseek-r1
+	"deepseek-chat":     {Prompt1M: 0.14, Candidate1M: 0.28}, // deepseek-v4-flash (non-thinking, alias)
+	"deepseek-reasoner": {Prompt1M: 0.55, Candidate1M: 2.19}, // deepseek-r1
 	"deepseek-v4-flash": {Prompt1M: 0.14, Candidate1M: 0.28},
-	"deepseek-v4-pro":   {Prompt1M: 1.74, Candidate1M: 3.48},  // standard; 75% off til 2026/05/31 → $0.435/0.87
+	"deepseek-v4-pro":   {Prompt1M: 1.74, Candidate1M: 3.48}, // standard; 75% off til 2026/05/31 → $0.435/0.87
 
 	// ── Anthropic Claude 系列 ────────────────────────────
-	"claude-opus-4-7":             {Prompt1M: 5.0, Candidate1M: 25.0},
-	"claude-opus-4-6":             {Prompt1M: 5.0, Candidate1M: 25.0},
-	"claude-sonnet-4-6":           {Prompt1M: 3.0, Candidate1M: 15.0},
-	"claude-sonnet-4-5":           {Prompt1M: 3.0, Candidate1M: 15.0},
-	"claude-haiku-4-5":            {Prompt1M: 1.0, Candidate1M: 5.0},
-	"claude-3-7-sonnet-20250219":  {Prompt1M: 3.0, Candidate1M: 15.0},
-	"claude-3-5-sonnet-20241022":  {Prompt1M: 3.0, Candidate1M: 15.0},
-	"claude-3-5-sonnet-20240620":  {Prompt1M: 3.0, Candidate1M: 15.0},
-	"claude-3-5-haiku-20241022":   {Prompt1M: 0.80, Candidate1M: 4.0},
-	"claude-3-opus-20240229":      {Prompt1M: 15.0, Candidate1M: 75.0},
-	"claude-3-sonnet-20240229":    {Prompt1M: 3.0, Candidate1M: 15.0},
-	"claude-3-haiku-20240307":     {Prompt1M: 0.25, Candidate1M: 1.25},
+	"claude-opus-4-7":            {Prompt1M: 5.0, Candidate1M: 25.0},
+	"claude-opus-4-6":            {Prompt1M: 5.0, Candidate1M: 25.0},
+	"claude-sonnet-4-6":          {Prompt1M: 3.0, Candidate1M: 15.0},
+	"claude-sonnet-4-5":          {Prompt1M: 3.0, Candidate1M: 15.0},
+	"claude-haiku-4-5":           {Prompt1M: 1.0, Candidate1M: 5.0},
+	"claude-3-7-sonnet-20250219": {Prompt1M: 3.0, Candidate1M: 15.0},
+	"claude-3-5-sonnet-20241022": {Prompt1M: 3.0, Candidate1M: 15.0},
+	"claude-3-5-sonnet-20240620": {Prompt1M: 3.0, Candidate1M: 15.0},
+	"claude-3-5-haiku-20241022":  {Prompt1M: 0.80, Candidate1M: 4.0},
+	"claude-3-opus-20240229":     {Prompt1M: 15.0, Candidate1M: 75.0},
+	"claude-3-sonnet-20240229":   {Prompt1M: 3.0, Candidate1M: 15.0},
+	"claude-3-haiku-20240307":    {Prompt1M: 0.25, Candidate1M: 1.25},
 
 	// ── OpenAI GPT 系列 ──────────────────────────────────
-	"gpt-5.5":             {Prompt1M: 5.0, Candidate1M: 30.0},
-	"gpt-5.4":             {Prompt1M: 2.5, Candidate1M: 15.0},
-	"gpt-5.4-mini":        {Prompt1M: 0.75, Candidate1M: 4.5},
-	"gpt-4o":              {Prompt1M: 2.5, Candidate1M: 10.0},
-	"gpt-4o-2024-05-13":   {Prompt1M: 5.0, Candidate1M: 15.0},
-	"gpt-4o-mini":         {Prompt1M: 0.15, Candidate1M: 0.60},
-	"o1":                  {Prompt1M: 15.0, Candidate1M: 60.0},
-	"o1-preview":          {Prompt1M: 15.0, Candidate1M: 60.0},
-	"o1-mini":             {Prompt1M: 1.1, Candidate1M: 4.4},
-	"o3-mini":             {Prompt1M: 1.1, Candidate1M: 4.4},
+	"gpt-5.5":           {Prompt1M: 5.0, Candidate1M: 30.0},
+	"gpt-5.4":           {Prompt1M: 2.5, Candidate1M: 15.0},
+	"gpt-5.4-mini":      {Prompt1M: 0.75, Candidate1M: 4.5},
+	"gpt-4o":            {Prompt1M: 2.5, Candidate1M: 10.0},
+	"gpt-4o-2024-05-13": {Prompt1M: 5.0, Candidate1M: 15.0},
+	"gpt-4o-mini":       {Prompt1M: 0.15, Candidate1M: 0.60},
+	"o1":                {Prompt1M: 15.0, Candidate1M: 60.0},
+	"o1-preview":        {Prompt1M: 15.0, Candidate1M: 60.0},
+	"o1-mini":           {Prompt1M: 1.1, Candidate1M: 4.4},
+	"o3-mini":           {Prompt1M: 1.1, Candidate1M: 4.4},
 
 	// ── Google Gemini — OpenAI 兼容协议 (google/ prefix) ────────
 	"google/gemini-3.1-pro-preview-customtools": {Prompt1M: 1.25, Candidate1M: 3.75},
@@ -213,9 +213,9 @@ func CalculateCost(provider, modelName string, promptTokens, candidateTokens, ca
 		cachedRate = promptRate * 0.10
 	}
 
-	cost := (float64(uncachedTokens)/1000000.0*promptRate) +
-		(float64(cachedTokens)/1000000.0*cachedRate) +
-		(float64(candidateTokens)/1000000.0*candidateRate)
+	cost := (float64(uncachedTokens) / 1000000.0 * promptRate) +
+		(float64(cachedTokens) / 1000000.0 * cachedRate) +
+		(float64(candidateTokens) / 1000000.0 * candidateRate)
 
 	// 多模态补偿逻辑 (系数 1.05)
 	if provider == "google" {

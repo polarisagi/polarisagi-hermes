@@ -16,7 +16,7 @@ import (
 // 官方 REST API 参考：https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest
 // 自动在模型名前添加 "google/" 前缀（满足 GEAP OpenAI 兼容端点的要求）
 // 带有 ProjectID 的节点使用查询参数 ?key= 认证，否则使用 Bearer Token
-func OpenAIToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) {
+func OpenAIToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, dest *router.MatchedDestination, traceID string) error {
 	clientType := router.IdentifyClient(r)
 	methodName := router.ExtractMethodName(r.URL.Path)
 
@@ -56,7 +56,7 @@ func OpenAIToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	if err := dest.Node.InjectGoogleAuth(proxyReq); err != nil {
 		slog.Error("❌ [OpenAIToGoogle] 注入认证信息失败", "node", dest.Node.Name, "err", err)
 		http.Error(w, "Failed to generate ADC Token", http.StatusInternalServerError)
-		return
+		return nil
 	}
 
 	// 对于 OpenAI 兼容协议（特别是 Gemini 的），有时需要以 Bearer 形式传入原始 API Key
@@ -65,7 +65,7 @@ func OpenAIToGoogle(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	}
 
 	// Probation 探路日志由 ExecuteAndStream 统一处理
-	router.ExecuteAndStream(w, proxyReq, dest, "google", clientType, methodName, traceID, "OAI→Google Agent Platform",
+	return router.ExecuteAndStream(w, proxyReq, dest, "google", clientType, methodName, traceID, "OAI→Google Agent Platform",
 		func(finalResp *http.Response, startTime time.Time) bool {
 			streamAndSettleUsage(w, finalResp, dest, dest.TargetModel, clientType, methodName, traceID, startTime, currentBody)
 			return false

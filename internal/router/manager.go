@@ -1,14 +1,15 @@
 // 路由引擎核心：节点池管理 + 路由匹配 + 负载均衡
 //
 // 架构说明：
-//   routesBySource: 按源协议索引的路由表，key 为 "openai"/"google"/"anthropic"
-//   nodesMap:       全局节点池，按节点 ID 索引，每个节点有状态机 (Idle/Busy/Cooldown/Probation/Exhausted)
+//
+//	routesBySource: 按源协议索引的路由表，key 为 "openai"/"google"/"anthropic"
+//	nodesMap:       全局节点池，按节点 ID 索引，每个节点有状态机 (Idle/Busy/Cooldown/Probation/Exhausted)
 //
 // 请求分发流程：
-//   1. MatchAndAcquireRoute() 轮询等待可用路由和节点
-//   2. tryAcquire() 遍历路由 → 匹配模型映射 → 选择 Idle/Probation 的节点
-//   3. 按优先级排序选择最优节点 → 标记为 Busy → 交给协议转换器处理
-//   4. 请求完成后通过 FinalizeNodeState() 结算节点状态，ReleaseNode 为异常兜底
+//  1. MatchAndAcquireRoute() 轮询等待可用路由和节点
+//  2. tryAcquire() 遍历路由 → 匹配模型映射 → 选择 Idle/Probation 的节点
+//  3. 按优先级排序选择最优节点 → 标记为 Busy → 交给协议转换器处理
+//  4. 请求完成后通过 FinalizeNodeState() 结算节点状态，ReleaseNode 为异常兜底
 package router
 
 import (
@@ -28,10 +29,10 @@ import (
 )
 
 var (
-	nodesMap        map[int]*NodeState            // 全局节点池，key=节点ID
-	routesBySource  map[string][]config.RouteDetail // 按源协议索引的路由表
-	poolMutex       sync.RWMutex                  // 节点池读写锁
-	initOnce        sync.Once                     // 确保初始化只执行一次
+	nodesMap       map[int]*NodeState              // 全局节点池，key=节点ID
+	routesBySource map[string][]config.RouteDetail // 按源协议索引的路由表
+	poolMutex      sync.RWMutex                    // 节点池读写锁
+	initOnce       sync.Once                       // 确保初始化只执行一次
 )
 
 // InitRouter 初始化路由引擎：启动冷却管理器后台协程 + 注册热重载回调 + 加载配置
@@ -244,8 +245,8 @@ func tryAcquire(sourceProtocol, reqModel string) (dest *MatchedDestination, reas
 	}
 
 	type Candidate struct {
-		State         *NodeState
-		TargetModel   string
+		State          *NodeState
+		TargetModel    string
 		TargetProtocol string
 	}
 	var validCandidates []Candidate

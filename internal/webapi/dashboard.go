@@ -15,7 +15,7 @@ func DashboardHandler() http.Handler {
 		slog.Error("前端 UI 静态文件系统挂载失败", "error", err)
 		return http.NotFoundHandler()
 	}
-	
+
 	fileServer := http.FileServer(http.FS(uiSub))
 	return http.StripPrefix("/dashboard/", fileServer)
 }

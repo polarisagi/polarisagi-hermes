@@ -4,10 +4,10 @@ package models
 
 // ModelInfo 单个模型的元信息
 type ModelInfo struct {
-	Name        string `json:"name"`        // 模型标识名（用于路由匹配）
+	Name        string `json:"name"`         // 模型标识名（用于路由匹配）
 	DisplayName string `json:"display_name"` // 展示名称
-	Protocol    string `json:"protocol"`    // 所属协议: openai, anthropic, google
-	Category    string `json:"category"`    // 分类: flagship, reasoning, cost-efficient, vision, legacy
+	Protocol    string `json:"protocol"`     // 所属协议: openai, anthropic, google
+	Category    string `json:"category"`     // 分类: flagship, reasoning, cost-efficient, vision, legacy
 }
 
 // GetModelsByProtocol 根据协议返回可用的模型列表
@@ -151,5 +151,4 @@ var modelCatalog = map[string][]ModelInfo{
 		{Name: "google/gemini-1.5-pro", DisplayName: "Gemini 1.5 Pro (OpenAI兼容)", Protocol: "google", Category: "legacy"},
 		{Name: "google/gemini-1.5-flash", DisplayName: "Gemini 1.5 Flash (OpenAI兼容)", Protocol: "google", Category: "legacy"},
 	},
-
 }

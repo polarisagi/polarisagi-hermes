@@ -17,10 +17,11 @@ Latest version is purely **Zero-Config**, driven by an embedded **SQLite** datab
 
 ### ✨ Core Features
 1. **Visual Admin Dashboard & Hot Reload**: Add/Edit/Disable API nodes via Web UI. Changes take effect instantly without restarting the service.
-2. **Multi-Account Pool & Single Concurrency Isolation**: Requests are queued based on physical accounts. Strict single-concurrency isolation prevents Vertex AI bans.
-3. **Dynamic Circuit Breaker**: 4-State Machine (🟢 Idle | 🟡 Busy | 🔴 Cooldown | 🟠 Probation) with customizable failure thresholds and backoff times.
-4. **Billing & Quota Management**: Tracks token usage via SQLite. Supports setting maximum spend limits (`limit_percent`) to auto-disable accounts near exhaustion.
-5. **Zero Dependency**: Single binary, built-in Web UI, embedded DB migrations. Just run it!
+2. **Client Auto-Config**: One-click inject Polaris Gateway proxy and credentials into popular AI clients (Claude Code, OpenCode, Gemini CLI, Hermes, OpenClaw, etc.) via the Admin Dashboard.
+3. **Multi-Account Pool & Single Concurrency Isolation**: Requests are queued based on physical accounts. Strict single-concurrency isolation prevents Vertex AI bans.
+4. **Dynamic Circuit Breaker & Fallback**: 4-State Machine (🟢 Idle | 🟡 Busy | 🔴 Cooldown | 🟠 Probation) with customizable failure thresholds and backoff times. Supports cross-protocol fallback and automatic retries upon upstream failures.
+5. **Billing & Quota Management**: Tracks token usage via SQLite. Supports setting maximum spend limits (`limit_percent`) to auto-disable accounts near exhaustion.
+6. **Zero Dependency**: Single binary, built-in Web UI, embedded DB migrations. Just run it!
 
 ### 🔀 Protocol Route Matrix
 

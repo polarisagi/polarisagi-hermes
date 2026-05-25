@@ -18,24 +18,24 @@ var Version = "dev"
 // AccountDetail 上游节点配置，对应数据库 sys_nodes 表中的一条记录
 // 每个节点代表一个可用的上游 API 账号
 type AccountDetail struct {
-	ID           int     `json:"id"`             // 节点唯一 ID
-	Name         string  `json:"name"`           // 节点名称/账号标识（唯一）
-	Provider     string  `json:"provider"`        // 上游协议类型: anthropic | openai | google
+	ID       int    `json:"id"`       // 节点唯一 ID
+	Name     string `json:"name"`     // 节点名称/账号标识（唯一）
+	Provider string `json:"provider"` // 上游协议类型: anthropic | openai | google
 	// Provider 与路由 target_protocol 必须一致，路由引擎依此选节点
 	// google 节点对应 Google Agent Platform (GEAP)，需要 ProjectID + Location + Credentials(API Key)
-	BaseURL              string  `json:"base_url"`                // 自定义 API 端点（空则使用官方默认地址）
-	Credentials          string  `json:"-"`                       // API Key / JSON 凭证（JSON 序列化时隐藏）
-	ProjectID            string  `json:"project_id"`              // GCP 项目 ID（仅 Google Agent Platform 节点使用）
-	Location             string  `json:"location"`                // GCP 区域（仅 Google Agent Platform 节点使用，默认 global）
-	Priority             int     `json:"priority"`                // 优先级，数字越小越优先被选中
-	Balance              float64 `json:"balance"`                 // 总额度上限（美元）
-	UsedAmount           float64 `json:"used_amount"`             // 已使用金额
-	LimitPercent         float64 `json:"limit_percent"`           // 熔断水位线百分比，超过后自动隔离节点
-	MinRequestIntervalSec   int     `json:"min_request_interval_sec"` // 同节点两次请求最小间隔（秒），0=使用全局默认，防上游 RPM 429
-	Concurrency          int     `json:"concurrency"`             // 最大并发请求数，0=不限制
-	ValidFrom            string  `json:"valid_from"`              // 有效期起始时间
-	ValidTo              string  `json:"valid_to"`                // 有效期截止时间
-	Status               int     `json:"status"`                  // 1=正常, 0=手动禁用, -1=熔断/过期
+	BaseURL               string  `json:"base_url"`                 // 自定义 API 端点（空则使用官方默认地址）
+	Credentials           string  `json:"-"`                        // API Key / JSON 凭证（JSON 序列化时隐藏）
+	ProjectID             string  `json:"project_id"`               // GCP 项目 ID（仅 Google Agent Platform 节点使用）
+	Location              string  `json:"location"`                 // GCP 区域（仅 Google Agent Platform 节点使用，默认 global）
+	Priority              int     `json:"priority"`                 // 优先级，数字越小越优先被选中
+	Balance               float64 `json:"balance"`                  // 总额度上限（美元）
+	UsedAmount            float64 `json:"used_amount"`              // 已使用金额
+	LimitPercent          float64 `json:"limit_percent"`            // 熔断水位线百分比，超过后自动隔离节点
+	MinRequestIntervalSec int     `json:"min_request_interval_sec"` // 同节点两次请求最小间隔（秒），0=使用全局默认，防上游 RPM 429
+	Concurrency           int     `json:"concurrency"`              // 最大并发请求数，0=不限制
+	ValidFrom             string  `json:"valid_from"`               // 有效期起始时间
+	ValidTo               string  `json:"valid_to"`                 // 有效期截止时间
+	Status                int     `json:"status"`                   // 1=正常, 0=手动禁用, -1=熔断/过期
 }
 
 // ModelMapping 模型名映射规则，定义请求模型到目标模型的转换关系
@@ -53,27 +53,27 @@ type ModelMapping struct {
 //	openai    → openai | google
 //	google    → google
 type RouteDetail struct {
-	ID                 int            `json:"id"`                   // 路由唯一 ID
-	SourceProtocol     string         `json:"source_protocol"`     // 源协议: anthropic | openai | google
-	TargetProtocol     string         `json:"target_protocol"`     // 目标协议: anthropic | openai | google（必须与节点 provider 一致）
-	ModelMappings      string         `json:"-"`                   // 模型映射 JSON 原始字符串（数据库存储）
-	ModelMappingsParsed []ModelMapping `json:"model_mappings"`     // 解析后的模型映射列表（API 输出）
-	Status             int            `json:"status"`              // 1=正常, 0=禁用
+	ID                  int            `json:"id"`              // 路由唯一 ID
+	SourceProtocol      string         `json:"source_protocol"` // 源协议: anthropic | openai | google
+	TargetProtocol      string         `json:"target_protocol"` // 目标协议: anthropic | openai | google（必须与节点 provider 一致）
+	ModelMappings       string         `json:"-"`               // 模型映射 JSON 原始字符串（数据库存储）
+	ModelMappingsParsed []ModelMapping `json:"model_mappings"`  // 解析后的模型映射列表（API 输出）
+	Status              int            `json:"status"`          // 1=正常, 0=禁用
 }
 
 // Config 全局配置结构，对应数据库 sys_settings + sys_nodes + sys_routes 三张表
 // 在网关启动时从 SQLite 加载，运行期间可通过管理后台热重载
 type Config struct {
-	ListenAddr             string `json:"listen_addr"`              // HTTP 监听地址，如 "127.0.0.1:28888"
-	DebugMode              bool   `json:"debug_mode"`               // Debug 日志开关
-	GoogleOAuthClientID    string `json:"google_oauth_client_id"`    // Google OAuth 2.0 客户端 ID（可选，留空用 gcloud 内置 ID）
+	ListenAddr              string `json:"listen_addr"`                // HTTP 监听地址，如 "127.0.0.1:28888"
+	DebugMode               bool   `json:"debug_mode"`                 // Debug 日志开关
+	GoogleOAuthClientID     string `json:"google_oauth_client_id"`     // Google OAuth 2.0 客户端 ID（可选，留空用 gcloud 内置 ID）
 	GoogleOAuthClientSecret string `json:"google_oauth_client_secret"` // Google OAuth 2.0 客户端密钥（可选）
-	Breaker    struct {
+	Breaker                 struct {
 		InitialCooldownSeconds int `json:"initial_cooldown_seconds"` // 熔断初始冷却时间（秒），每次失败翻倍
 		MaxCooldownSeconds     int `json:"max_cooldown_seconds"`     // 熔断最大冷却时间上限（秒）
 		FailureThreshold       int `json:"failure_threshold"`        // 连续失败阈值，超过后触发熔断
 		FailureWindowSeconds   int `json:"failure_window_seconds"`   // 失败统计窗口（秒）
-		MinRequestIntervalSec   int `json:"min_request_interval_sec"`  // 同一节点两次请求的最小间隔（秒），防止上游 RPM 429
+		MinRequestIntervalSec  int `json:"min_request_interval_sec"` // 同一节点两次请求的最小间隔（秒），防止上游 RPM 429
 	} `json:"breaker"`
 	Providers map[string][]AccountDetail `json:"providers"` // 按协议类型分组的节点池
 	Routes    []RouteDetail              `json:"routes"`    // 路由表
@@ -130,7 +130,7 @@ func ReloadFromDB() error {
 	if AppConfig.ListenAddr == "" {
 		AppConfig.ListenAddr = "127.0.0.1:28888"
 	}
-	
+
 	if os.Getenv("TEST_MODE") == "true" {
 		AppConfig.ListenAddr = "127.0.0.1:28889"
 	}
