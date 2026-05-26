@@ -8,6 +8,7 @@
 .DS_Store
 /polaris
 /polaris-hermes
+tmp_bin/
 docs/superpowers/
 *.md
 !README.md
