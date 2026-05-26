@@ -2,6 +2,7 @@ export default {
     name: 'settingsComponent',
     setup() {
         return {
+            activeSubTab: 'general',
             async fetchSettings() {
                 if (Alpine.store('global').currentTab !== 'settings') return;
                 try {
@@ -21,7 +22,7 @@ export default {
                 } catch (e) { console.error(e) }
             },
 
-            async saveSettings() {
+            async saveGeneralSettings() {
                 const gStore = Alpine.store('global');
                 if (gStore.settings.breaker.failure_threshold < 0 || 
                     gStore.settings.breaker.failure_window_seconds < 0 || 
@@ -37,7 +38,27 @@ export default {
                         initial_cooldown_seconds: gStore.settings.breaker.initial_cooldown_seconds,
                         max_cooldown_seconds: gStore.settings.breaker.max_cooldown_seconds,
                         failure_threshold: gStore.settings.breaker.failure_threshold,
-                        failure_window_seconds: gStore.settings.breaker.failure_window_seconds,
+                        failure_window_seconds: gStore.settings.breaker.failure_window_seconds
+                    };
+                    const res = await fetch('/api/admin/settings', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (res.ok) {
+                        gStore.showToast(gStore.t('settings_saved'));
+                    } else {
+                        gStore.showToast(gStore.t('save_failed'), 'error');
+                    }
+                } catch(e) {
+                    gStore.showToast(gStore.t('network_error'), 'error');
+                }
+            },
+
+            async saveOAuthSettings() {
+                const gStore = Alpine.store('global');
+                try {
+                    const payload = {
                         google_oauth_client_id: gStore.settings.google_oauth_client_id || '',
                         google_oauth_client_secret: gStore.settings.google_oauth_client_secret || ''
                     };
@@ -76,6 +97,42 @@ export default {
                 return window.location.protocol + '//' + window.location.host + '/api/admin/oauth/google/callback';
             },
 
+            handleOAuthJsonUpload(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                
+                const gStore = Alpine.store('global');
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const json = JSON.parse(e.target.result);
+                        let creds = null;
+                        if (json.web) creds = json.web;
+                        else if (json.installed) creds = json.installed;
+                        else if (json.client_id && json.client_secret) creds = json;
+                        
+                        if (creds && creds.client_id && creds.client_secret) {
+                            gStore.settings.google_oauth_client_id = creds.client_id;
+                            gStore.settings.google_oauth_client_secret = creds.client_secret;
+                            gStore.showToast(gStore.t('oauth_parse_success'), 'success');
+                        } else {
+                            gStore.showToast(gStore.t('oauth_parse_failed'), 'error');
+                        }
+                    } catch (err) {
+                        gStore.showToast(gStore.t('oauth_parse_failed'), 'error');
+                    }
+                    event.target.value = ''; // Reset input
+                };
+                reader.readAsText(file);
+            },
+
+            clearOAuth() {
+                const gStore = Alpine.store('global');
+                gStore.settings.google_oauth_client_id = '';
+                gStore.settings.google_oauth_client_secret = '';
+                this.saveOAuthSettings();
+            },
+
             init() {
                 this.fetchSettings();
                 
@@ -89,9 +146,16 @@ export default {
     },
     template: `
         <div x-show="$store.global.currentTab === 'settings'" class="max-w-3xl mx-auto w-full">
-            <h2 class="text-3xl font-bold mb-6" x-text="$store.global.t('tab_settings_title')"></h2>
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-3xl font-bold" x-text="$store.global.t('tab_settings_title')"></h2>
+            </div>
             
-            <div class="card bg-base-100 shadow-lg p-8 space-y-8">
+            <div class="tabs tabs-boxed bg-base-200 mb-6 p-1 gap-1 inline-flex">
+                <a class="tab tab-lg px-8 transition-all" :class="{ 'tab-active font-bold bg-base-100 shadow': activeSubTab === 'general' }" @click="activeSubTab = 'general'" x-text="$store.global.t('settings_basic')"></a>
+                <a class="tab tab-lg px-8 transition-all" :class="{ 'tab-active font-bold bg-base-100 shadow': activeSubTab === 'oauth' }" @click="activeSubTab = 'oauth'" x-text="$store.global.t('section_google_oauth')"></a>
+            </div>
+
+            <div class="card bg-base-100 shadow-lg p-8 space-y-8" x-show="activeSubTab === 'general'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-4" x-transition:enter-end="opacity-100 translate-y-0">
                 <div>
                     <h3 class="text-xl font-bold mb-4 border-b border-base-300 pb-2" x-text="$store.global.t('settings_basic')"></h3>
                     <div class="space-y-4">
@@ -127,11 +191,13 @@ export default {
 
                 <div class="pt-4 flex justify-end gap-3">
                     <button @click="resetSettings" class="btn" x-text="$store.global.t('btn_reset_default')"></button>
-                    <button @click="saveSettings" class="btn btn-primary shadow-lg shadow-primary/20" x-text="$store.global.t('btn_save_settings')"></button>
+                    <button @click="saveGeneralSettings" class="btn btn-primary shadow-lg shadow-primary/20" x-text="$store.global.t('btn_save_settings')"></button>
                 </div>
-
-                <div class="border-t border-base-300 pt-8 mt-6">
-                    <h3 class="text-xl font-bold mb-4" x-text="$store.global.t('section_google_oauth')"></h3>
+            </div>
+            
+            <div class="card bg-base-100 shadow-lg p-8 space-y-8" x-show="activeSubTab === 'oauth'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-4" x-transition:enter-end="opacity-100 translate-y-0" style="display:none;">
+                <div>
+                    <h3 class="text-xl font-bold mb-4 border-b border-base-300 pb-2" x-text="$store.global.t('section_google_oauth')"></h3>
                     <p class="text-sm text-base-content/60 mb-4 leading-loose">
                         <span x-text="$store.global.t('oauth_hint_1')"></span>
                         <a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="link link-info" x-text="$store.global.t('oauth_hint_link')"></a>
@@ -141,14 +207,28 @@ export default {
                     </p>
                     <div class="space-y-4">
                         <label class="form-control w-full">
-                            <div class="label"><span class="label-text font-medium" x-text="$store.global.t('oauth_client_id')"></span></div>
-                            <input x-model="$store.global.settings.google_oauth_client_id" type="text" :placeholder="$store.global.t('placeholder_gcloud_id')" class="input input-bordered w-full font-mono text-sm">
+                            <div class="label"><span class="label-text font-medium" x-text="$store.global.t('oauth_upload_json')"></span></div>
+                            <input type="file" accept="application/json,.json" @change="handleOAuthJsonUpload" class="file-input file-input-bordered file-input-primary w-full max-w-md">
                         </label>
-                        <label class="form-control w-full">
-                            <div class="label"><span class="label-text font-medium" x-text="$store.global.t('oauth_client_secret')"></span></div>
-                            <input x-model="$store.global.settings.google_oauth_client_secret" type="password" :placeholder="$store.global.t('placeholder_gcloud_secret')" class="input input-bordered w-full font-mono text-sm">
-                        </label>
+                        
+                        <div x-show="$store.global.settings.google_oauth_client_id" class="p-4 bg-success/10 border border-success/20 rounded-lg text-sm max-w-md relative">
+                            <button @click="clearOAuth" class="btn btn-xs btn-circle btn-ghost absolute top-2 right-2 text-base-content/50 hover:text-error" title="Clear">✕</button>
+                            <div class="flex items-center gap-2 text-success mb-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                                </svg>
+                                <span class="font-bold" x-text="$store.global.t('oauth_configured')"></span>
+                            </div>
+                            <div class="font-mono text-base-content/70 break-all">
+                                Client ID: <span x-text="$store.global.settings.google_oauth_client_id"></span>
+                            </div>
+                            <div class="mt-2 text-xs text-base-content/50" x-text="$store.global.t('oauth_client_secret_hidden')"></div>
+                        </div>
                     </div>
+                </div>
+                
+                <div class="pt-4 flex justify-end gap-3">
+                    <button @click="saveOAuthSettings" class="btn btn-primary shadow-lg shadow-primary/20" x-text="$store.global.t('btn_save_settings')"></button>
                 </div>
             </div>
         </div>
