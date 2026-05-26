@@ -54,13 +54,13 @@ iwr -useb https://raw.githubusercontent.com/mrlaoliai/polaris-hermes/main/script
 *The gateway will run as a background service and auto-start on boot.*
 
 ### 🛠️ Getting Started
-By default, the gateway listens on `127.0.0.1:28888`.
+By default, the gateway listens on `127.0.0.1:27777`.
 
-1. **Admin Panel**: Visit [http://127.0.0.1:28888/dashboard](http://127.0.0.1:28888/dashboard) to view stats and manage your API keys.
+1. **Admin Panel**: Visit [http://127.0.0.1:27777/dashboard](http://127.0.0.1:27777/dashboard) to view stats and manage your API keys.
 2. **API Endpoints**: Point your AI clients (Cursor, Aider, Opencode, etc.) to:
-   - OpenAI: `http://127.0.0.1:28888/v1/openai/`
-   - Anthropic: `http://127.0.0.1:28888/v1/anthropic/`
-   - Google Agent Platform (GEAP): `http://127.0.0.1:28888/v1/google/`
+   - OpenAI: `http://127.0.0.1:27777/v1/openai/`
+   - Anthropic: `http://127.0.0.1:27777/v1/anthropic/`
+   - Google Agent Platform (GEAP): `http://127.0.0.1:27777/v1/google/`
    *(API keys can be anything, the gateway will swap them with your physical keys)*
 
 > **Google Agent Platform REST API Reference**: https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest
@@ -69,7 +69,7 @@ By default, the gateway listens on `127.0.0.1:28888`.
 > **Note**: If you are using Claude Code or Codex, it is recommended to use them together with [cc-switch](https://github.com/farion1231/cc-switch).
 
 ### 🧪 Local Testing Mode (For AI Coding Assistants)
-When testing modified gateway code locally, **DO NOT** run it on the default `28888` port to avoid port conflicts with the running production instance. 
+When testing modified gateway code locally, **DO NOT** run it on the default `27777` port to avoid port conflicts with the running production instance. 
 
 Use the test mode which listens on port `28889`:
 ```bash

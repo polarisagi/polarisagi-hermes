@@ -25,6 +25,16 @@ type SysProviderAuthMode struct {
 	RequiredFields json.RawMessage `json:"required_fields"` // JSON array of field names
 }
 
+// AuthType constants defining the system-level authentication methods.
+const (
+	AuthTypeNone     = "none"
+	AuthTypeBearer   = "bearer"
+	AuthTypeHeader   = "header"
+	AuthTypeQuery    = "query"
+	AuthTypeADC      = "adc"
+	AuthTypeAWSSigV4 = "aws_sigv4"
+)
+
 // UserProvider 代表用户实例化的渠道（通道）
 type UserProvider struct {
 	ID                int             `json:"id"`

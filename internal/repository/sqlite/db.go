@@ -8,6 +8,8 @@ import (
 	"sort"
 	"embed"
 
+	"polaris-hermes/internal/config"
+
 	_ "modernc.org/sqlite"
 )
 
@@ -21,19 +23,26 @@ func DB() *sql.DB {
 }
 
 func getDBPath() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		slog.Error("❌ 无法获取用户主目录，回退到当前目录", "error", err)
-		return "./polaris_hermes.db"
+	if config.GlobalConfig.Database.Path != "" {
+		return config.GlobalConfig.Database.Path
 	}
 
-	dir := filepath.Join(home, ".polaris-hermes")
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	workDir := config.GlobalConfig.Server.WorkDir
+	if workDir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			slog.Error("❌ 无法获取用户主目录，回退到当前目录", "error", err)
+			return "./polaris_hermes.db"
+		}
+		workDir = filepath.Join(home, ".polaris-hermes")
+	}
+
+	if err := os.MkdirAll(workDir, 0755); err != nil {
 		slog.Error("❌ 无法创建配置目录，回退到当前目录", "error", err)
 		return "./polaris_hermes.db"
 	}
 
-	return filepath.Join(dir, "polaris_hermes.db")
+	return filepath.Join(workDir, "polaris_hermes.db")
 }
 
 // InitDB 初始化 SQLite 数据库连接并运行 Migrations

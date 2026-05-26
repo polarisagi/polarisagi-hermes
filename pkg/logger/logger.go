@@ -10,25 +10,29 @@ import (
 	"path/filepath"
 	"sync"
 
+	"polaris-hermes/internal/config"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 var logWriter io.Writer // 多路输出 writer（stdout + 文件）
 var mu sync.Mutex       // 保护 debugEnabled 和 slog handler 切换
 
-// GetLogPath 返回日志文件的完整路径：~/.polaris-hermes/polaris-hermes.log
+// GetLogPath 返回日志文件的完整路径
 func GetLogPath() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
+	workDir := config.GlobalConfig.Server.WorkDir
+	if workDir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "./polaris-hermes.log"
+		}
+		workDir = filepath.Join(home, ".polaris-hermes")
+	}
+
+	if err := os.MkdirAll(workDir, 0755); err != nil {
 		return "./polaris-hermes.log"
 	}
 
-	dir := filepath.Join(home, ".polaris-hermes")
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return "./polaris-hermes.log"
-	}
-
-	return filepath.Join(dir, "polaris-hermes.log")
+	return filepath.Join(workDir, "polaris-hermes.log")
 }
 
 // SetDebug 运行时切换 Debug 日志级别，无需重启网关
@@ -59,7 +63,7 @@ func SetDebug(enabled bool) {
 // InitLogger initializes the global slog instance with lumberjack log rotation.
 func InitLogger() {
 	opts := &slog.HandlerOptions{
-		Level: slog.LevelInfo,
+		Level: slog.LevelDebug, // 默认开启 debug 日志
 	}
 
 	logPath := GetLogPath()
@@ -75,7 +79,7 @@ func InitLogger() {
 
 	multiWriter := io.MultiWriter(os.Stdout, lj)
 	logWriter = multiWriter
-	handler := slog.NewTextHandler(multiWriter, opts)
+	handler := slog.NewJSONHandler(multiWriter, opts) // 改用 JSON 格式以方便后续解析
 	logger := slog.New(handler)
 	slog.SetDefault(logger)
 }

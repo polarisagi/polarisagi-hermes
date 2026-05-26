@@ -1,10 +1,10 @@
-import { state, t, formatNum, formatToken, formatShortDate, successRateColor, protocolLabel, protocolClass, protocolBadge, setLang, setTheme, checkForUpdates, triggerUpdate, toggleProMode } from './store.js';
-import Dashboard from './components/Dashboard.js';
-import Channels from './components/Channels.js';
-import Rules from './components/Rules.js';
-import Clients from './components/Clients.js';
-import Settings from './components/Settings.js';
-import Logs from './components/Logs.js';
+import './store.js?v=3';
+import Dashboard from './components/Dashboard.js?v=3';
+import Channels from './components/Channels.js?v=3';
+import Rules from './components/Rules.js?v=3';
+import Clients from './components/Clients.js?v=3';
+import Settings from './components/Settings.js?v=3';
+import Logs from './components/Logs.js?v=3';
 
 const components = [
     Dashboard,

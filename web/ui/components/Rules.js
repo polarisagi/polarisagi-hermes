@@ -39,6 +39,7 @@ export default {
 
             get routeTypeDesc() {
                 const gStore = Alpine.store('global');
+                const descs = {
                     'anthropic_anthropic': gStore.t('desc_anthropic_direct'),
                     'anthropic_google': gStore.t('desc_anthropic_google'),
                     'anthropic_openai': gStore.t('desc_anthropic_openai'),
@@ -53,6 +54,7 @@ export default {
 
             getDescShort(source, target) {
                 const gStore = Alpine.store('global');
+                const descs = {
                     'anthropic_anthropic': gStore.t('route_direct'),
                     'anthropic_google':    'Anthropic→Gemini/GEAP',
                     'anthropic_openai':    'Anthropic→OpenAI',
@@ -81,7 +83,7 @@ export default {
                 try {
                     const res = await fetch('/api/admin/models');
                     const json = await res.json();
-                    Alpine.store('global').allModels = json.models || [];
+                    Alpine.store('global').allModels = Array.isArray(json) ? json : (json ? (json.models || []) : []);
                 } catch (e) { console.error(e) }
             },
 

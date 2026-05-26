@@ -3,8 +3,12 @@ export default {
     setup() {
         return {
             nodeModal: { show: false, isEdit: false },
+            sysProviders: [],
+            sysAuthModes: [],
+            availableAuthModes: [],
+            selectedAuthMode: null,
             nodeForm: {
-                id: 0, provider: 'openai', name: '', credentials: '', project_id: '', location: 'global', base_url: '',
+                id: 0, protocol: 'openai', provider: 'openai', sys_auth_mode_id: '', name: '', credentials: '', project_id: '', location: 'global', base_url: '',
                 priority: 10, limit_percent: 90.0, balance: 0.0, min_request_interval_sec: 0, concurrency: 0,
                 valid_from: '', valid_to: '', status: 1
             },
@@ -36,6 +40,17 @@ export default {
                 } catch (e) { console.error(e) }
             },
 
+            async fetchSysProviders() {
+                try {
+                    const res = await fetch('/api/admin/sys_providers');
+                    const data = await res.json();
+                    if (data && data.providers) {
+                        this.sysProviders = data.providers;
+                        this.sysAuthModes = data.auth_modes;
+                    }
+                } catch (e) { console.error("Failed to fetch sys_providers", e); }
+            },
+
             openNodeModal(node = null) {
                 if (node) {
                     this.nodeForm = {
@@ -48,9 +63,9 @@ export default {
                 } else {
                     const today = this.todayPrefix();
                     this.nodeForm = {
-                        id: 0, provider: 'openai', name: '', credentials: '', project_id: '', location: 'global', base_url: '',
+                        id: 0, protocol: 'openai', provider: 'openai', name: '', credentials: '', project_id: '', location: 'global', base_url: '',
                         priority: 10, limit_percent: 90.0, balance: 0.0, min_request_interval_sec: 0, concurrency: 0,
-                        valid_from: `${today}T00:00:00`, valid_to: \`2099-12-31T23:59:59\`, status: 1
+                        valid_from: `${today}T00:00:00`, valid_to: `2099-12-31T23:59:59`, status: 1
                     };
                     this.nodeModal = { show: true, isEdit: false };
                 }
@@ -82,8 +97,30 @@ export default {
 
                 try {
                     const method = this.nodeModal.isEdit ? 'PUT' : 'POST';
+                    
+                    // Map form fields to backend expectations
+                    let authCreds = {};
+                    if (this.selectedAuthMode) {
+                        if (this.selectedAuthMode.auth_type === 'adc') {
+                            try {
+                                authCreds = JSON.parse(form.credentials);
+                            } catch(e) {
+                                // Just pass as string if it's not valid JSON yet (e.g. they typed something)
+                                // But usually ADC is a JSON object.
+                                authCreds.adc_json = form.credentials;
+                            }
+                        } else if (this.selectedAuthMode.auth_type !== 'none') {
+                            authCreds.api_key = form.credentials;
+                        }
+                        if (this.selectedAuthMode.required_fields.includes('project_id')) authCreds.project_id = form.project_id;
+                        if (this.selectedAuthMode.required_fields.includes('region')) authCreds.region = form.location;
+                    }
+                    
                     const payload = {
                         ...form,
+                        sys_provider_id: form.provider,
+                        sys_auth_mode_id: form.sys_auth_mode_id,
+                        auth_credentials: authCreds,
                         valid_from: this.fromDatetimeLocal(form.valid_from),
                         valid_to: this.fromDatetimeLocal(form.valid_to),
                     };
@@ -109,7 +146,7 @@ export default {
                 const gStore = Alpine.store('global');
                 if(!confirm(gStore.lang === 'zh' ? '确定要删除这个节点吗？此操作不可恢复。' : 'Are you sure you want to delete this node? This action cannot be undone.')) return;
                 try {
-                    const res = await fetch(\`/api/admin/nodes?id=\${id}\`, { method: 'DELETE' });
+                    const res = await fetch(`/api/admin/nodes?id=${id}`, { method: 'DELETE' });
                     if (res.ok) {
                         gStore.showToast(gStore.t('node_deleted'));
                         this.fetchNodes();
@@ -142,15 +179,42 @@ export default {
                 const height = 700;
                 const left = Math.max(0, (window.innerWidth - width) / 2 + window.screenX);
                 const top = Math.max(0, (window.innerHeight - height) / 2 + window.screenY);
-                window.open('/api/admin/oauth/google/start', 'GoogleAuth', \`width=\${width},height=\${height},top=\${top},left=\${left}\`);
+                window.open('/api/admin/oauth/google/start', 'GoogleAuth', `width=${width},height=${height},top=${top},left=${left}`);
             },
 
             init() {
+                this.fetchSysProviders();
                 this.fetchNodes();
+                this.$watch('nodeForm.protocol', (newVal) => {
+                    if (!this.nodeModal.isEdit) {
+                        const available = this.sysProviders.filter(x => x.api_protocol === newVal);
+                        if (available.length > 0 && !available.find(x => x.provider_id === this.nodeForm.provider)) {
+                            this.nodeForm.provider = available[0].provider_id;
+                        }
+                    }
+                });
+                
+                // Function to update computed auth mode state
+                const updateAuthModes = () => {
+                    this.availableAuthModes = this.sysAuthModes.filter(m => m.provider_id === this.nodeForm.provider);
+                    if (this.availableAuthModes.length > 0) {
+                        // If current auth mode is not in available, select the first one
+                        if (!this.availableAuthModes.find(m => m.mode_id === this.nodeForm.sys_auth_mode_id)) {
+                            this.nodeForm.sys_auth_mode_id = this.availableAuthModes[0].mode_id;
+                        }
+                    } else {
+                        this.nodeForm.sys_auth_mode_id = '';
+                        this.selectedAuthMode = null;
+                    }
+                };
+
                 this.$watch('nodeForm.provider', (newVal) => {
-                    if (!this.nodeModal.isEdit && newVal === 'google') {
+                    if (!this.nodeModal.isEdit) {
+                        updateAuthModes();
+                    }
+                    if (!this.nodeModal.isEdit && newVal === 'vertex') {
                         this.nodeForm.concurrency = 1;
-                    } else if (!this.nodeModal.isEdit && newVal !== 'google') {
+                    } else if (!this.nodeModal.isEdit && newVal !== 'vertex') {
                         this.nodeForm.concurrency = 0;
                     }
                     if (!this.nodeModal.isEdit) {
@@ -169,6 +233,17 @@ export default {
                         }
                     }
                 });
+
+                this.$watch('nodeForm.sys_auth_mode_id', (newVal) => {
+                    this.selectedAuthMode = this.availableAuthModes.find(m => m.mode_id === newVal) || null;
+                });
+                
+                // Also trigger initial calculation when modal opens
+                this.$watch('nodeModal.show', (newVal) => {
+                    if (newVal) {
+                        updateAuthModes();
+                    }
+                });
                 
                 this.$watch('$store.global.currentTab', (newTab) => {
                     if (newTab === 'channels') this.fetchNodes();
@@ -176,7 +251,7 @@ export default {
             }
         };
     },
-    template: \`
+    template: `
         <div x-show="$store.global.currentTab === 'channels'" class="max-w-6xl mx-auto w-full">
             <div class="flex justify-between items-center mb-6">
                 <div>
@@ -270,44 +345,67 @@ export default {
                             <div class="grid grid-cols-2 gap-4">
                                 <label class="form-control w-full">
                                     <div class="label"><span class="label-text font-medium"><span x-text="$store.global.t('protocol_type_req')"></span> <span class="text-error">*</span></span></div>
-                                    <select x-model="nodeForm.provider" class="select select-bordered select-sm w-full">
-                                        <option value="openai">OpenAI</option>
-                                        <option value="google">Google Agent Platform</option>
-                                        <option value="anthropic">Anthropic</option>
-                                        <option value="deepseek">DeepSeek</option>
-                                        <option value="siliconflow">SiliconFlow (硅基流动)</option>
-                                        <option value="grok">Grok (xAI)</option>
-                                        <option value="openrouter">OpenRouter</option>
-                                        <option value="ollama">Ollama (本地模型)</option>
+                                    <select x-model="nodeForm.protocol" class="select select-bordered select-sm w-full">
+                                        <option value="openai">OpenAI 协议</option>
+                                        <option value="anthropic">Anthropic 协议</option>
+                                        <option value="google">Google API 协议</option>
+                                        <option value="local">本地部署协议</option>
                                     </select>
                                 </label>
+                                <label class="form-control w-full">
+                                    <div class="label"><span class="label-text font-medium">大模型厂商 <span class="text-error">*</span></span></div>
+                                    <select x-model="nodeForm.provider" class="select select-bordered select-sm w-full">
+                                        <template x-for="p in sysProviders.filter(x => x.api_protocol === nodeForm.protocol)" :key="p.provider_id">
+                                            <option :value="p.provider_id" x-text="p.provider_name"></option>
+                                        </template>
+                                    </select>
+                                </label>
+                            </div>
+                            <div class="grid grid-cols-1 gap-4">
                                 <label class="form-control w-full">
                                     <div class="label"><span class="label-text font-medium"><span x-text="$store.global.t('node_name_req')"></span> <span class="text-error">*</span></span></div>
                                     <input x-model="nodeForm.name" type="text" :placeholder="$store.global.t('placeholder_node_name')" class="input input-bordered input-sm w-full">
                                 </label>
                             </div>
                             
+                            <!-- 动态鉴权方式选择 (仅当厂商有多种鉴权模式时显示) -->
+                            <template x-if="availableAuthModes.length > 1">
+                                <div class="grid grid-cols-1 gap-4 mb-4">
+                                    <label class="form-control w-full">
+                                        <div class="label"><span class="label-text font-medium">鉴权方式 <span class="text-error">*</span></span></div>
+                                        <div class="join">
+                                            <template x-for="m in availableAuthModes" :key="m.mode_id">
+                                                <input class="join-item btn btn-sm w-1/2" type="radio" :aria-label="m.mode_name" x-model="nodeForm.sys_auth_mode_id" :value="m.mode_id" />
+                                            </template>
+                                        </div>
+                                    </label>
+                                </div>
+                            </template>
+                            
                             <label class="form-control w-full">
                                 <div class="label">
                                     <span class="label-text font-medium">
-                                        API Key / ADC JSON <template x-if="nodeForm.provider !== 'ollama'"><span class="text-error">*</span></template>
-                                        <template x-if="nodeForm.provider === 'google'"><span class="text-base-content/50 text-xs ml-1 font-normal" x-text="$store.global.t('hint_adc_paste')"></span></template>
-                                        <template x-if="nodeForm.provider === 'anthropic'"><span class="text-base-content/50 text-xs ml-1 font-normal" x-text="$store.global.t('hint_anthropic_format')"></span></template>
-                                        <template x-if="nodeForm.provider !== 'google' && nodeForm.provider !== 'anthropic' && nodeForm.provider !== 'ollama'"><span class="text-base-content/50 text-xs ml-1 font-normal" x-text="$store.global.t('hint_sk_bearer')"></span></template>
-                                        <template x-if="nodeForm.provider === 'ollama'"><span class="text-base-content/50 text-xs ml-1 font-normal">Ollama 无需填写</span></template>
+                                        <template x-if="selectedAuthMode && selectedAuthMode.auth_type === 'adc'"><span>ADC JSON</span></template>
+                                        <template x-if="!selectedAuthMode || selectedAuthMode.auth_type !== 'adc'"><span>API Key</span></template>
+                                        
+                                        <template x-if="selectedAuthMode && selectedAuthMode.auth_type !== 'none'"><span class="text-error">*</span></template>
+                                        
+                                        <!-- 动态提示词 -->
+                                        <template x-if="selectedAuthMode && selectedAuthMode.auth_type === 'adc'"><span class="text-base-content/50 text-xs ml-1 font-normal" x-text="$store.global.t('hint_adc_paste')"></span></template>
+                                        <template x-if="selectedAuthMode && selectedAuthMode.auth_type === 'header'"><span class="text-base-content/50 text-xs ml-1 font-normal" x-text="'(放在 ' + selectedAuthMode.header_name + ' 请求头中)'"></span></template>
+                                        <template x-if="selectedAuthMode && selectedAuthMode.auth_type === 'bearer'"><span class="text-base-content/50 text-xs ml-1 font-normal" x-text="$store.global.t('hint_sk_bearer')"></span></template>
+                                        <template x-if="selectedAuthMode && selectedAuthMode.auth_type === 'none'"><span class="text-base-content/50 text-xs ml-1 font-normal">通常无需验证，留空即可</span></template>
                                     </span>
-                                    <template x-if="nodeForm.provider === 'google'">
+                                    <template x-if="selectedAuthMode && selectedAuthMode.auth_type === 'adc'">
                                         <button @click="startGoogleAuth" class="btn btn-xs btn-outline btn-info">🔑 <span x-text="$store.global.t('btn_oauth_auto')"></span></button>
                                     </template>
                                 </div>
-                                <template x-if="nodeForm.provider === 'google'">
+                                
+                                <template x-if="selectedAuthMode && selectedAuthMode.auth_type === 'adc'">
                                     <textarea x-model="nodeForm.credentials" rows="3" :placeholder="nodeModal.isEdit ? $store.global.t('placeholder_adc_edit') : $store.global.t('placeholder_adc_new')" class="textarea textarea-bordered font-mono text-xs w-full"></textarea>
                                 </template>
-                                <template x-if="nodeForm.provider !== 'google' && nodeForm.provider !== 'ollama'">
+                                <template x-if="!selectedAuthMode || selectedAuthMode.auth_type !== 'adc'">
                                     <input x-model="nodeForm.credentials" type="password" :placeholder="nodeModal.isEdit ? $store.global.t('placeholder_key_edit') : $store.global.t('placeholder_key_new')" class="input input-bordered input-sm w-full">
-                                </template>
-                                <template x-if="nodeForm.provider === 'ollama'">
-                                    <input x-model="nodeForm.credentials" type="password" placeholder="Ollama 通常无需验证，留空即可" class="input input-bordered input-sm w-full">
                                 </template>
                             </label>
                             
@@ -347,17 +445,21 @@ export default {
                         <!-- 区块 2: 供应商配置 -->
                         <div class="bg-base-200 p-4 rounded-xl space-y-4 border border-base-300">
                             <h4 class="text-xs font-bold text-base-content/50 uppercase tracking-wider" x-text="$store.global.t('section_provider')"></h4>
-                            <template x-if="nodeForm.provider === 'google'">
+                            <template x-if="selectedAuthMode && (selectedAuthMode.required_fields.includes('project_id') || selectedAuthMode.required_fields.includes('region'))">
                                 <div class="grid grid-cols-2 gap-4">
-                                    <label class="form-control w-full">
-                                        <div class="label"><span class="label-text font-medium"><span x-text="$store.global.t('gcp_project_id')"></span> <span class="text-error">*</span></span></div>
-                                        <input x-model="nodeForm.project_id" type="text" placeholder="your-gcp-project-id" class="input input-bordered input-sm w-full">
-                                    </label>
-                                    <label class="form-control w-full">
-                                        <div class="label"><span class="label-text" x-text="$store.global.t('gcp_location')"></span></div>
-                                        <input x-model="nodeForm.location" type="text" placeholder="global" class="input input-bordered input-sm w-full">
-                                        <div class="label"><span class="label-text-alt text-base-content/50" x-text="$store.global.t('hint_location')"></span></div>
-                                    </label>
+                                    <template x-if="selectedAuthMode.required_fields.includes('project_id')">
+                                        <label class="form-control w-full">
+                                            <div class="label"><span class="label-text font-medium"><span x-text="$store.global.t('gcp_project_id')"></span> <span class="text-error">*</span></span></div>
+                                            <input x-model="nodeForm.project_id" type="text" placeholder="your-gcp-project-id" class="input input-bordered input-sm w-full">
+                                        </label>
+                                    </template>
+                                    <template x-if="selectedAuthMode.required_fields.includes('region')">
+                                        <label class="form-control w-full">
+                                            <div class="label"><span class="label-text" x-text="$store.global.t('gcp_location')"></span></div>
+                                            <input x-model="nodeForm.location" type="text" placeholder="global" class="input input-bordered input-sm w-full">
+                                            <div class="label"><span class="label-text-alt text-base-content/50" x-text="$store.global.t('hint_location')"></span></div>
+                                        </label>
+                                    </template>
                                 </div>
                             </template>
                             <template x-if="$store.global.proMode || nodeForm.provider === 'ollama' || nodeForm.provider === 'deepseek' || nodeForm.provider === 'siliconflow' || nodeForm.provider === 'grok' || nodeForm.provider === 'openrouter'">
@@ -405,5 +507,5 @@ export default {
                 </div>
             </dialog>
         </div>
-    \`
+    `
 };

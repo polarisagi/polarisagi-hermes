@@ -12,7 +12,7 @@ export default {
                     const rawText = await res.text();
                     let lines = rawText.split('\\n');
                     if (gStore.logLevelFilter !== 'all') {
-                        const levelStr = \`level=\${gStore.logLevelFilter.toUpperCase()}\`;
+                        const levelStr = `level=${gStore.logLevelFilter.toUpperCase()}`;
                         lines = lines.filter(line => line.includes(levelStr) || line.trim() === '');
                     }
                     gStore.logsText = lines.join('\\n');
@@ -66,7 +66,7 @@ export default {
             }
         };
     },
-    template: \`
+    template: `
         <div x-show="$store.global.currentTab === 'logs'" class="max-w-6xl mx-auto flex flex-col h-full w-full relative">
             <div class="flex justify-between items-center mb-6 shrink-0">
                 <h2 class="text-3xl font-bold" x-text="$store.global.t('tab_logs_title')"></h2>
@@ -109,5 +109,5 @@ export default {
                 </div>
             </div>
         </div>
-    \`
+    `
 };

@@ -7,19 +7,27 @@ import (
 	"os"
 
 	"polaris-hermes/internal/api/webapi"
+	"polaris-hermes/internal/config"
 	"polaris-hermes/internal/proxy"
 	"polaris-hermes/internal/repository/sqlite"
 	"polaris-hermes/internal/service/channel"
 	"polaris-hermes/internal/service/router"
 	"polaris-hermes/internal/translator"
 	"polaris-hermes/internal/translator/anthropic"
+	"polaris-hermes/pkg/logger"
 )
 
 func main() {
-	// 1. 初始化日志
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	// 1. 加载 TOML 配置文件
+	if err := config.LoadConfig("config.toml"); err != nil {
+		slog.Error("Failed to load config", "error", err)
+		os.Exit(1)
+	}
 
-	// 2. 初始化底层 SQLite (包含删库重建 001_init_v2.sql)
+	// 2. 初始化持久化日志 (根据 config.WorkDir 存放日志到对应目录)
+	logger.InitLogger()
+
+	// 3. 初始化底层 SQLite (包含删库重建 001_init_v2.sql)
 	sqlite.InitDB()
 
 	// 3. 初始化 Repository 层
@@ -47,7 +55,7 @@ func main() {
 	proxyServer := proxy.NewServer(pipeline, chanManager, transFactory)
 
 	// 7. 初始化控制面 WebAPI
-	adminHandler := webapi.NewAdminHandler(providerRepo, modelRepo)
+	adminHandler := webapi.NewAdminHandler(providerRepo, modelRepo, routeRepo)
 
 	// 8. 路由挂载
 	mux := http.NewServeMux()
@@ -55,13 +63,23 @@ func main() {
 	// 控制面 (Admin UI 使用)
 	adminHandler.RegisterRoutes(mux)
 	
+	// 静态文件服务 (前端 Dashboard)
+	fs := http.FileServer(http.Dir("web/ui"))
+	mux.Handle("/", fs)
+	
+	// 兼容老的 /dashboard 路径
+	mux.HandleFunc("/dashboard", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/", http.StatusMovedPermanently)
+	})
+
 	// 数据面 (大模型客户端如 Claude Code 使用)
 	// 拦截 /v1/chat/completions 等 OpenAI 标准协议前缀
 	mux.Handle("/v1/", proxyServer)
 
 	// 9. 启动服务
-	slog.Info("🚀 Polaris Hermes v2 (2026 AI Standard) is starting on :8080...")
-	if err := http.ListenAndServe(":8080", mux); err != nil {
+	listenAddr := config.GlobalConfig.Server.ListenAddr
+	slog.Info("🚀 Polaris Hermes v2 (2026 AI Standard) is starting on " + listenAddr + "...")
+	if err := http.ListenAndServe(listenAddr, mux); err != nil {
 		slog.Error("Server crashed", "error", err)
 	}
 }

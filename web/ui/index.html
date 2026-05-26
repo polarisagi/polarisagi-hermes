@@ -3,18 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <title>Polaris Admin Panel</title>
-    <!-- DaisyUI + Tailwind CDN -->
+    <!-- DaisyUI + Tailwind -->
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.10.1/dist/full.min.css" rel="stylesheet" type="text/css" />
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="/tailwind.css" rel="stylesheet">
     
-    <!-- Alpine JS -->
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Alpine JS (Moved to end of body to ensure app.js module runs first) -->
     
     <!-- i18n messages -->
-    <script src="i18n.js"></script>
+    <script src="i18n.js?v=3"></script>
     
     <!-- Alpine Store -->
-    <script src="store.js"></script>
+    <script src="store.js?v=3"></script>
     
     <!-- Flatpickr -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
@@ -118,7 +117,7 @@
                 <ul class="menu w-full px-4 mt-2 gap-1 flex-1">
                     <li><a @click="$store.global.currentTab = 'dashboard'" :class="{'active': $store.global.currentTab === 'dashboard'}" x-text="$store.global.t('tab_dashboard')"></a></li>
                     <li><a @click="$store.global.currentTab = 'channels'" :class="{'active': $store.global.currentTab === 'channels'}" x-text="$store.global.t('tab_nodes')"></a></li>
-                    <li x-show="$store.global.proMode"><a @click="$store.global.currentTab = 'rules'" :class="{'active': $store.global.currentTab === 'rules'}" x-text="$store.global.t('tab_routes')"></a></li>
+                    <li><a @click="$store.global.currentTab = 'rules'" :class="{'active': $store.global.currentTab === 'rules'}" x-text="$store.global.t('tab_routes')"></a></li>
                     <li><a @click="$store.global.currentTab = 'clients'" :class="{'active': $store.global.currentTab === 'clients'}" x-text="$store.global.t('tab_clients')"></a></li>
                     <li><a @click="$store.global.currentTab = 'settings'" :class="{'active': $store.global.currentTab === 'settings'}" x-text="$store.global.t('tab_settings')"></a></li>
                     <li><a @click="$store.global.currentTab = 'logs'" :class="{'active': $store.global.currentTab === 'logs'}" x-text="$store.global.t('tab_logs')"></a></li>
@@ -128,6 +127,9 @@
     </div>
     
     <!-- Alpine JS App Script -->
-    <script type="module" src="app.js"></script>
+    <script type="module" src="app.js?v=3"></script>
+
+    <!-- Alpine JS Core -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </body>
 </html>

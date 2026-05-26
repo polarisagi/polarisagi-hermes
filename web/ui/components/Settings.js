@@ -6,7 +6,18 @@ export default {
                 if (Alpine.store('global').currentTab !== 'settings') return;
                 try {
                     const res = await fetch('/api/admin/settings');
-                    Alpine.store('global').settings = await res.json();
+                    const json = await res.json();
+                    if (json && Object.keys(json).length > 0) {
+                        const current = Alpine.store('global').settings;
+                        Alpine.store('global').settings = {
+                            ...current,
+                            ...json,
+                            breaker: {
+                                ...current.breaker,
+                                ...(json.breaker || {})
+                            }
+                        };
+                    }
                 } catch (e) { console.error(e) }
             },
 
@@ -49,7 +60,7 @@ export default {
                 const gStore = Alpine.store('global');
                 if(!confirm(gStore.lang === 'zh' ? '确定要恢复系统默认设置吗？' : 'Are you sure you want to reset to default settings?')) return;
                 gStore.settings = {
-                    listen_addr: '127.0.0.1:28888',
+                    listen_addr: '127.0.0.1:27777',
                     breaker: {
                         initial_cooldown_seconds: 60,
                         max_cooldown_seconds: 3600,
@@ -76,7 +87,7 @@ export default {
             }
         };
     },
-    template: \`
+    template: `
         <div x-show="$store.global.currentTab === 'settings'" class="max-w-3xl mx-auto w-full">
             <h2 class="text-3xl font-bold mb-6" x-text="$store.global.t('tab_settings_title')"></h2>
             
@@ -141,5 +152,5 @@ export default {
                 </div>
             </div>
         </div>
-    \`
+    `
 };

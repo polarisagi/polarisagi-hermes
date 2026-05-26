@@ -23,7 +23,7 @@ export default {
 
             async applyConfig(clientName) {
                 const gStore = Alpine.store('global');
-                if(!confirm(gStore.lang === 'zh' ? \`确定要为 \${clientName} 应用代理配置吗？这将会备份并修改原有的配置。\` : \`Are you sure you want to apply proxy config for \${clientName}? This will backup and modify the original config.\`)) return;
+                if(!confirm(gStore.lang === 'zh' ? `确定要为 ${clientName} 应用代理配置吗？这将会备份并修改原有的配置。` : `Are you sure you want to apply proxy config for ${clientName}? This will backup and modify the original config.`)) return;
                 try {
                     const res = await fetch('/api/admin/clients/apply', {
                         method: 'POST',
@@ -44,7 +44,7 @@ export default {
 
             async restoreConfig(clientName) {
                 const gStore = Alpine.store('global');
-                if(!confirm(gStore.lang === 'zh' ? \`确定要恢复 \${clientName} 的代理配置吗？\` : \`Are you sure you want to restore config for \${clientName}?\`)) return;
+                if(!confirm(gStore.lang === 'zh' ? `确定要恢复 ${clientName} 的代理配置吗？` : `Are you sure you want to restore config for ${clientName}?`)) return;
                 try {
                     const res = await fetch('/api/admin/clients/restore', {
                         method: 'POST',
@@ -74,7 +74,7 @@ export default {
             }
         };
     },
-    template: \`
+    template: `
         <div x-show="$store.global.currentTab === 'clients'" class="max-w-5xl mx-auto w-full">
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-3xl font-bold" x-text="$store.global.t('tab_clients_title')"></h2>
@@ -151,5 +151,5 @@ export default {
                 </div>
             </div>
         </div>
-    \`
+    `
 };

@@ -116,5 +116,5 @@ EOF
     echo "✅ macOS 服务已配置。将随当前用户登录自动启动并在后台运行。"
 fi
 
-echo "🎉 安装完成！请打开浏览器访问 http://127.0.0.1:28888/dashboard 进入控制台。"
+echo "🎉 安装完成！请打开浏览器访问 http://127.0.0.1:27777/dashboard 进入控制台。"
 echo "💡 提示：如果需要在命令行直接使用 polaris-hermes，请将 ${INSTALL_DIR} 加入环境变量。"

@@ -11,7 +11,7 @@ document.addEventListener('alpine:init', () => {
         routes: [],
         allModels: [],
         settings: {
-            listen_addr: '127.0.0.1:28888',
+            listen_addr: '127.0.0.1:27777',
             breaker: {
                 initial_cooldown_seconds: 60,
                 max_cooldown_seconds: 3600,
@@ -88,6 +88,9 @@ document.addEventListener('alpine:init', () => {
         },
 
         checkForUpdates(currentVer) {
+            // FIXME: 暂时屏蔽版本检查，因为 GitHub 仓库目前还没有 Releases，会导致控制台报 404 红字。
+            // 待后续发布了 v2.x.x 版本后，可再取消这里的注释。
+            /*
             fetch('https://api.github.com/repos/mrlaoliai/polaris-hermes/releases/latest')
                 .then(r => r.json())
                 .then(d => {
@@ -95,7 +98,8 @@ document.addEventListener('alpine:init', () => {
                         this.latestVersion = d.tag_name;
                         this.updateAvailable = true;
                     }
-                }).catch(console.error);
+                }).catch(() => {});
+            */
         },
 
         triggerUpdate() {

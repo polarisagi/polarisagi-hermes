@@ -277,7 +277,7 @@ window.messages = {
         
         // Settings
         listen_addr: "监听地址",
-        listen_addr_desc: "重启生效，默认 127.0.0.1:28888",
+        listen_addr_desc: "重启生效，默认 127.0.0.1:27777",
         google_oauth: "Google OAuth 全局配置 (可选)",
         google_oauth_desc: "如果不填，则使用各个渠道独立配置的 ADC JSON。",
         client_id: "Client ID",
@@ -477,7 +477,7 @@ window.messages = {
         
         // Settings
         listen_addr: "Listen Address",
-        listen_addr_desc: "Requires restart. Default 127.0.0.1:28888",
+        listen_addr_desc: "Requires restart. Default 127.0.0.1:27777",
         google_oauth: "Global Google OAuth (Optional)",
         google_oauth_desc: "If empty, node-specific ADC JSON will be used.",
         client_id: "Client ID",

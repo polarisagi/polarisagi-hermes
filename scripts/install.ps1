@@ -54,4 +54,4 @@ Write-Host "▶️ 正在启动服务..."
 Start-ScheduledTask -TaskName $TaskName
 
 Write-Host "🎉 安装完成！Polaris Hermes 已在后台服务运行。" -ForegroundColor Green
-Write-Host "请打开浏览器访问: http://127.0.0.1:28888/dashboard 进入控制台" -ForegroundColor Yellow
+Write-Host "请打开浏览器访问: http://127.0.0.1:27777/dashboard 进入控制台" -ForegroundColor Yellow

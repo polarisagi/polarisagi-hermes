@@ -1,0 +1,11 @@
+[server]
+# 监听的本地地址和端口
+listen_addr = "127.0.0.1:27777"
+
+# 默认工作空间目录，如果留空将默认使用 ~/.polaris-hermes/
+work_dir = "~/.polaris-hermes/"
+
+[database]
+# 可选：配置底层 SQLite 数据库的位置。
+# 如果留空，将默认在 work_dir 下生成 polaris_hermes.db
+path = "~/.polaris-hermes/polaris_hermes.db"

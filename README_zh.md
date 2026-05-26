@@ -54,13 +54,13 @@ iwr -useb https://raw.githubusercontent.com/mrlaoliai/polaris-hermes/main/script
 *安装完成后，Polaris Hermes 将作为后台服务自动运行，并开机自启。*
 
 ### 🛠️ 开始使用
-网关启动后，默认监听 `127.0.0.1:28888` 端口。
+网关启动后，默认监听 `127.0.0.1:27777` 端口。
 
-1. **登录 Admin Panel**: 浏览器访问 [http://127.0.0.1:28888/dashboard](http://127.0.0.1:28888/dashboard) 以管理节点和查看账单。
+1. **登录 Admin Panel**: 浏览器访问 [http://127.0.0.1:27777/dashboard](http://127.0.0.1:27777/dashboard) 以管理节点和查看账单。
 2. **在业务端调用**: 将客户端的 API URL 指向以下地址（API Key 填任意值即可）：
-   - OpenAI 协议: `http://127.0.0.1:28888/v1/openai/`
-   - Anthropic 协议: `http://127.0.0.1:28888/v1/anthropic/`
-   - Google Agent Platform (GEAP) 协议: `http://127.0.0.1:28888/v1/google/`
+   - OpenAI 协议: `http://127.0.0.1:27777/v1/openai/`
+   - Anthropic 协议: `http://127.0.0.1:27777/v1/anthropic/`
+   - Google Agent Platform (GEAP) 协议: `http://127.0.0.1:27777/v1/google/`
 
 > **Google Agent Platform 官方 REST API 文档**: https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest
 > **注意**: 旧路径 `/v1/vertex/` 仍然支持，向后兼容现有客户端配置。
@@ -68,7 +68,7 @@ iwr -useb https://raw.githubusercontent.com/mrlaoliai/polaris-hermes/main/script
 > **提示**: 如果您在使用 Claude Code 或 Codex，建议配合 [cc-switch](https://github.com/farion1231/cc-switch) 使用。
 
 ### 🧪 本地测试模式 (给 AI 编程客户端的说明)
-在本地测试网关修改后的代码时，**严禁**直接运行在默认的 `28888` 端口，以免与正在使用的生产网关发生冲突。
+在本地测试网关修改后的代码时，**严禁**直接运行在默认的 `27777` 端口，以免与正在使用的生产网关发生冲突。
 
 请使用测试模式（将监听在 `28889` 端口）：
 ```bash

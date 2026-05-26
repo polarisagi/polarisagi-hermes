@@ -6,7 +6,10 @@ LDFLAGS=-ldflags="-s -w -X 'polaris-hermes/internal/config.Version=${VERSION}' -
 
 all: clean build
 
-build:
+build-ui:
+	cd web && npm install && npm run build
+
+build: build-ui
 	go build ${LDFLAGS} -o bin/${BINARY_NAME} ./cmd/hermes
 	go build ${LDFLAGS} -o bin/adc-gen ./cmd/adc-gen
 
