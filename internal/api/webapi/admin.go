@@ -275,7 +275,7 @@ func (h *AdminHandler) StartGoogleOAuth(w http.ResponseWriter, r *http.Request) 
 
 	if clientID == "" || clientSecret == "" {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write([]byte(`<script>alert("请先在系统设置中配置 Google OAuth Client ID 和 Secret。"); window.close();</script>`))
+		_, _ = w.Write([]byte(`<script>alert("请先在系统设置中配置 Google OAuth Client ID 和 Secret。"); window.close();</script>`))
 		return
 	}
 
@@ -316,7 +316,7 @@ func (h *AdminHandler) CallbackGoogleOAuth(w http.ResponseWriter, r *http.Reques
 	})
 	if err != nil || resp.StatusCode != 200 {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write([]byte(`<script>alert("获取 Token 失败。"); window.close();</script>`))
+		_, _ = w.Write([]byte(`<script>alert("获取 Token 失败。"); window.close();</script>`))
 		return
 	}
 	defer resp.Body.Close()
@@ -330,7 +330,7 @@ func (h *AdminHandler) CallbackGoogleOAuth(w http.ResponseWriter, r *http.Reques
 	refreshToken, ok := tokenRes["refresh_token"].(string)
 	if !ok {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write([]byte(`<script>alert("未获取到 refresh_token，请尝试重新登录。"); window.close();</script>`))
+		_, _ = w.Write([]byte(`<script>alert("未获取到 refresh_token，请尝试重新登录。"); window.close();</script>`))
 		return
 	}
 
@@ -348,7 +348,7 @@ func (h *AdminHandler) CallbackGoogleOAuth(w http.ResponseWriter, r *http.Reques
 	</script></body></html>`, strconv.Quote(string(adcBytes)))
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write([]byte(html))
+	_, _ = w.Write([]byte(html))
 }
 
 // ---------------------------------------------------------
