@@ -51,7 +51,10 @@ type UserProvider struct {
 	RetryTimes        int             `json:"retry_times"`
 	Status            int             `json:"status"` // 1: 健康, 0: 禁用, -1: 熔断
 	Balance           float64         `json:"balance"`
+	LimitPercent      float64         `json:"limit_percent"`
 	UsedAmount        float64         `json:"used_amount"`
+	ValidFrom         string          `json:"valid_from"`
+	ValidTo           string          `json:"valid_to"`
 	CreatedAt         time.Time       `json:"created_at"`
 	
 	// 以下字段用于内存态状态控制，非数据库字段

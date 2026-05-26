@@ -59,11 +59,15 @@ CREATE TABLE IF NOT EXISTS user_providers (
     priority INTEGER DEFAULT 10,
     weight INTEGER DEFAULT 100,
     concurrency_limit INTEGER DEFAULT 0,
+    min_interval_sec INTEGER DEFAULT 0,
     timeout_sec INTEGER DEFAULT 120,
     retry_times INTEGER DEFAULT 3,
     status INTEGER DEFAULT 1,
     balance REAL DEFAULT 0,
+    limit_percent REAL DEFAULT 90.0,
     used_amount REAL DEFAULT 0,
+    valid_from DATETIME,
+    valid_to DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(sys_provider_id) REFERENCES sys_providers(provider_id),
     FOREIGN KEY(sys_auth_mode_id) REFERENCES sys_provider_auth_modes(mode_id)
@@ -116,6 +120,15 @@ CREATE TABLE IF NOT EXISTS sys_settings (
     setting_key VARCHAR PRIMARY KEY,
     setting_value TEXT NOT NULL
 );
+
+-- 10. client_configs (Client Auto-Config Backup State)
+CREATE TABLE IF NOT EXISTS client_configs (
+    client_name VARCHAR PRIMARY KEY,
+    is_configured BOOLEAN DEFAULT 0,
+    backup_content TEXT,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 
 
 -- ==========================================

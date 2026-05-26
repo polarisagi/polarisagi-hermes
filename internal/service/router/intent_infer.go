@@ -2,7 +2,7 @@ package router
 
 import (
 	"context"
-	"strings"
+	"regexp"
 
 	"polaris-hermes/internal/domain"
 	"polaris-hermes/internal/repository/sqlite"
@@ -21,24 +21,22 @@ func NewIntentInferer(intentRepo *sqlite.IntentRepo) *IntentInferer {
 
 // InferUnknownModel 对未知模型进行自动学习与分类
 func (i *IntentInferer) InferUnknownModel(ctx context.Context, modelID string) string {
-	lowerID := strings.ToLower(modelID)
-
 	// 1. 正则/关键字快速推断 (优先级高，成本低)
-	tier := i.inferByKeywords(lowerID)
+	tier := i.inferByKeywords(modelID)
 
-	// 2. 如果关键字推断失败，触发 LLM 智能推断 (TODO: 依赖代理层提供一个内部调用接口)
+	// 2. 如果关键字推断失败，触发 LLM 智能推断
 	if tier == "" {
 		tier = i.inferByLLM(ctx, modelID)
 	}
 
-	// 3. 兜底策略：如果连 LLM 都失败了，默认归类为 fast 极速模型，避免网关阻塞
+	// 3. 兜底策略：如果连 LLM 都失败了，默认归类为 flagship 旗舰模型，避免网关阻塞
 	if tier == "" {
-		tier = "fast"
+		tier = "flagship"
 	}
 
 	// 4. 将推断结果持久化，形成闭环进化
 	source := "auto_regex"
-	if tier == i.inferByLLM(ctx, modelID) && tier != "" { // 伪逻辑，实际由具体方法返回源
+	if tier == i.inferByLLM(ctx, modelID) && tier != "" {
 		source = "auto_llm"
 	}
 	
@@ -54,23 +52,28 @@ func (i *IntentInferer) InferUnknownModel(ctx context.Context, modelID string) s
 // inferByKeywords 通过内置的高命中率特征字推断模型意图
 func (i *IntentInferer) inferByKeywords(modelID string) string {
 	// 推理型模型 (Highest Priority for specific keywords)
-	if strings.Contains(modelID, "o1") || strings.Contains(modelID, "o3") || 
-	   strings.Contains(modelID, "reason") || strings.Contains(modelID, "r1") {
+	if match, _ := regexp.MatchString(`(?i)(\b(o1|o3|r1)\b|reason)`, modelID); match {
 		return "reasoning"
 	}
 
+	// 向量模型
+	if match, _ := regexp.MatchString(`(?i)(embed)`, modelID); match {
+		return "embedding"
+	}
+
+	// 超大杯模型
+	if match, _ := regexp.MatchString(`(?i)(opus|ultra)`, modelID); match {
+		return "ultra"
+	}
+
 	// 极速/轻量化模型
-	if strings.Contains(modelID, "mini") || strings.Contains(modelID, "flash") || 
-	   strings.Contains(modelID, "haiku") || strings.Contains(modelID, "8b") || 
-	   strings.Contains(modelID, "turbo") || strings.Contains(modelID, "lite") {
-		return "fast"
+	if match, _ := regexp.MatchString(`(?i)(\bmini\b|haiku|flash|lite|nano|turbo)`, modelID); match {
+		return "light"
 	}
 
 	// 旗舰/重度模型
-	if strings.Contains(modelID, "pro") || strings.Contains(modelID, "opus") || 
-	   strings.Contains(modelID, "max") || strings.Contains(modelID, "large") || 
-	   strings.Contains(modelID, "70b") || strings.Contains(modelID, "gpt-4") {
-		return "smart"
+	if match, _ := regexp.MatchString(`(?i)(sonnet|pro|gpt-4|gpt-3\.5|max|large|70b)`, modelID); match {
+		return "flagship"
 	}
 
 	return "" // 无法从字面推断
@@ -79,7 +82,6 @@ func (i *IntentInferer) inferByKeywords(modelID string) string {
 // inferByLLM 调用内部大模型接口，询问这个未知模型属于什么阵营
 func (i *IntentInferer) inferByLLM(ctx context.Context, modelID string) string {
 	// TODO: 等待 Proxy 层的内部调用接口就绪
-	// 预期逻辑：找到当前系统中一个活着的、最便宜的 fast 模型
-	// 发送 Prompt: "模型名叫做 {modelID} 的模型，是旗舰大模型、快速小模型还是具备复杂思考过程的推理大模型？请只回答 'smart', 'fast' 或 'reasoning' 中的一个词。"
 	return ""
 }
+

@@ -18,8 +18,8 @@ func NewProviderRepo() *ProviderRepo {
 func (r *ProviderRepo) GetUserProviders(ctx context.Context) ([]domain.UserProvider, error) {
 	query := `
 		SELECT id, name, sys_provider_id, sys_auth_mode_id, base_url, auth_credentials, 
-		       priority, weight, concurrency_limit, timeout_sec, retry_times, status, 
-		       balance, used_amount, created_at
+		       priority, weight, concurrency_limit, min_interval_sec, timeout_sec, retry_times, status, 
+		       balance, limit_percent, used_amount, IFNULL(valid_from, ''), IFNULL(valid_to, ''), created_at
 		FROM user_providers
 	`
 	rows, err := DB().QueryContext(ctx, query)
@@ -34,8 +34,8 @@ func (r *ProviderRepo) GetUserProviders(ctx context.Context) ([]domain.UserProvi
 		var creds []byte
 		err := rows.Scan(
 			&p.ID, &p.Name, &p.SysProviderID, &p.SysAuthModeID, &p.BaseURL, &creds,
-			&p.Priority, &p.Weight, &p.ConcurrencyLimit, &p.TimeoutSec, &p.RetryTimes, &p.Status,
-			&p.Balance, &p.UsedAmount, &p.CreatedAt,
+			&p.Priority, &p.Weight, &p.ConcurrencyLimit, &p.MinIntervalSec, &p.TimeoutSec, &p.RetryTimes, &p.Status,
+			&p.Balance, &p.LimitPercent, &p.UsedAmount, &p.ValidFrom, &p.ValidTo, &p.CreatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -129,8 +129,8 @@ func (r *ProviderRepo) CreateUserProvider(ctx context.Context, p *domain.UserPro
 	query := `
 		INSERT INTO user_providers (
 			name, sys_provider_id, sys_auth_mode_id, base_url, auth_credentials,
-			priority, weight, concurrency_limit, timeout_sec, retry_times, status, balance, used_amount
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			priority, weight, concurrency_limit, min_interval_sec, timeout_sec, retry_times, status, balance, limit_percent, used_amount, valid_from, valid_to
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	creds, _ := json.Marshal(p.AuthCredentials)
 	if len(creds) == 0 || string(creds) == "null" {
@@ -139,7 +139,7 @@ func (r *ProviderRepo) CreateUserProvider(ctx context.Context, p *domain.UserPro
 
 	res, err := DB().ExecContext(ctx, query,
 		p.Name, p.SysProviderID, p.SysAuthModeID, p.BaseURL, creds,
-		p.Priority, p.Weight, p.ConcurrencyLimit, p.TimeoutSec, p.RetryTimes, p.Status, p.Balance, p.UsedAmount,
+		p.Priority, p.Weight, p.ConcurrencyLimit, p.MinIntervalSec, p.TimeoutSec, p.RetryTimes, p.Status, p.Balance, p.LimitPercent, p.UsedAmount, p.ValidFrom, p.ValidTo,
 	)
 	if err != nil {
 		return err
@@ -156,7 +156,7 @@ func (r *ProviderRepo) UpdateUserProvider(ctx context.Context, p *domain.UserPro
 	query := `
 		UPDATE user_providers SET
 			name = ?, sys_provider_id = ?, sys_auth_mode_id = ?, base_url = ?, auth_credentials = ?,
-			priority = ?, weight = ?, concurrency_limit = ?, timeout_sec = ?, retry_times = ?, status = ?, balance = ?
+			priority = ?, weight = ?, concurrency_limit = ?, min_interval_sec = ?, timeout_sec = ?, retry_times = ?, status = ?, balance = ?, limit_percent = ?, valid_from = ?, valid_to = ?
 		WHERE id = ?
 	`
 	creds, _ := json.Marshal(p.AuthCredentials)
@@ -166,7 +166,7 @@ func (r *ProviderRepo) UpdateUserProvider(ctx context.Context, p *domain.UserPro
 
 	_, err := DB().ExecContext(ctx, query,
 		p.Name, p.SysProviderID, p.SysAuthModeID, p.BaseURL, creds,
-		p.Priority, p.Weight, p.ConcurrencyLimit, p.TimeoutSec, p.RetryTimes, p.Status, p.Balance,
+		p.Priority, p.Weight, p.ConcurrencyLimit, p.MinIntervalSec, p.TimeoutSec, p.RetryTimes, p.Status, p.Balance, p.LimitPercent, p.ValidFrom, p.ValidTo,
 		p.ID,
 	)
 	return err

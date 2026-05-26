@@ -62,13 +62,22 @@ func (h *AdminHandler) GetClientsStatus(w http.ResponseWriter, r *http.Request) 
 func (h *AdminHandler) HandleSettings(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		w.Header().Set("Content-Type", "application/json")
+		
+		getIntSetting := func(key string, def int) int {
+			valStr, _ := h.settingsRepo.GetSetting(r.Context(), key)
+			if valStr == "" { return def }
+			val, err := strconv.Atoi(valStr)
+			if err != nil { return def }
+			return val
+		}
+
 		settings := map[string]interface{}{
 			"listen_addr": "127.0.0.1:27777",
 			"breaker": map[string]int{
-				"initial_cooldown_seconds": 60,
-				"max_cooldown_seconds":     3600,
-				"failure_threshold":        3,
-				"failure_window_seconds":   120,
+				"initial_cooldown_seconds": getIntSetting("initial_cooldown_seconds", 60),
+				"max_cooldown_seconds":     getIntSetting("max_cooldown_seconds", 3600),
+				"failure_threshold":        getIntSetting("failure_threshold", 3),
+				"failure_window_seconds":   getIntSetting("failure_window_seconds", 120),
 			},
 			"google_oauth_client_id":     "",
 			"google_oauth_client_secret": "",
@@ -93,6 +102,18 @@ func (h *AdminHandler) HandleSettings(w http.ResponseWriter, r *http.Request) {
 			}
 			if v, ok := payload["google_oauth_client_secret"].(string); ok {
 				_ = h.settingsRepo.SetSetting(r.Context(), "google_oauth_client_secret", v)
+			}
+			if v, ok := payload["initial_cooldown_seconds"].(float64); ok {
+				_ = h.settingsRepo.SetSetting(r.Context(), "initial_cooldown_seconds", strconv.Itoa(int(v)))
+			}
+			if v, ok := payload["max_cooldown_seconds"].(float64); ok {
+				_ = h.settingsRepo.SetSetting(r.Context(), "max_cooldown_seconds", strconv.Itoa(int(v)))
+			}
+			if v, ok := payload["failure_threshold"].(float64); ok {
+				_ = h.settingsRepo.SetSetting(r.Context(), "failure_threshold", strconv.Itoa(int(v)))
+			}
+			if v, ok := payload["failure_window_seconds"].(float64); ok {
+				_ = h.settingsRepo.SetSetting(r.Context(), "failure_window_seconds", strconv.Itoa(int(v)))
 			}
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -244,19 +265,54 @@ func (h *AdminHandler) HandleModels(w http.ResponseWriter, r *http.Request) {
 func (h *AdminHandler) HandleRoutes(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		routes, err := h.routeRepo.GetUserCustomRoutes(r.Context())
+		routes, err := h.routeRepo.GetAllUserCustomRoutes(r.Context())
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		if routes == nil {
+			routes = []domain.UserCustomRoute{}
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(routes)
 
-	case http.MethodPost, http.MethodPut:
+	case http.MethodPost:
+		var rt domain.UserCustomRoute
+		if err := json.NewDecoder(r.Body).Decode(&rt); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err := h.routeRepo.CreateUserCustomRoute(r.Context(), &rt); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"status":"success"}`))
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "success", "id": rt.ID})
+
+	case http.MethodPut:
+		var rt domain.UserCustomRoute
+		if err := json.NewDecoder(r.Body).Decode(&rt); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err := h.routeRepo.UpdateUserCustomRoute(r.Context(), &rt); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "success"})
 
 	case http.MethodDelete:
+		idStr := r.URL.Query().Get("id")
+		id, err := strconv.Atoi(idStr)
+		if err != nil {
+			http.Error(w, "invalid id", http.StatusBadRequest)
+			return
+		}
+		if err := h.routeRepo.DeleteUserCustomRoute(r.Context(), id); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"status":"success"}`))
 

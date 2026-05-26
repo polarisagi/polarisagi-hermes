@@ -72,7 +72,7 @@ export default {
                         credentials: '',
                         project_id: origCreds.project_id || '',
                         location: origCreds.region || 'global',
-                        limit_percent: 90.0,
+                        limit_percent: node.limit_percent !== undefined ? node.limit_percent : 90.0,
                         valid_from: this.toDatetimeLocal(node.valid_from),
                         valid_to: this.toDatetimeLocal(node.valid_to),
                     };
