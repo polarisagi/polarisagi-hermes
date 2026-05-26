@@ -36,7 +36,14 @@ export default {
                 if (Alpine.store('global').currentTab !== 'channels' && Alpine.store('global').currentTab !== 'rules') return;
                 try {
                     const res = await fetch('/api/admin/nodes');
-                    Alpine.store('global').nodes = await res.json() || [];
+                    let nodes = await res.json() || [];
+                    nodes = nodes.map(n => {
+                        n.provider = n.sys_provider_id;
+                        n.concurrency = n.concurrency_limit || 0;
+                        n.min_request_interval_sec = n.min_interval_sec || 0;
+                        return n;
+                    });
+                    Alpine.store('global').nodes = nodes;
                 } catch (e) { console.error(e) }
             },
 
@@ -53,9 +60,19 @@ export default {
 
             openNodeModal(node = null) {
                 if (node) {
+                    let protocol = 'openai';
+                    const pInfo = this.sysProviders.find(p => p.provider_id === node.provider);
+                    if (pInfo) protocol = pInfo.api_protocol;
+                    
+                    const origCreds = node.auth_credentials || {};
+
                     this.nodeForm = {
                         ...node,
+                        protocol: protocol,
                         credentials: '',
+                        project_id: origCreds.project_id || '',
+                        location: origCreds.region || 'global',
+                        limit_percent: 90.0,
                         valid_from: this.toDatetimeLocal(node.valid_from),
                         valid_to: this.toDatetimeLocal(node.valid_to),
                     };
@@ -100,18 +117,20 @@ export default {
                     
                     // Map form fields to backend expectations
                     let authCreds = {};
-                    if (this.selectedAuthMode) {
+                    if (this.nodeModal.isEdit && !form.credentials) {
+                        authCreds = { ...(form.auth_credentials || {}) };
+                    } else if (this.selectedAuthMode) {
                         if (this.selectedAuthMode.auth_type === 'adc') {
                             try {
                                 authCreds = JSON.parse(form.credentials);
                             } catch(e) {
-                                // Just pass as string if it's not valid JSON yet (e.g. they typed something)
-                                // But usually ADC is a JSON object.
                                 authCreds.adc_json = form.credentials;
                             }
                         } else if (this.selectedAuthMode.auth_type !== 'none') {
                             authCreds.api_key = form.credentials;
                         }
+                    }
+                    if (this.selectedAuthMode) {
                         if (this.selectedAuthMode.required_fields.includes('project_id')) authCreds.project_id = form.project_id;
                         if (this.selectedAuthMode.required_fields.includes('region')) authCreds.region = form.location;
                     }
@@ -121,6 +140,8 @@ export default {
                         sys_provider_id: form.provider,
                         sys_auth_mode_id: form.sys_auth_mode_id,
                         auth_credentials: authCreds,
+                        concurrency_limit: form.concurrency,
+                        min_interval_sec: form.min_request_interval_sec,
                         valid_from: this.fromDatetimeLocal(form.valid_from),
                         valid_to: this.fromDatetimeLocal(form.valid_to),
                     };
@@ -202,6 +223,7 @@ export default {
                         if (!this.availableAuthModes.find(m => m.mode_id === this.nodeForm.sys_auth_mode_id)) {
                             this.nodeForm.sys_auth_mode_id = this.availableAuthModes[0].mode_id;
                         }
+                        this.selectedAuthMode = this.availableAuthModes.find(m => m.mode_id === this.nodeForm.sys_auth_mode_id) || null;
                     } else {
                         this.nodeForm.sys_auth_mode_id = '';
                         this.selectedAuthMode = null;
