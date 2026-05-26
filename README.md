@@ -1,8 +1,8 @@
-# Polaris Hermes 🌌
+# Polaris-Hermes 🌌
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/mrlaoliai/polaris-hermes)](https://goreportcard.com/report/github.com/mrlaoliai/polaris-hermes)
+[![Go Report Card](https://goreportcard.com/badge/github.com/polarisagi/polaris-hermes)](https://goreportcard.com/report/github.com/polarisagi/polaris-hermes)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Release](https://img.shields.io/github/v/release/mrlaoliai/polaris-hermes)](https://github.com/mrlaoliai/polaris-hermes/releases)
+[![Release](https://img.shields.io/github/v/release/polarisagi/polaris-hermes)](https://github.com/polarisagi/polaris-hermes/releases)
 
 <p align="center">
   <strong>🇬🇧 English</strong> | <a href="README_zh.md">🇨🇳 简体中文</a>
@@ -10,86 +10,127 @@
 
 ---
 
-**Polaris Hermes** is a lightweight, intelligent **LLM API Proxy & Concurrency Control Gateway**. 
-It is designed to efficiently and safely route requests to the **Gemini Enterprise Agent Platform** (formerly Google Cloud Vertex AI) and other providers like OpenAI and Anthropic. It completely solves business interruptions caused by API Key rate limits, bans, or depleted balances by utilizing multi-account rotation and intelligent concurrency queuing.
+**Polaris-Hermes** is a lightweight, highly intelligent **Universal LLM API Proxy & Concurrency Control Gateway**. 
 
-Latest version is purely **Zero-Config**, driven by an embedded **SQLite** database, and comes with a built-in **Web Admin Dashboard**.
+Originally designed as a Google Vertex AI adapter, it has completely evolved into a **Universal AI Gateway**. It natively supports proxying, format conversion, and routing across almost all mainstream protocols (OpenAI, Google Gemini, Google Agent Platform, Anthropic, and Local models like Ollama/vLLM). It comes with a massive built-in dictionary covering **30+ global model providers** out-of-the-box. 
+
+It completely solves business interruptions caused by API Key rate limits, bans, or depleted balances by utilizing multi-account rotation and intelligent concurrency queuing. The latest version is purely **Zero-Config**, driven by an embedded **SQLite** database, and comes with a built-in **Web Admin Dashboard**.
+
+---
 
 ### ✨ Core Features
-1. **Visual Admin Dashboard & Hot Reload**: Add/Edit/Disable API nodes via Web UI. Changes take effect instantly without restarting the service.
-2. **Client Auto-Config**: One-click inject Polaris Hermes proxy and credentials into popular AI clients (Claude Code, OpenCode, Gemini CLI, Hermes, OpenClaw, etc.) via the Admin Dashboard.
-3. **Multi-Account Pool & Single Concurrency Isolation**: Requests are queued based on physical accounts. Strict single-concurrency isolation prevents Vertex AI bans.
-4. **Dynamic Circuit Breaker & Fallback**: 4-State Machine (🟢 Idle | 🟡 Busy | 🔴 Cooldown | 🟠 Probation) with customizable failure thresholds and backoff times. Supports cross-protocol fallback and automatic retries upon upstream failures.
-5. **Billing & Quota Management**: Tracks token usage via SQLite. Supports setting maximum spend limits (`limit_percent`) to auto-disable accounts near exhaustion.
-6. **Zero Dependency**: Single binary, built-in Web UI, embedded DB migrations. Just run it!
+
+1. **🔑 One-Click Client Auto-Config (Highly Recommended!)**
+   Break the restrictions of commercial AI clients (like Claude Code, Codex, Cursor) that lock you into official APIs! The Admin Panel lets you instantly inject Polaris-Hermes proxy settings, **allowing you to freely use your own API Keys and third-party models in closed software.**
+   > 🔥 **Pro Tip: We highly recommend pairing this with [DeepSeek](https://platform.deepseek.com)**! DeepSeek is fully compatible with the OpenAI protocol and offers incredible performance at a disruptive price. When combined with Polaris-Hermes' multi-account rotation and circuit breakers, you achieve the ultimate seamless AI coding experience.
+
+2. **🌐 Universal Protocol & Provider Support**
+   Includes a built-in, ready-to-use dictionary of 30+ global AI providers (OpenAI, Anthropic, DeepSeek, Zhipu, Moonshot, Qwen, Doubao, Mistral, Groq, SiliconFlow, etc.). No need to manually dig up Base URLs anymore.
+
+3. **🎛️ Simple / Pro Dual-Mode UI**
+   **Simple Mode**: Streamlined forms for quick setup. **Pro Mode**: Unlocks full control over concurrency limits, billing alerts, intelligent retries, and advanced model mappings.
+
+4. **🔀 Dual-Track Model Mapping Engine**
+   - **Minimalist Mode (Intelligent Semantic Mapping)**: Automatically identifies model tiers and intelligently maps cross-protocol requests transparently.
+   - **Pro Mode (1-to-1 Exact Mapping)**: Allows manual hardcoded routing rules with Regex support for absolute control.
+
+5. **🛡️ Multi-Account Pool & Single Concurrency Isolation**
+   Requests are queued based on physical accounts. Strict physical-level single-concurrency isolation prevents API bans (especially crucial for Google/Anthropic endpoints).
+
+6. **⚡ 5-State Circuit Breaker & Auto-Recovery**
+   🟢 Idle → 🟡 Busy → 🔴 Cooldown → 🟠 Probation → ⚫ Exhausted. Exponential backoff handles upstream 429/500 errors gracefully with seamless recovery.
+
+7. **💰 Billing & Quota Management**
+   Tracks token usage via SQLite. Supports setting maximum spend percentages to auto-disable accounts near exhaustion.
+
+8. **🚀 Zero Dependency Deployment**
+   Single binary, built-in Web UI, embedded DB migrations. Just run it!
+
+---
 
 ### 🔀 Protocol Route Matrix
 
-The gateway supports 6 routing paths. Each route is configured via the Admin Dashboard (source protocol → target protocol):
+| Source Protocol (Client) | Target Protocol (Upstream) | Description |
+|--------------------------|----------------------------|-------------|
+| openai                   | openai                     | Passthrough + Rotation (Works for all OpenAI-compatible APIs) |
+| openai                   | anthropic                  | OpenAI → Anthropic format conversion |
+| openai                   | google                     | OpenAI → Google Gemini / Agent Platform conversion |
+| anthropic                | anthropic                  | Passthrough + Rotation |
+| anthropic                | openai                     | Anthropic → OpenAI format conversion |
+| anthropic                | google                     | Anthropic → Google format conversion |
+| google                   | google                     | Passthrough + Rotation |
+| local                    | local                      | Local model passthrough (Ollama/vLLM, no auth) |
 
-| Source | Target | Description |
-|--------|--------|-------------|
-| anthropic | anthropic | Pure passthrough — multi-account round-robin with billing |
-| anthropic | google | Gemini format conversion; Claude models use GEAP `rawPredict` passthrough |
-| anthropic | openai | Anthropic → OpenAI format conversion |
-| openai | openai | Pure passthrough — multi-account round-robin with billing |
-| openai | google | OpenAI → Vertex AI OpenAI-compatible endpoint conversion |
-| google | google | Pure passthrough — multi-account round-robin with billing |
+---
 
 ### 📂 Default Directory
-All configurations, database files (`polaris_hermes.db`), and local state are safely stored in:
+All configurations, billing records, and SQLite databases (`polaris_hermes.db`) are safely stored in:
 `~/.polaris-hermes/`
+
+---
 
 ### 🚀 Quick Install
 
 **macOS / Linux:**
 ```bash
-curl -sSL https://raw.githubusercontent.com/mrlaoliai/polaris-hermes/main/scripts/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/polarisagi/polaris-hermes/main/scripts/install.sh | bash
 ```
 
 **Windows (PowerShell as Admin):**
 ```powershell
-iwr -useb https://raw.githubusercontent.com/mrlaoliai/polaris-hermes/main/scripts/install.ps1 | iex
+iwr -useb https://raw.githubusercontent.com/polarisagi/polaris-hermes/main/scripts/install.ps1 | iex
 ```
 *The gateway will run as a background service and auto-start on boot.*
 
+---
+
 ### 🛠️ Getting Started
+
 By default, the gateway listens on `127.0.0.1:27777`.
 
-1. **Admin Panel**: Visit [http://127.0.0.1:27777/dashboard](http://127.0.0.1:27777/dashboard) to view stats and manage your API keys.
-2. **API Endpoints**: Point your AI clients (Cursor, Aider, Opencode, etc.) to:
-   - OpenAI: `http://127.0.0.1:27777/v1/openai/`
-   - Anthropic: `http://127.0.0.1:27777/v1/anthropic/`
-   - Google Agent Platform (GEAP): `http://127.0.0.1:27777/v1/google/`
-   *(API keys can be anything, the gateway will swap them with your physical keys)*
+1. **Admin Panel**: Visit [http://127.0.0.1:27777/dashboard](http://127.0.0.1:27777/dashboard)
+2. **Add Channel**: Select Protocol → Choose Provider → Enter API Key → Save.
+3. **One-Click Client Config**: Navigate to "Client Config", pick your target software, select your injected API key, and you're done!
+4. **API Endpoints** (Point your AI tools to these URLs, API Key can be any dummy text):
+   - OpenAI Protocol: `http://127.0.0.1:27777/v1/openai/`
+   - Anthropic Protocol: `http://127.0.0.1:27777/v1/anthropic/`
+   - Google Protocol: `http://127.0.0.1:27777/v1/google/`
 
-> **Google Agent Platform REST API Reference**: https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest
-> **Note**: The legacy `/v1/vertex/` path is still supported for backward compatibility.
+---
 
-> **Note**: If you are using Claude Code or Codex, it is recommended to use them together with [cc-switch](https://github.com/farion1231/cc-switch).
+### 🧪 Local Testing Mode 
 
-### 🧪 Local Testing Mode (For AI Coding Assistants)
-When testing modified gateway code locally, **DO NOT** run it on the default `27777` port to avoid port conflicts with the running production instance. 
+When testing modified gateway code locally, please use test mode (listens on port `28889`) to avoid conflicts with your running production instance:
 
-Use the test mode which listens on port `28889`:
 ```bash
 make run-test
 # Or manually:
 TEST_MODE=true go run ./cmd/polaris
 ```
-AI coding clients (like Claude Code) should change the target API URL to `http://127.0.0.1:28889/...` when sending test requests to the newly built gateway.
+
+---
 
 ### 🗑️ Uninstall
 
 **macOS / Linux:**
 ```bash
-curl -sSL https://raw.githubusercontent.com/mrlaoliai/polaris-hermes/main/scripts/uninstall.sh | bash
+curl -sSL https://raw.githubusercontent.com/polarisagi/polaris-hermes/main/scripts/uninstall.sh | bash
 ```
 **Windows:**
 ```powershell
-iwr -useb https://raw.githubusercontent.com/mrlaoliai/polaris-hermes/main/scripts/uninstall.ps1 | iex
+iwr -useb https://raw.githubusercontent.com/polarisagi/polaris-hermes/main/scripts/uninstall.ps1 | iex
 ```
-> **Note**: Uninstalling only removes the service and binary. Data remains safely in `~/.polaris-hermes/`.
+> **Note**: Uninstalling only removes the service and binary. Data remains safely in `~/.polaris-hermes/`. Delete it manually if you want a complete wipe.
+
+---
 
 ### 📄 License
 MIT License. *(If you use this code, please retain the original author credit: `mrlaoliai`)*
+
+---
+
+### 🌐 Links & Contact
+* **Official Website**: [https://polarisagi.online/](https://polarisagi.online/)
+* **GitHub Repository**: [https://github.com/polarisagi/polaris-hermes](https://github.com/polarisagi/polaris-hermes)
+* **Author / Creator**: `mrlaoliai` (Find me on Xiaohongshu, Douyin, TikTok, and X)
+* **Contact Email**: [polarisagi.online@gmail.com](mailto:polarisagi.online@gmail.com)

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-REPO="mrlaoliai/polaris-hermes"
+REPO="polarisagi/polaris-hermes"
 BIN_NAME="polaris-hermes"
 INSTALL_DIR="$HOME/.polaris-hermes/bin"
 PLIST_PATH="$HOME/Library/LaunchAgents/com.polaris.gateway.plist"
