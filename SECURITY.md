@@ -15,7 +15,7 @@ We take the security of Polaris Hermes seriously. If you discover a security vul
 
 Please **do not** report security vulnerabilities through public GitHub issues.
 
-Instead, please report them via email to: **mrlaoliai@gmail.com**.
+Instead, please report them via email to: **polarisagi.online@gmail.com**.
 
 ### What to Include
 When reporting a vulnerability, please include:
