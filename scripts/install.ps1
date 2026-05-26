@@ -7,7 +7,7 @@ if (-not $isAdmin) {
     exit 1
 }
 
-$Repo = "mrlaoliai/polaris-hermes"
+$Repo = "polarisagi/polaris-hermes"
 $BinName = "polaris-hermes.exe"
 $InstallDir = "C:\ProgramData\PolarisGateway"
 

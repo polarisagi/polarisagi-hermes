@@ -91,7 +91,7 @@ document.addEventListener('alpine:init', () => {
             // FIXME: 暂时屏蔽版本检查，因为 GitHub 仓库目前还没有 Releases，会导致控制台报 404 红字。
             // 待后续发布了 v2.x.x 版本后，可再取消这里的注释。
             /*
-            fetch('https://api.github.com/repos/mrlaoliai/polaris-hermes/releases/latest')
+            fetch('https://api.github.com/repos/polarisagi/polaris-hermes/releases/latest')
                 .then(r => r.json())
                 .then(d => {
                     if (d.tag_name && d.tag_name !== currentVer) {
