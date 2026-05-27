@@ -64,3 +64,15 @@ func (r *ModelRepo) GetSysModels(ctx context.Context) ([]domain.SysModel, error)
 	}
 	return models, nil
 }
+
+// UpdateUserModelTier 更新用户模型的意图分级
+func (r *ModelRepo) UpdateUserModelTier(ctx context.Context, id int, tier string) error {
+	query := `
+		UPDATE user_models
+		SET capability_tier = ?
+		WHERE id = ?
+	`
+	_, err := DB().ExecContext(ctx, query, tier, id)
+	return err
+}
+

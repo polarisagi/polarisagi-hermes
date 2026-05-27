@@ -5,6 +5,8 @@ INSERT OR IGNORE INTO sys_models (provider_id, actual_model_id, display_name) VA
 ('anthropic', 'claude-opus-4-7', 'Claude Opus 4.7 (Claude CLI)'),
 ('anthropic', 'claude-sonnet-4-6', 'Claude Sonnet 4.6 (Claude CLI)'),
 ('anthropic', 'claude-opus-4-6', 'Claude Opus 4.6 (Claude CLI)'),
+('anthropic', 'claude-3-7-sonnet-latest', 'Claude 3.7 Sonnet'),
+('anthropic', 'claude-3-7-opus-latest', 'Claude 3.7 Opus'),
 
 -- Google
 ('google', 'gemini-3.1-pro-preview', 'Gemini 3.1 Pro Preview'),
@@ -12,6 +14,28 @@ INSERT OR IGNORE INTO sys_models (provider_id, actual_model_id, display_name) VA
 ('google', 'gemini-3.1-flash', 'Gemini 3.1 Flash'),
 ('google', 'gemini-3.1-flash-lite', 'Gemini 3.1 Flash Lite'),
 ('google', 'gemma-4', 'Gemma 4'),
+('google', 'gemini-3.0-pro', 'Gemini 3.0 Pro'),
+('google', 'gemini-3.0-flash', 'Gemini 3.0 Flash'),
+
+-- Google Cloud (Agent Platform)
+('google_cloud', 'gemini-3.1-pro-preview', 'Gemini 3.1 Pro (GCP)'),
+('google_cloud', 'gemini-2.5-pro', 'Gemini 2.5 Pro (GCP)'),
+('google_cloud', 'gemini-3.1-flash', 'Gemini 3.1 Flash (GCP)'),
+
+-- Azure OpenAI
+('azure', 'gpt-5.5', 'Azure GPT-5.5'),
+('azure', 'gpt-5.4-mini', 'Azure GPT-5.4 Mini'),
+('azure', 'o4', 'Azure o4'),
+('azure', 'o3-mini', 'Azure o3-mini'),
+
+-- AWS Bedrock
+('bedrock', 'anthropic.claude-3-7-sonnet', 'Claude 3.7 Sonnet (Bedrock)'),
+('bedrock', 'meta.llama-4-70b-instruct', 'Llama 4 70B (Bedrock)'),
+('bedrock', 'amazon.nova-pro-latest', 'Nova Pro (Bedrock)'),
+
+-- Cohere
+('cohere', 'command-r-plus', 'Command R+'),
+('cohere', 'command-r7', 'Command R7'),
 
 -- OpenAI
 ('openai', 'gpt-5.3-chat-latest', 'GPT-5.3 Chat (latest)'),
@@ -115,6 +139,7 @@ INSERT OR IGNORE INTO sys_models (provider_id, actual_model_id, display_name) VA
 ('deepseek', 'deepseek-v4-pro', 'DeepSeek V4 Pro'),
 ('deepseek', 'deepseek-chat', 'DeepSeek Chat'),
 ('deepseek', 'deepseek-reasoner', 'DeepSeek Reasoner'),
+('deepseek_anthropic', 'deepseek-reasoner', 'DeepSeek Reasoner (Anthropic)'),
 
 -- Fireworks
 ('fireworks', 'accounts/fireworks/models/kimi-k2p6', 'Kimi K2.6'),
@@ -267,4 +292,51 @@ INSERT OR IGNORE INTO sys_models (provider_id, actual_model_id, display_name) VA
 ('zai', 'glm-4.5', 'GLM-4.5'),
 ('zai', 'glm-4.5-air', 'GLM-4.5 Air'),
 ('zai', 'glm-4.5-flash', 'GLM-4.5 Flash'),
-('zai', 'glm-4.5v', 'GLM-4.5V');
+('zai', 'glm-4.5v', 'GLM-4.5V'),
+
+-- Local / Open Source Additions
+('ollama', 'llama4:70b', 'Llama 4 70B (Ollama)'),
+('ollama', 'qwen3:32b', 'Qwen 3 32B (Ollama)'),
+('ollama', 'deepseek-r2:32b', 'DeepSeek R2 32B (Ollama)'),
+('vllm', 'Qwen/Qwen-3-72B-Instruct', 'Qwen 3 72B (vLLM)'),
+('vllm', 'meta-llama/Llama-4-8B-Instruct', 'Llama 4 8B (vLLM)'),
+
+-- Perplexity
+('perplexity', 'sonar-pro', 'Sonar Pro'),
+('perplexity', 'sonar-reasoning', 'Sonar Reasoning'),
+
+-- Replicate
+('replicate', 'meta/llama-4-70b-instruct', 'Llama 4 70B'),
+('replicate', 'meta/llama-4-8b-instruct', 'Llama 4 8B'),
+
+-- HuggingFace
+('huggingface', 'meta-llama/Meta-Llama-4-70B-Instruct', 'Llama 4 70B Instruct'),
+
+-- SiliconFlow
+('siliconflow', 'deepseek-ai/DeepSeek-V4', 'DeepSeek V4 (SF)'),
+('siliconflow', 'THUDM/glm-5', 'GLM-5 (SF)'),
+
+-- OpenRouter
+('openrouter', 'anthropic/claude-3.7-sonnet', 'Claude 3.7 Sonnet (OR)'),
+('openrouter', 'openai/gpt-5.5', 'GPT-5.5 (OR)'),
+('openrouter', 'openai/o4', 'o4 (OR)'),
+('openrouter', 'google/gemini-3.1-pro', 'Gemini 3.1 Pro (OR)'),
+
+-- Zhipu
+('zhipu', 'glm-5', 'GLM-5'),
+('zhipu', 'glm-5.1', 'GLM-5.1'),
+('zhipu', 'glm-4-plus', 'GLM-4 Plus'),
+
+-- Dashscope
+('dashscope', 'qwen-3-max', 'Qwen 3 Max'),
+('dashscope', 'qwen-3-plus', 'Qwen 3 Plus'),
+('dashscope', 'qwen-coder-plus', 'Qwen Coder Plus'),
+
+-- Baichuan
+('baichuan', 'baichuan-5', 'Baichuan 5'),
+
+-- 01.AI
+('01ai', 'yi-lightning', 'Yi Lightning'),
+
+-- SenseNova
+('sensenova', 'sensenova-6.0', 'SenseNova 6.0');

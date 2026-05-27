@@ -297,8 +297,27 @@ func (h *AdminHandler) HandleModels(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(models)
 
 	case http.MethodPut:
+		var payload struct {
+			ID             int    `json:"id"`
+			CapabilityTier string `json:"capability_tier"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if payload.ID <= 0 || payload.CapabilityTier == "" {
+			http.Error(w, "invalid payload", http.StatusBadRequest)
+			return
+		}
+		if err := h.modelRepo.UpdateUserModelTier(r.Context(), payload.ID, payload.CapabilityTier); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"status":"success","msg":"Model capability tier updated"}`))
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": "success",
+			"msg":    "Model capability tier updated",
+		})
 
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)

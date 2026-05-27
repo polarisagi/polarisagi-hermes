@@ -29,9 +29,9 @@ func (i *IntentInferer) InferUnknownModel(ctx context.Context, modelID string) s
 		tier = i.inferByLLM(ctx, modelID)
 	}
 
-	// 3. 兜底策略：如果连 LLM 都失败了，默认归类为 flagship 旗舰模型，避免网关阻塞
+	// 3. 兜底策略：如果连 LLM 都失败了，默认归类为 smart 旗舰模型，避免网关阻塞
 	if tier == "" {
-		tier = "flagship"
+		tier = "smart"
 	}
 
 	// 4. 将推断结果持久化，形成闭环进化
@@ -51,29 +51,19 @@ func (i *IntentInferer) InferUnknownModel(ctx context.Context, modelID string) s
 
 // inferByKeywords 通过内置的高命中率特征字推断模型意图
 func (i *IntentInferer) inferByKeywords(modelID string) string {
-	// 推理型模型 (Highest Priority for specific keywords)
-	if match, _ := regexp.MatchString(`(?i)(\b(o1|o3|r1)\b|reason)`, modelID); match {
+	// 推理/沉思型模型 (Highest Priority for specific keywords)
+	if match, _ := regexp.MatchString(`(?i)(\b(o1|o3|o4|r1|r2)\b|reason|thinking)`, modelID); match {
 		return "reasoning"
 	}
 
-	// 向量模型
-	if match, _ := regexp.MatchString(`(?i)(embed)`, modelID); match {
-		return "embedding"
-	}
-
-	// 超大杯模型
-	if match, _ := regexp.MatchString(`(?i)(opus|ultra)`, modelID); match {
-		return "ultra"
-	}
-
 	// 极速/轻量化模型
-	if match, _ := regexp.MatchString(`(?i)(\bmini\b|haiku|flash|lite|nano|turbo)`, modelID); match {
-		return "light"
+	if match, _ := regexp.MatchString(`(?i)(\bmini\b|haiku|flash|lite|nano|turbo|fast|small)`, modelID); match {
+		return "fast"
 	}
 
-	// 旗舰/重度模型
-	if match, _ := regexp.MatchString(`(?i)(sonnet|pro|gpt-4|gpt-3\.5|max|large|70b)`, modelID); match {
-		return "flagship"
+	// 旗舰/智能模型
+	if match, _ := regexp.MatchString(`(?i)(sonnet|opus|pro|max|large|gpt-4|gpt-5|v3|v4|ultra|70b|120b|405b)`, modelID); match {
+		return "smart"
 	}
 
 	return "" // 无法从字面推断
