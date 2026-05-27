@@ -421,4 +421,25 @@ INSERT OR IGNORE INTO sys_models (provider_id, actual_model_id, display_name) VA
 ('xiaomi_amsterdam', 'mimo-v2-flash-eu', 'MiMo V2 Flash (EU)'),
 ('xiaomi_singapore', 'mimo-v2-flash-sg', 'MiMo V2 Flash (SG)'),
 ('kimi_coding', 'kimi-k2.5-coding', 'Kimi K2.5 Coding Mode'),
-('kimi_coding', 'kimi-k2.6-coding', 'Kimi K2.6 Coding Mode');
+('kimi_coding', 'kimi-k2.6-coding', 'Kimi K2.6 Coding Mode'),
+
+-- Models Extracted from hermes-agent plugins
+('vllm', 'Qwen/Qwen3.5-72B-Instruct', 'Qwen 3.5 72B Instruct'),
+('openrouter', 'deepseek/deepseek-chat', 'DeepSeek Chat (OR)'),
+('openrouter', 'deepseek/deepseek-r1-0528', 'DeepSeek R1 0528 (OR)'),
+('openrouter', 'deepseek/deepseek-v3-0324', 'DeepSeek V3 0324 (OR)'),
+('zhipu', 'glm-4-9b', 'GLM 4 9B'),
+('kilocode', 'google/gemini-3-flash', 'Gemini 3 Flash (Kilocode)'),
+('kilocode', 'google/gemini-3-flash-preview', 'Gemini 3 Flash Preview (Kilocode)'),
+('venice', 'hermes-3-405b', 'Hermes 3 405B (Venice)'),
+('venice', 'hermes-3-70b', 'Hermes 3 70B (Venice)'),
+('openrouter', 'minimax/minimax-m2.7', 'MiniMax M2.7 (OR)'),
+('together', 'moonshotai/kimi-k2.5', 'Kimi K2.5 (Together)'),
+('nvidia', 'nvidia/llama-3.1-nemotron-70b-instruct', 'Llama 3.1 Nemotron 70B Instruct'),
+('nvidia', 'nvidia/llama-3.3-70b-instruct', 'Llama 3.3 70B Instruct'),
+('openrouter', 'openai/gpt-5.4', 'GPT-5.4 (OR)'),
+('openrouter', 'openrouter/pareto-code', 'Pareto Code (OR)'),
+('openrouter', 'qwen/qwen3-235b-a22b-fp8', 'Qwen3 235B FP8 (OR)'),
+('openrouter', 'qwen/qwen3-plus', 'Qwen 3 Plus (OR)'),
+('together', 'zai-org/GLM-5.1-FP8', 'GLM 5.1 FP8 (Together)'),
+('together', 'zai-org/glm-5', 'GLM 5 (Together)');
