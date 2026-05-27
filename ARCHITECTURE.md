@@ -55,7 +55,7 @@ Client Request
 
 ### 3.3 零配置与无缝热重载
 - **SQLite 驱动**: 抛弃繁琐的 YAML 配置文件，所有节点、路由、配置项均存入嵌入式 SQLite，支持数据库迁移脚本 (Migrations) 自动升级表结构。
-- **双层锁热重载**: 管理后台 (Web UI) 的 CRUD 操作触发 `config.ReloadFromDB()`。网关持有全局读写锁 (`poolMutex`) 和单节点互斥锁 (`mu`)，在内存中静默重建节点池与路由快照，**实现无感热加载，不中断存量流量**。
+- **双层热重载**: 管理后台 (Web UI) 的写操作（增删改渠道/路由/模型）异步触发 `chanManager.Reload()` 与 `pipeline.Reload()`。前者在读写锁保护下重建节点健康池；后者批量拉取意图字典与路由规则至内存 Map，原子替换指针后立即生效，**不中断存量流量**。
 
 ### 3.4 异步流式计费
 - **用量解析与兜底估算**：拦截后端 SSE (Server-Sent Events) 流的尾部数据块，解析原生 Token 消耗。若流意外中断，启动字节数算法进行兜底估算。
@@ -101,7 +101,7 @@ Client Request
   1. **`smart` (旗舰型)**：主攻高难度代码与复杂推理，如 `gpt-4o`, `claude-3-5-sonnet`, `gemini-2.5-pro`。
   2. **`fast` (极速型)**：主攻低延迟、高并发的轻量任务，如 `gpt-4o-mini`, `claude-3-haiku`, `gemini-2.5-flash`。
   3. **`reasoning` (沉思型)**：主攻 CoT 深度思维链逻辑题，如 `o1`, `o3-mini`, `DeepSeek-R1`。
-  **运行机制**：当客户端请求 `gpt-4o-mini` 时，网关识别其梯队为 `fast`。若路由命中 Anthropic 节点，Translator 会自动将其映射为 Anthropic 的 `fast` 级代表模型（如 Haiku），对客户端完全透明且无需修改任何路由规则。
+  **运行机制**：当客户端请求 `gpt-4o-mini` 时，网关识别其梯队为 `fast`。若路由命中 Anthropic 节点，Translator 会自动将其映射为 Anthropic 的 `fast` 级代表模型（如 Haiku），对客户端完全透明且无需修改任何路由规则。`sys_model_intent_dict` 表内置 570+ 条种子映射，覆盖主流厂商全系列模型，开箱即用；未收录模型由正则引擎实时推断并自动持久化学习。
   
 - **专业模式 (Pro / Deterministic 1-to-1 Mapping)**：
   主打"绝对控制"。底层通过 `UserCustomRoute` 实体实现完全可配置的用户自定义路由表。用户可在前端高级面板中手动配置强制映射（Hard-coded Mapping），支持精确匹配或正则模式拦截。
@@ -126,10 +126,15 @@ Client Request
 
 | 表名 | 说明 |
 |------|------|
-| `sys_providers` | 系统内置厂商字典（30+ 家），包含协议类型、默认配置 |
+| `sys_providers` | 系统内置厂商字典（70+ 家），包含协议类型、默认配置 |
 | `sys_provider_auth_modes` | 厂商鉴权模式字典，1 对 N，定义 auth_type、header_name、url_template、required_fields |
+| `sys_models` | 系统内置模型物理属性（900+ 条），含 context_length、supports_vision 等 |
+| `sys_model_intent_dict` | 全局模型名 → capability_tier 映射（570+ 条内置种子，支持极简模式开箱即用） |
 | `user_providers` | 用户自定义的渠道账号，关联 sys_providers 和 sys_provider_auth_modes |
-| `routes` | 路由规则表，定义来源模型匹配规则 → 目标节点池的映射 |
-| `settings` | 全局系统配置，包含熔断参数、UI 模式等 |
+| `user_models` | 用户渠道下的模型实例，含主观的 capability_tier 标记 |
+| `user_model_intent_dict` | 用户自定义覆盖及自动学习的意图字典（写透缓存，实时闭环进化） |
+| `user_custom_routes` | 专业模式 1:1 强制路由表，支持精确匹配与通配符 `*` 兜底 |
+| `system_settings` | 全局系统配置，包含熔断参数、UI 模式等 |
 | `account_logs` | 异步写入的 Token 消费账单记录 |
+| `client_config_backups` | 一键客户端配置的原始备份，用于还原 |
 | `_migrations` | 数据库迁移版本记录，防止重复执行 |
