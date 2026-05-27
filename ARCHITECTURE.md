@@ -18,11 +18,11 @@
 ## 2. 核心请求链路
 
 ```
-Client Request
-  → http.go (协议检测 / 提取模型名)
-  → MatchAndAcquireRoute (路由匹配 + 等待可用节点)
+Client Request (Claude Code: /v1/messages | Codex: /v1/chat/completions)
+  → http.go (多协议入口兼容)
+  → Pipeline (意图映射推断 + Pro路由拦截 + Tier降级兜底)
   → Manager (优先级排序 + CAS 锁抢占)
-  → Translator (协议转换 & 凭证注入 & 请求上游)
+  → TranslatorFactory (动态实例化协议翻译器，如 Anthropic→Google, OpenAI→OpenAI 透传)
   → Stream Response (SSE 流式解析 Usage)
   → FinalizeNodeState (节点状态结算)
   → 异步写入 SQLite 计费
@@ -93,20 +93,21 @@ Client Request
   ```
 - **动态 UI 渲染**：前端管理面板不包含任何厂商字段的写死逻辑。UI 完全依据当前选定 Auth Mode 中的 `required_fields` 和 `auth_type`，自动渲染表单控件（如仅在选中 Agent Platform 时才显示 Project ID 和 Region 字段）。
 
-### 4.3 双轨制模型映射引擎 (Model Mapping)
-为适应跨越协议（如 OpenAI 请求直接打给 Anthropic 或 Google）的场景，网关提供双轨制的模型映射策略：
+### 4.3 双轨制模型映射引擎与多协议路由 (Pipeline)
+为解决客户端（如 Claude Code、Codex）发出的异构模型请求能够被正确分发到后端的 DeepSeek 或 Google Agent Platform，网关重构了 Pipeline 路由与翻译器机制：
 
-- **极简模式 (Intelligent / Semantic Mapping)**：
-  主打"开箱即用"与"不认死 ID，只认模型档次"。底层引入了 `CapabilityTier`（模型能力梯队）的概念，将杂乱的模型归类为三大核心类别：
+- **极简模式 (Intelligent Intent Mapping)**：
+  主打"开箱即用，动态映射"。底层彻底移除了 `sys_models` 中冗余的主观梯队标签，引入单一数据源 **意图字典 (Intent Dict)**，将任意模型名（`model_id`）映射为三大核心能力梯队：
   1. **`smart` (旗舰型)**：主攻高难度代码与复杂推理，如 `gpt-4o`, `claude-3-5-sonnet`, `gemini-2.5-pro`。
-  2. **`fast` (极速型)**：主攻低延迟、高并发的轻量任务，如 `gpt-4o-mini`, `claude-3-haiku`, `gemini-2.5-flash`。
-  3. **`reasoning` (沉思型)**：主攻 CoT 深度思维链逻辑题，如 `o1`, `o3-mini`, `DeepSeek-R1`。
-  **运行机制**：当客户端请求 `gpt-4o-mini` 时，网关识别其梯队为 `fast`。若路由命中 Anthropic 节点，Translator 会自动将其映射为 Anthropic 的 `fast` 级代表模型（如 Haiku），对客户端完全透明且无需修改任何路由规则。`sys_model_intent_dict` 表内置 570+ 条种子映射，覆盖主流厂商全系列模型，开箱即用；未收录模型由正则引擎实时推断并自动持久化学习。
-  
-- **专业模式 (Pro / Deterministic 1-to-1 Mapping)**：
-  主打"绝对控制"。底层通过 `UserCustomRoute` 实体实现完全可配置的用户自定义路由表。用户可在前端高级面板中手动配置强制映射（Hard-coded Mapping），支持精确匹配或正则模式拦截。
-  **通配符兜底 (`*`)**：支持特殊的全局通配符 `*` 映射规则。当配置为 `*` 时，客户端发来的所有未被精确命中的异构模型请求，都将被无脑引流并强制转换为该指定的唯一模型（例如将所有请求强制引向特定的私有化部署大模型）。
-  适用于将内部代号、旧模型 ID 或不规范的调用统一收拢强制引流至特定微调模型或本地部署模型的场景。**专业模式（Custom Routes）优先级绝对高于极简模式的系统智能推断。**
+  2. **`fast` (极速型)**：主攻低延迟、高并发的轻量任务，如 `gpt-4o-mini`, `claude-3-haiku`。
+  3. **`reasoning` (沉思型)**：主攻 CoT 深度思维链逻辑题，如 `o1`, `DeepSeek-R1`。
+  **降级熔断链**：当 `fast` 或 `reasoning` 梯队无可用渠道节点时，系统会自动向下兼容 fallback 到 `smart` 梯队兜底，确保服务不中断。
+
+- **专业模式 (Deterministic Custom Routes)**：
+  主打"绝对控制"。通过 `user_custom_routes` 表实现 1:1 强制路由，优先级高于极简模式。支持精确拦截或使用通配符 `*` 兜底，适用于私有化部署模型的特定引流。
+
+- **全链路翻译体系 (Translators)**：
+  实现了 `/v1/messages` (Anthropic) 和 `/v1/chat/completions` (OpenAI) 双入口协议。请求经过路由确定后端渠道后，通过 `TranslatorFactory` 动态调用对应翻译器（如 `OpenAITranslator` 透传 Codex 至 DeepSeek，或 `AnthropicGoogleTranslator` 转换至 GEAP），实现协议透明解耦。
 
 ### 4.4 一键客户端配置 (Client Auto-Config)
 **核心亮点功能**：打破商业 AI 客户端（如 Claude Code、Codex 等）锁定官方 API 的限制。
@@ -128,11 +129,11 @@ Client Request
 |------|------|
 | `sys_providers` | 系统内置厂商字典（70+ 家），包含协议类型、默认配置 |
 | `sys_provider_auth_modes` | 厂商鉴权模式字典，1 对 N，定义 auth_type、header_name、url_template、required_fields |
-| `sys_models` | 系统内置模型物理属性（900+ 条），含 context_length、supports_vision 等 |
-| `sys_model_intent_dict` | 全局模型名 → capability_tier 映射（570+ 条内置种子，支持极简模式开箱即用） |
+| `sys_models` | 系统内置模型物理属性（900+ 条），去除了主观的 capability_tier，仅保留纯客观元数据 |
+| `sys_model_intent_dict` | 全局模型意图单一数据源（model_id → capability_tier），涵盖客户端请求名与服务端真实模型名 |
 | `user_providers` | 用户自定义的渠道账号，关联 sys_providers 和 sys_provider_auth_modes |
-| `user_models` | 用户渠道下的模型实例，含主观的 capability_tier 标记 |
-| `user_model_intent_dict` | 用户自定义覆盖及自动学习的意图字典（写透缓存，实时闭环进化） |
+| `user_models` | 创建渠道时由系统自动导入生成的模型可用实例池 |
+| `user_model_intent_dict` | 用户手动覆盖及系统自动推断学习的意图字典（实时生效），优先级高于 sys 字典 |
 | `user_custom_routes` | 专业模式 1:1 强制路由表，支持精确匹配与通配符 `*` 兜底 |
 | `system_settings` | 全局系统配置，包含熔断参数、UI 模式等 |
 | `account_logs` | 异步写入的 Token 消费账单记录 |
