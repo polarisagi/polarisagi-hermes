@@ -15,6 +15,7 @@ import (
 	"polaris-hermes/internal/service/router"
 	"polaris-hermes/internal/translator"
 	"polaris-hermes/internal/translator/anthropic"
+	openaitrans "polaris-hermes/internal/translator/openai"
 	"polaris-hermes/pkg/logger"
 )
 
@@ -57,14 +58,19 @@ func main() {
 
 	// 5. 初始化协议转换工厂
 	transFactory := translator.NewTranslatorFactory()
+	// google 协议：接收 Anthropic 格式请求，翻译后转发到 Google GEAP（Gemini/GEAP Claude）
 	transFactory.Register("google", anthropic.NewAnthropicGoogleTranslator())
+	// openai 协议：透传 OpenAI 格式请求到兼容 OpenAI 接口的后端（DeepSeek/OpenAI 等）
+	transFactory.Register("openai", openaitrans.NewOpenAITranslator())
+	// local 协议：与 openai 相同的透传方式，用于本地部署的模型（Ollama/vLLM/LM Studio 等）
+	transFactory.Register("local", openaitrans.NewOpenAITranslator())
 
 	// 6. 初始化高并发 Proxy 层
 	proxyServer := proxy.NewServer(pipeline, chanManager, transFactory)
 
 	// 7. 初始化控制面 WebAPI
 	clientSvc := client.NewManager(settingsRepo, clientBackupRepo)
-	adminHandler := webapi.NewAdminHandler(providerRepo, modelRepo, routeRepo, settingsRepo, clientSvc, chanManager, pipeline)
+	adminHandler := webapi.NewAdminHandler(providerRepo, modelRepo, routeRepo, intentRepo, settingsRepo, clientSvc, chanManager, pipeline)
 
 	// 8. 路由挂载
 	mux := http.NewServeMux()

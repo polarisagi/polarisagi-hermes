@@ -148,7 +148,39 @@ func (r *ProviderRepo) CreateUserProvider(ctx context.Context, p *domain.UserPro
 	if err == nil {
 		p.ID = int(id)
 	}
+
+	// 创建渠道成功后，自动从 sys_models 为该厂商批量生成 user_models。
+	// 使用 COALESCE 优先采用 sys_model_intent_dict 中正确的 tier 数据。
+	// 本地模型（auth_type='none'，如 Ollama/vLLM）跳过自动导入，由用户手动配置模型名。
+	if p.ID > 0 {
+		_ = r.seedUserModels(ctx, p.ID, p.EndpointID)
+	}
 	return nil
+}
+
+// seedUserModels 在创建渠道后，批量将该厂商的所有系统模型导入为用户模型实例。
+// tier 优先从 sys_model_intent_dict 获取（数据更精确），其次 fallback 到 sys_models.capability_tier。
+// 本地协议（auth_type='none'）的端点不执行自动导入。
+func (r *ProviderRepo) seedUserModels(ctx context.Context, userProviderID int, endpointID string) error {
+	seedSQL := `
+		INSERT OR IGNORE INTO user_models (user_provider_id, display_name, model_id, capability_tier, is_active)
+		SELECT
+			? AS user_provider_id,
+			sm.display_name,
+			sm.model_id,
+			COALESCE(
+				(SELECT capability_tier FROM sys_model_intent_dict WHERE requested_model_id = sm.model_id),
+				sm.capability_tier,
+				'smart'
+			) AS capability_tier,
+			1 AS is_active
+		FROM sys_models sm
+		JOIN sys_access_endpoints sae ON sm.provider_id = sae.provider_id
+		WHERE sae.endpoint_id = ?
+		  AND sae.auth_type != 'none'
+	`
+	_, err := DB().ExecContext(ctx, seedSQL, userProviderID, endpointID)
+	return err
 }
 
 // UpdateUserProvider 更新用户渠道

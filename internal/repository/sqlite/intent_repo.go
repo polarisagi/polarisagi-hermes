@@ -92,3 +92,10 @@ func (r *IntentRepo) GetAllUserIntents(ctx context.Context) (map[string]string, 
 	}
 	return result, nil
 }
+
+// DeleteUserIntent 删除用户手动创建的意图覆盖条目
+func (r *IntentRepo) DeleteUserIntent(ctx context.Context, requestedModelID string) error {
+	query := `DELETE FROM user_model_intent_dict WHERE requested_model_id = ?`
+	_, err := DB().ExecContext(ctx, query, requestedModelID)
+	return err
+}

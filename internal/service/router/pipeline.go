@@ -111,14 +111,27 @@ func (p *Pipeline) RouteRequest(ctx context.Context, requestedModelID string) (*
 	tier := p.resolveCapabilityTier(ctx, requestedModelID)
 	slog.Info("🧠 意图解析完成", "requested_model", requestedModelID, "resolved_tier", tier)
 
-	// 根据意图标签，交给 Channel Manager 去从内存健康池里挑一个最优的节点
-	ch, actualModel, err := p.chanManager.SelectBestChannelByTier(tier)
-	if err != nil {
-		slog.Error("❌ 没有找到匹配该意图标签的健康节点", "tier", tier, "error", err)
-		return nil, "", ErrNoAvailableModel
+	// Tier 降级熔断链：当目标 tier 无可用节点时，自动降级到 smart 兜底。
+	// 场景：用户后端只有 DeepSeek 的 smart 模型，但客户端发来了 gpt-4o-mini (fast tier)，
+	// 此时不应直接 503，而应降级到 smart 模型处理，保证服务连续性。
+	tiersToTry := []string{tier}
+	if tier != "smart" {
+		tiersToTry = append(tiersToTry, "smart")
 	}
 
-	return ch, actualModel, nil
+	for _, t := range tiersToTry {
+		ch, actualModel, err := p.chanManager.SelectBestChannelByTier(t)
+		if err == nil {
+			if t != tier {
+				slog.Warn("⬇️ [降级路由] Tier 降级成功", "requested_tier", tier, "fallback_tier", t, "model", requestedModelID)
+			}
+			return ch, actualModel, nil
+		}
+		slog.Debug("🔍 [Tier 查找] 当前 tier 无可用节点，尝试下一级", "tier", t)
+	}
+
+	slog.Error("❌ 没有找到匹配该请求的任何可用节点", "requested_model", requestedModelID, "tried_tiers", tiersToTry)
+	return nil, "", ErrNoAvailableModel
 }
 
 // resolveCapabilityTier 负责执行 2, 3, 4 级优先级解析，全程读内存缓存

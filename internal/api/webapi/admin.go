@@ -29,6 +29,7 @@ type AdminHandler struct {
 	providerRepo *sqlite.ProviderRepo
 	modelRepo    *sqlite.ModelRepo
 	routeRepo    *sqlite.RouteRepo
+	intentRepo   *sqlite.IntentRepo
 	settingsRepo *sqlite.SettingsRepo
 	clientSvc    *client.Manager
 
@@ -41,6 +42,7 @@ func NewAdminHandler(
 	pRepo *sqlite.ProviderRepo,
 	mRepo *sqlite.ModelRepo,
 	rRepo *sqlite.RouteRepo,
+	iRepo *sqlite.IntentRepo,
 	sRepo *sqlite.SettingsRepo,
 	clientSvc *client.Manager,
 	chanManager *channel.Manager,
@@ -50,6 +52,7 @@ func NewAdminHandler(
 		providerRepo: pRepo,
 		modelRepo:    mRepo,
 		routeRepo:    rRepo,
+		intentRepo:   iRepo,
 		settingsRepo: sRepo,
 		clientSvc:    clientSvc,
 		chanManager:  chanManager,
@@ -334,6 +337,28 @@ func (h *AdminHandler) HandleModels(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(models)
 
+	case http.MethodPost:
+		// 手动为渠道添加模型（主要用于本地模型如 Ollama）
+		var m domain.UserModel
+		if err := json.NewDecoder(r.Body).Decode(&m); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if m.UserProviderID <= 0 || m.ModelID == "" {
+			http.Error(w, "user_provider_id and model_id are required", http.StatusBadRequest)
+			return
+		}
+		if m.CapabilityTier == "" {
+			m.CapabilityTier = "smart"
+		}
+		if err := h.modelRepo.CreateUserModel(r.Context(), &m); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		go h.reloadAll(context.Background())
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "success", "id": m.ID})
+
 	case http.MethodPut:
 		var payload struct {
 			ID             int    `json:"id"`
@@ -357,6 +382,102 @@ func (h *AdminHandler) HandleModels(w http.ResponseWriter, r *http.Request) {
 			"status": "success",
 			"msg":    "Model capability tier updated",
 		})
+
+	case http.MethodDelete:
+		idStr := r.URL.Query().Get("id")
+		id, err := strconv.Atoi(idStr)
+		if err != nil || id <= 0 {
+			http.Error(w, "invalid id", http.StatusBadRequest)
+			return
+		}
+		if err := h.modelRepo.DeleteUserModel(r.Context(), id); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		go h.reloadAll(context.Background())
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"status":"success"}`))
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// ---------------------------------------------------------
+// 意图字典 (Intents) API — 极简模式专用
+// ---------------------------------------------------------
+
+// HandleIntents 管理 user_model_intent_dict 表，即用户自定义意图覆盖（极简模式下使用）。
+// GET    → 返回所有用户手动配置的意图条目（source='manual'）
+// POST   → 新增或覆盖一条意图映射
+// DELETE → 删除指定的手动意图映射
+func (h *AdminHandler) HandleIntents(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		intents, err := h.intentRepo.GetAllUserIntents(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		// 转换为列表格式
+		type IntentItem struct {
+			RequestedModelID string `json:"requested_model_id"`
+			CapabilityTier   string `json:"capability_tier"`
+		}
+		var list []IntentItem
+		for k, v := range intents {
+			list = append(list, IntentItem{RequestedModelID: k, CapabilityTier: v})
+		}
+		if list == nil {
+			list = []IntentItem{}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(list)
+
+	case http.MethodPost:
+		var payload struct {
+			RequestedModelID string `json:"requested_model_id"`
+			CapabilityTier   string `json:"capability_tier"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if payload.RequestedModelID == "" || payload.CapabilityTier == "" {
+			http.Error(w, "requested_model_id and capability_tier are required", http.StatusBadRequest)
+			return
+		}
+		validTiers := map[string]bool{"smart": true, "fast": true, "reasoning": true}
+		if !validTiers[payload.CapabilityTier] {
+			http.Error(w, "capability_tier must be one of: smart, fast, reasoning", http.StatusBadRequest)
+			return
+		}
+		intent := &domain.UserModelIntentDict{
+			RequestedModelID: payload.RequestedModelID,
+			CapabilityTier:   payload.CapabilityTier,
+			Source:           "manual",
+		}
+		if err := h.intentRepo.SaveUserIntent(r.Context(), intent); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		go h.reloadPipeline(context.Background())
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"status":"success"}`))
+
+	case http.MethodDelete:
+		modelID := r.URL.Query().Get("model")
+		if modelID == "" {
+			http.Error(w, "model query parameter is required", http.StatusBadRequest)
+			return
+		}
+		if err := h.intentRepo.DeleteUserIntent(r.Context(), modelID); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		go h.reloadPipeline(context.Background())
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"status":"success"}`))
 
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -529,6 +650,8 @@ func (h *AdminHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/admin/sys_providers", h.HandleSysProviders)
 	mux.HandleFunc("/api/admin/models", h.HandleModels)
 	mux.HandleFunc("/api/admin/routes", h.HandleRoutes)
+	// 意图映射管理（极简模式专用）
+	mux.HandleFunc("/api/admin/intents", h.HandleIntents)
 
 	// 边缘存根 API
 	mux.HandleFunc("/api/stats", h.GetStats)

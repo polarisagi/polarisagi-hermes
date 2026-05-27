@@ -44,8 +44,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	if !strings.HasPrefix(r.URL.Path, "/v1/chat/completions") {
-		http.Error(w, "Only /v1/chat/completions is supported currently", http.StatusNotFound)
+	// 支持 OpenAI 格式（/v1/chat/completions）和 Anthropic 原生格式（/v1/messages）。
+	// Claude Code 使用 /v1/messages，Codex 使用 /v1/chat/completions。
+	// 两种格式的请求体中均有 "model" 字段，可统一提取。
+	isOpenAI := strings.HasPrefix(r.URL.Path, "/v1/chat/completions")
+	isAnthropic := strings.HasPrefix(r.URL.Path, "/v1/messages")
+	if !isOpenAI && !isAnthropic {
+		http.Error(w, "Only /v1/chat/completions and /v1/messages are supported", http.StatusNotFound)
 		return
 	}
 
@@ -73,10 +78,17 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	activeChan, actualModel, err := s.pipeline.RouteRequest(r.Context(), baseReq.Model)
 	if err != nil {
 		slog.Error("路由匹配失败", "requested_model", baseReq.Model, "error", err)
-		http.Error(w, "No available upstream models to serve this request: "+err.Error(), http.StatusServiceUnavailable)
+		// 根据传入协议选择错误响应格式
+		if isAnthropic {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte(`{"type":"error","error":{"type":"overloaded_error","message":"No available upstream models to serve this request"}}`))
+		} else {
+			http.Error(w, "No available upstream models to serve this request: "+err.Error(), http.StatusServiceUnavailable)
+		}
 		return
 	}
-	
+
 	// 完美确保并发锁无论如何都能释放
 	defer s.chanManager.ReleaseChannel(activeChan)
 
@@ -84,13 +96,19 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	trans := s.transFactory.GetTranslator(activeChan.APIProtocol)
 	if trans == nil {
 		slog.Warn("未找到对应的翻译器插件，暂不支持该协议", "api_protocol", activeChan.APIProtocol, "provider", activeChan.Endpoint.ProviderID)
-		http.Error(w, "Translator not implemented for protocol: "+activeChan.APIProtocol, http.StatusNotImplemented)
+		if isAnthropic {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotImplemented)
+			_, _ = w.Write([]byte(`{"type":"error","error":{"type":"api_error","message":"Translator not implemented for protocol: ` + activeChan.APIProtocol + `"}}`))
+		} else {
+			http.Error(w, "Translator not implemented for protocol: "+activeChan.APIProtocol, http.StatusNotImplemented)
+		}
 		return
 	}
 
-	// 将整个网络请求周期交给对应大厂的翻译器处理（最大化复用经过历史验证的老代码）
+	// 将整个网络请求周期交给对应大厂的翻译器处理
 	if err := trans.TranslateAndExecute(r.Context(), w, r, bodyBytes, activeChan, actualModel); err != nil {
 		slog.Error("翻译器执行失败", "error", err)
-		// 如果翻译器内部未写入响应，兜底返回错误
 	}
 }
+

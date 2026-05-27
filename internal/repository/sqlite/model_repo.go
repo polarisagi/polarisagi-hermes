@@ -93,3 +93,59 @@ func (r *ModelRepo) UpdateUserModelTier(ctx context.Context, id int, tier string
 	return err
 }
 
+// CreateUserModel 为渠道手动添加一个自定义模型（主要用于本地模型如 Ollama/vLLM）
+func (r *ModelRepo) CreateUserModel(ctx context.Context, m *domain.UserModel) error {
+	query := `
+		INSERT INTO user_models (user_provider_id, display_name, model_id, capability_tier, is_active)
+		VALUES (?, ?, ?, ?, 1)
+	`
+	if m.DisplayName == "" {
+		m.DisplayName = m.ModelID
+	}
+	res, err := DB().ExecContext(ctx, query,
+		m.UserProviderID, m.DisplayName, m.ModelID, m.CapabilityTier,
+	)
+	if err != nil {
+		return err
+	}
+	id, err := res.LastInsertId()
+	if err == nil {
+		m.ID = int(id)
+	}
+	return nil
+}
+
+// DeleteUserModel 删除指定的用户模型实例
+func (r *ModelRepo) DeleteUserModel(ctx context.Context, id int) error {
+	query := `DELETE FROM user_models WHERE id = ?`
+	_, err := DB().ExecContext(ctx, query, id)
+	return err
+}
+
+// GetUserModelsByProvider 获取指定渠道下的所有模型（含禁用）
+func (r *ModelRepo) GetUserModelsByProvider(ctx context.Context, userProviderID int) ([]domain.UserModel, error) {
+	query := `
+		SELECT id, user_provider_id, IFNULL(display_name, ''), model_id, capability_tier, is_active
+		FROM user_models
+		WHERE user_provider_id = ?
+		ORDER BY capability_tier, model_id
+	`
+	rows, err := DB().QueryContext(ctx, query, userProviderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var models []domain.UserModel
+	for rows.Next() {
+		var m domain.UserModel
+		err := rows.Scan(
+			&m.ID, &m.UserProviderID, &m.DisplayName, &m.ModelID, &m.CapabilityTier, &m.IsActive,
+		)
+		if err != nil {
+			return nil, err
+		}
+		models = append(models, m)
+	}
+	return models, nil
+}

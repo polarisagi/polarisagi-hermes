@@ -3,6 +3,10 @@ export default {
     setup() {
         return {
             nodeModal: { show: false, isEdit: false },
+            modelsModal: { show: false, nodeId: 0, nodeName: '', nodeProvider: '' },
+            channelModels: [],
+            addModelModal: { show: false },
+            addModelForm: { model_id: '', capability_tier: 'smart' },
             sysProviders: [],
             sysEndpoints: [],
             availableEndpoints: [],
@@ -49,6 +53,14 @@ export default {
                 } catch (e) { console.error(e) }
             },
 
+            async fetchAllModels() {
+                try {
+                    const res = await fetch('/api/admin/models');
+                    const json = await res.json() || [];
+                    Alpine.store('global').allModels = Array.isArray(json) ? json : [];
+                } catch (e) { console.error(e); }
+            },
+
             async fetchSysProviders() {
                 try {
                     const res = await fetch('/api/admin/sys_providers');
@@ -58,6 +70,92 @@ export default {
                         this.sysEndpoints = data.endpoints;
                     }
                 } catch (e) { console.error("Failed to fetch sys_providers", e); }
+            },
+
+            // ── Model Sub-Panel Methods ────────────────────────────────────────
+
+            getModelsForChannel(nodeId) {
+                const all = Alpine.store('global').allModels || [];
+                return all.filter(m => m.user_provider_id === nodeId);
+            },
+
+            getTierBadgeClass(tier) {
+                const map = { smart: 'badge-warning', fast: 'badge-info', reasoning: 'badge-secondary' };
+                return map[tier] || 'badge-ghost';
+            },
+
+            openModelsModal(node) {
+                this.modelsModal = {
+                    show: true,
+                    nodeId: node.id,
+                    nodeName: node.name,
+                    nodeProvider: node.provider
+                };
+                this.channelModels = this.getModelsForChannel(node.id);
+            },
+
+            async changeModelTier(modelId, newTier) {
+                const gStore = Alpine.store('global');
+                try {
+                    const res = await fetch('/api/admin/models', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id: modelId, capability_tier: newTier })
+                    });
+                    if (res.ok) {
+                        await this.fetchAllModels();
+                        this.channelModels = this.getModelsForChannel(this.modelsModal.nodeId);
+                        gStore.showToast('梯队已更新');
+                    } else {
+                        gStore.showToast('更新失败', 'error');
+                    }
+                } catch (e) { gStore.showToast('网络错误', 'error'); }
+            },
+
+            async removeModel(modelId) {
+                const gStore = Alpine.store('global');
+                if (!confirm('确定要从该渠道中移除此模型吗？')) return;
+                try {
+                    const res = await fetch(`/api/admin/models?id=${modelId}`, { method: 'DELETE' });
+                    if (res.ok) {
+                        await this.fetchAllModels();
+                        this.channelModels = this.getModelsForChannel(this.modelsModal.nodeId);
+                        gStore.showToast('已移除');
+                    } else {
+                        gStore.showToast('移除失败', 'error');
+                    }
+                } catch (e) { gStore.showToast('网络错误', 'error'); }
+            },
+
+            async addModelToChannel() {
+                const gStore = Alpine.store('global');
+                const modelId = (this.addModelForm.model_id || '').trim();
+                if (!modelId) {
+                    gStore.showToast('模型名称不能为空', 'error');
+                    return;
+                }
+                try {
+                    const res = await fetch('/api/admin/models', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            user_provider_id: this.modelsModal.nodeId,
+                            model_id: modelId,
+                            capability_tier: this.addModelForm.capability_tier,
+                            display_name: modelId
+                        })
+                    });
+                    if (res.ok) {
+                        this.addModelModal.show = false;
+                        this.addModelForm = { model_id: '', capability_tier: 'smart' };
+                        await this.fetchAllModels();
+                        this.channelModels = this.getModelsForChannel(this.modelsModal.nodeId);
+                        gStore.showToast('模型已添加');
+                    } else {
+                        const err = await res.text();
+                        gStore.showToast('添加失败: ' + err, 'error');
+                    }
+                } catch (e) { gStore.showToast('网络错误', 'error'); }
             },
 
             openNodeModal(node = null) {
@@ -208,6 +306,7 @@ export default {
             init() {
                 this.fetchSysProviders();
                 this.fetchNodes();
+                this.fetchAllModels();
 
                 
                 // Function to update computed auth mode state
@@ -263,7 +362,10 @@ export default {
                 });
                 
                 this.$watch('$store.global.currentTab', (newTab) => {
-                    if (newTab === 'channels') this.fetchNodes();
+                    if (newTab === 'channels') {
+                        this.fetchNodes();
+                        this.fetchAllModels();
+                    }
                 });
             }
         };
@@ -289,6 +391,7 @@ export default {
                             <th class="text-center">Pri / Concurrency</th>
                             <th x-text="$store.global.t('table_limit_usage')"></th>
                             <th x-text="$store.global.t('valid_range')"></th>
+                            <th class="text-center">模型</th>
                             <th class="text-center w-20" x-text="$store.global.t('table_status')"></th>
                             <th class="text-right w-24" x-text="$store.global.t('actions')"></th>
                         </tr>
@@ -330,6 +433,13 @@ export default {
                                     </template>
                                 </td>
                                 <td class="text-center">
+                                    <button @click="openModelsModal(node)"
+                                            class="btn btn-ghost btn-xs font-mono gap-1">
+                                        <span>⚙</span>
+                                        <span class="text-info" x-text="getModelsForChannel(node.id).length"></span>
+                                    </button>
+                                </td>
+                                <td class="text-center">
                                     <template x-if="node.status === 1"><span class="badge badge-success badge-sm" x-text="$store.global.t('status_enabled_short')"></span></template>
                                     <template x-if="node.status === 0"><span class="badge badge-ghost badge-sm" x-text="$store.global.t('status_disabled_short')"></span></template>
                                     <template x-if="node.status === -1"><span class="badge badge-error badge-sm" x-text="$store.global.t('status_exhausted_short')"></span></template>
@@ -342,7 +452,7 @@ export default {
                         </template>
                         <template x-if="$store.global.nodes.length === 0">
                             <tr>
-                                <td colspan="7" class="text-center py-8 text-base-content/50" x-text="$store.global.t('no_nodes')"></td>
+                                <td colspan="8" class="text-center py-8 text-base-content/50" x-text="$store.global.t('no_nodes')"></td>
                             </tr>
                         </template>
                     </tbody>
@@ -514,6 +624,118 @@ export default {
                         <button class="btn btn-primary shadow-lg shadow-primary/20" @click="saveNode()" x-text="$store.global.t('btn_save_simple')"></button>
                     </div>
                 </div>
+            </dialog>
+            <!-- Models Management Modal -->
+            <dialog class="modal" :class="modelsModal.show ? 'modal-open' : ''">
+                <div class="modal-box w-11/12 max-w-2xl">
+                    <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
+                            @click="modelsModal.show = false">✕</button>
+
+                    <h3 class="font-bold text-lg mb-1">
+                        <span x-text="modelsModal.nodeName"></span>
+                        <span class="text-base-content/40 font-normal text-sm ml-2">模型列表</span>
+                    </h3>
+                    <p class="text-xs text-base-content/50 mb-4">渠道内所有可用模型及其能力梯队。创建渠道时自动导入，可手动调整梯队。</p>
+
+                    <!-- Model list table -->
+                    <div class="overflow-x-auto rounded-xl border border-base-300">
+                        <table class="table table-sm table-zebra w-full">
+                            <thead>
+                                <tr>
+                                    <th>模型 ID</th>
+                                    <th class="text-center">能力梯队</th>
+                                    <th class="text-right">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="m in channelModels" :key="m.id">
+                                    <tr>
+                                        <td>
+                                            <div class="font-mono text-sm font-semibold" x-text="m.model_id"></div>
+                                            <div class="text-xs text-base-content/40" x-text="m.display_name !== m.model_id ? m.display_name : ''"></div>
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="flex items-center justify-center gap-1">
+                                                <button @click="changeModelTier(m.id, 'smart')"
+                                                        :class="m.capability_tier === 'smart' ? 'badge-warning' : 'badge-ghost opacity-40 hover:opacity-80'"
+                                                        class="badge badge-sm cursor-pointer transition-all" title="旗舰型">🏆</button>
+                                                <button @click="changeModelTier(m.id, 'fast')"
+                                                        :class="m.capability_tier === 'fast' ? 'badge-info' : 'badge-ghost opacity-40 hover:opacity-80'"
+                                                        class="badge badge-sm cursor-pointer transition-all" title="极速型">⚡</button>
+                                                <button @click="changeModelTier(m.id, 'reasoning')"
+                                                        :class="m.capability_tier === 'reasoning' ? 'badge-secondary' : 'badge-ghost opacity-40 hover:opacity-80'"
+                                                        class="badge badge-sm cursor-pointer transition-all" title="沉思型">🧠</button>
+                                            </div>
+                                        </td>
+                                        <td class="text-right">
+                                            <button @click="removeModel(m.id)"
+                                                    class="btn btn-ghost btn-xs text-error">移除</button>
+                                        </td>
+                                    </tr>
+                                </template>
+                                <template x-if="channelModels.length === 0">
+                                    <tr>
+                                        <td colspan="3" class="text-center py-8 text-base-content/40">
+                                            <div class="text-2xl mb-1">📭</div>
+                                            <div class="text-sm">此渠道暂无模型</div>
+                                            <div class="text-xs mt-1">如果刚创建渠道，请尝试重启服务以触发自动导入</div>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Add model button (for local providers like Ollama) -->
+                    <div class="mt-4 flex items-center justify-between">
+                        <div class="text-xs text-base-content/40">Ollama/本地模型可手动添加</div>
+                        <button @click="addModelModal.show = true"
+                                class="btn btn-sm btn-outline btn-success gap-1">
+                            <span>+</span> 手动添加模型
+                        </button>
+                    </div>
+
+                    <div class="modal-action mt-4">
+                        <button class="btn" @click="modelsModal.show = false">关闭</button>
+                    </div>
+                </div>
+                <div class="modal-backdrop" @click="modelsModal.show = false"></div>
+            </dialog>
+
+            <!-- Add Model Sub-Modal -->
+            <dialog class="modal" :class="addModelModal.show ? 'modal-open' : ''">
+                <div class="modal-box w-11/12 max-w-sm">
+                    <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
+                            @click="addModelModal.show = false">✕</button>
+                    <h3 class="font-bold text-base mb-4">手动添加模型</h3>
+                    <div class="space-y-4">
+                        <div class="form-control">
+                            <div class="label pb-1"><span class="label-text font-medium">模型 ID *</span></div>
+                            <input x-model="addModelForm.model_id"
+                                   type="text" class="input input-bordered input-sm w-full font-mono"
+                                   placeholder="e.g. qwen3:32b, llama4:70b" />
+                        </div>
+                        <div class="form-control">
+                            <div class="label pb-2"><span class="label-text font-medium">能力梯队</span></div>
+                            <div class="flex gap-2">
+                                <button type="button" @click="addModelForm.capability_tier='smart'"
+                                        :class="addModelForm.capability_tier==='smart'?'btn-warning':'btn-ghost'"
+                                        class="btn btn-sm flex-1">🏆 旗舰</button>
+                                <button type="button" @click="addModelForm.capability_tier='fast'"
+                                        :class="addModelForm.capability_tier==='fast'?'btn-info':'btn-ghost'"
+                                        class="btn btn-sm flex-1">⚡ 极速</button>
+                                <button type="button" @click="addModelForm.capability_tier='reasoning'"
+                                        :class="addModelForm.capability_tier==='reasoning'?'btn-secondary':'btn-ghost'"
+                                        class="btn btn-sm flex-1">🧠 沉思</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-action mt-5">
+                        <button class="btn btn-sm" @click="addModelModal.show = false">取消</button>
+                        <button class="btn btn-sm btn-success" @click="addModelToChannel()">确认添加</button>
+                    </div>
+                </div>
+                <div class="modal-backdrop" @click="addModelModal.show = false"></div>
             </dialog>
         </div>
     `
