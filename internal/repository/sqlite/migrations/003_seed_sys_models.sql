@@ -1,6 +1,6 @@
 -- Seed data for sys_models (Built-in standard models mapping)
 
-INSERT INTO sys_models (provider_id, actual_model_id, display_name) VALUES
+INSERT OR IGNORE INTO sys_models (provider_id, actual_model_id, display_name) VALUES
 -- Anthropic
 ('anthropic', 'claude-opus-4-7', 'Claude Opus 4.7 (Claude CLI)'),
 ('anthropic', 'claude-sonnet-4-6', 'Claude Sonnet 4.6 (Claude CLI)'),

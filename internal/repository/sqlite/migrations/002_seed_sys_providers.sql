@@ -1,6 +1,6 @@
 -- Seed data for sys_providers and sys_provider_auth_modes
 
-INSERT INTO sys_providers (provider_id, provider_name, api_protocol, default_concurrency, default_timeout_sec) VALUES
+INSERT OR IGNORE INTO sys_providers (provider_id, provider_name, api_protocol, default_concurrency, default_timeout_sec) VALUES
 -- 国际主流大厂
 ('openai', 'OpenAI', 'openai', 0, 120),
 ('anthropic', 'Anthropic', 'anthropic', 0, 120),
@@ -79,7 +79,7 @@ INSERT INTO sys_providers (provider_id, provider_name, api_protocol, default_con
 ('zai', 'ZAI', 'openai', 0, 120),
 ('kimi_coding', 'Kimi For Coding', 'openai', 0, 120);
 
-INSERT INTO sys_provider_auth_modes (mode_id, provider_id, mode_name, auth_type, header_name, url_template, required_fields) VALUES
+INSERT OR IGNORE INTO sys_provider_auth_modes (mode_id, provider_id, mode_name, auth_type, header_name, url_template, required_fields) VALUES
 -- 国际大厂
 ('openai_bearer', 'openai', 'OpenAI API Key', 'bearer', 'Authorization', 'https://api.openai.com/v1', '["api_key"]'),
 ('anthropic_key', 'anthropic', 'Anthropic API Key', 'header', 'x-api-key', 'https://api.anthropic.com/v1', '["api_key"]'),
