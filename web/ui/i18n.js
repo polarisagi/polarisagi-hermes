@@ -270,6 +270,40 @@ window.messages = {
         route_deleted: "规则已删除",
         err_empty_mapping: "至少需要填写一个模型匹配规则",
         err_empty_protocols: "必须选择源协议和目标协议",
+
+        // Rules - Source Mode
+        routes_simple_hint: "极简模式：按模型能力梯队智能转发。切换到 Pro 模式可配置精确的模型 ID 1:1 映射。",
+        routes_pro_hint: "Pro 模式：精确配置 源模型 ID → 目标模型 的强制映射，优先级高于智能推断。支持精确名、正则、通配符 * 兜底。",
+        route_modal_simple_desc: "选择客户端请求的模型类型，系统将自动选择目标渠道中对应能力的模型",
+        route_modal_pro_desc: "精确配置：源模型 ID → 目标模型 ID 的强制映射规则",
+
+        source_mode_tier: "按能力梯队",
+        source_mode_wildcard: "全部模型 (*)",
+        source_mode_custom: "自定义",
+
+        tier_smart: "🏆 旗舰型 (smart)",
+        tier_fast: "⚡ 极速型 (fast)",
+        tier_reasoning: "🧠 沉思型 (reasoning)",
+        tier_wildcard: "✸ 全部模型 (*)",
+
+        tier_smart_label: "旗舰型",
+        tier_fast_label: "极速型",
+        tier_reasoning_label: "沉思型",
+
+        tier_smart_desc: "匹配所有旗舰模型请求 (如 gpt-4o, claude-3-5-sonnet, gemini-2.5-pro)，转发到目标渠道中同为 smart 梯队的模型",
+        tier_fast_desc: "匹配所有极速轻量模型请求 (如 gpt-4o-mini, claude-3-haiku, gemini-2.5-flash)，转发到目标渠道中同为 fast 梯队的模型",
+        tier_reasoning_desc: "匹配所有深度推理模型请求 (如 o1, o3-mini, DeepSeek-R1)，转发到目标渠道中同为 reasoning 梯队的模型",
+
+        wildcard_desc: "所有未被其他规则精确命中的模型请求，都将被引流至此目标模型（兜底规则）",
+
+        placeholder_custom_source: "e.g. gpt-4o 或正则 ^claude-.*",
+        custom_source_hint: "支持精确模型名（如 gpt-4o）或正则表达式（如 ^claude-.*）",
+
+        placeholder_pro_source: "e.g. gpt-4o 或 ^claude-.* 或 * 或 smart",
+        hint_pro_source: "支持精确模型名、正则、能力梯队关键字(smart/fast/reasoning)、通配符(*)",
+
+        no_models_hint: "请先在「渠道账号」中添加渠道和模型，再配置转发规则",
+        selected: "已选：",
         
         // Route types & descs
         route_anthropic_direct: "Anthropic — 透传直通",
@@ -476,6 +510,40 @@ window.messages = {
         route_deleted: "Rule Deleted",
         err_empty_mapping: "At least one model mapping rule is required",
         err_empty_protocols: "Source and target protocols must be selected",
+
+        // Rules - Source Mode
+        routes_simple_hint: "Simple Mode: intelligent routing by model capability tier. Switch to Pro Mode for precise 1:1 model ID mapping.",
+        routes_pro_hint: "Pro Mode: configure forced source model ID → target model mapping. Higher priority than intelligent inference. Supports exact, regex, and wildcard * fallback.",
+        route_modal_simple_desc: "Select the type of model the client requests — the system picks the matching model from the target channel automatically",
+        route_modal_pro_desc: "Precise config: forced 1:1 mapping of source model ID → target model ID",
+
+        source_mode_tier: "By Capability Tier",
+        source_mode_wildcard: "All Models (*)",
+        source_mode_custom: "Custom",
+
+        tier_smart: "🏆 Flagship (smart)",
+        tier_fast: "⚡ Fast (fast)",
+        tier_reasoning: "🧠 Reasoning (reasoning)",
+        tier_wildcard: "✸ All Models (*)",
+
+        tier_smart_label: "Flagship",
+        tier_fast_label: "Fast",
+        tier_reasoning_label: "Reasoning",
+
+        tier_smart_desc: "Matches all flagship model requests (e.g. gpt-4o, claude-3-5-sonnet, gemini-2.5-pro). Routes to the smart-tier model in the target channel.",
+        tier_fast_desc: "Matches all fast/lightweight model requests (e.g. gpt-4o-mini, claude-3-haiku, gemini-2.5-flash). Routes to the fast-tier model in the target channel.",
+        tier_reasoning_desc: "Matches all deep-reasoning model requests (e.g. o1, o3-mini, DeepSeek-R1). Routes to the reasoning-tier model in the target channel.",
+
+        wildcard_desc: "All requests not matched by other rules will be routed to this target model (catch-all fallback rule).",
+
+        placeholder_custom_source: "e.g. gpt-4o or regex ^claude-.*",
+        custom_source_hint: "Supports exact model name (e.g. gpt-4o) or regex (e.g. ^claude-.*)",
+
+        placeholder_pro_source: "e.g. gpt-4o or ^claude-.* or * or smart",
+        hint_pro_source: "Supports exact name, regex, capability tier (smart/fast/reasoning), or wildcard (*)",
+
+        no_models_hint: "Please add a channel and models in \"Channels\" first before configuring routing rules.",
+        selected: "Selected:",
         
         // Route types & descs
         route_anthropic_direct: "Anthropic — Direct Passthrough",
