@@ -159,7 +159,7 @@ func (r *ProviderRepo) CreateUserProvider(ctx context.Context, p *domain.UserPro
 }
 
 // seedUserModels 在创建渠道后，批量将该厂商的所有系统模型导入为用户模型实例。
-// tier 优先从 sys_model_intent_dict 获取（数据更精确），其次 fallback 到 sys_models.capability_tier。
+// tier 从 sys_model_intent_dict 获取（单一数据源），若无记录则 fallback 到 'smart'。
 // 本地协议（auth_type='none'）的端点不执行自动导入。
 func (r *ProviderRepo) seedUserModels(ctx context.Context, userProviderID int, endpointID string) error {
 	seedSQL := `
@@ -169,8 +169,7 @@ func (r *ProviderRepo) seedUserModels(ctx context.Context, userProviderID int, e
 			sm.display_name,
 			sm.model_id,
 			COALESCE(
-				(SELECT capability_tier FROM sys_model_intent_dict WHERE requested_model_id = sm.model_id),
-				sm.capability_tier,
+				(SELECT capability_tier FROM sys_model_intent_dict WHERE model_id = sm.model_id),
 				'smart'
 			) AS capability_tier,
 			1 AS is_active
@@ -182,6 +181,7 @@ func (r *ProviderRepo) seedUserModels(ctx context.Context, userProviderID int, e
 	_, err := DB().ExecContext(ctx, seedSQL, userProviderID, endpointID)
 	return err
 }
+
 
 // UpdateUserProvider 更新用户渠道
 func (r *ProviderRepo) UpdateUserProvider(ctx context.Context, p *domain.UserProvider) error {

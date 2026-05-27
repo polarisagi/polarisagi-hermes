@@ -40,9 +40,9 @@ func (i *IntentInferer) InferUnknownModel(ctx context.Context, modelID string) s
 
 	// 4. 将推断结果持久化，形成闭环进化
 	_ = i.intentRepo.SaveUserIntent(ctx, &domain.UserModelIntentDict{
-		RequestedModelID: modelID,
-		CapabilityTier:   tier,
-		Source:           source,
+		ModelID:        modelID,
+		CapabilityTier: tier,
+		Source:         source,
 	})
 
 	return tier

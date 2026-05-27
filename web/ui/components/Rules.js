@@ -16,7 +16,7 @@ export default {
             // ── Simple Mode State ────────────────────────────────────────────
             intentModal: { show: false },
             intentForm: {
-                requested_model_id: '',
+                model_id: '',
                 capability_tier: 'smart'
             },
             userIntents: [],
@@ -102,13 +102,13 @@ export default {
             // ─── Simple Mode: Intent Modal ────────────────────────────────────
 
             openIntentModal() {
-                this.intentForm = { requested_model_id: '', capability_tier: 'smart' };
+                this.intentForm = { model_id: '', capability_tier: 'smart' };
                 this.intentModal.show = true;
             },
 
             async saveIntent() {
                 const gStore = Alpine.store('global');
-                const modelId = (this.intentForm.requested_model_id || '').trim();
+                const modelId = (this.intentForm.model_id || '').trim();
                 if (!modelId) {
                     gStore.showToast('模型名称不能为空', 'error');
                     return;
@@ -118,7 +118,7 @@ export default {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            requested_model_id: modelId,
+                            model_id: modelId,
                             capability_tier: this.intentForm.capability_tier
                         })
                     });
@@ -362,10 +362,10 @@ export default {
                             </tr>
                         </thead>
                         <tbody>
-                            <template x-for="intent in userIntents" :key="intent.requested_model_id">
+                            <template x-for="intent in userIntents" :key="intent.model_id">
                                 <tr>
                                     <td>
-                                        <span class="font-mono text-info text-sm font-semibold" x-text="intent.requested_model_id"></span>
+                                        <span class="font-mono text-info text-sm font-semibold" x-text="intent.model_id"></span>
                                     </td>
                                     <td>
                                         <span class="badge badge-sm font-mono"
@@ -373,7 +373,7 @@ export default {
                                               x-text="getTierLabel(intent.capability_tier)"></span>
                                     </td>
                                     <td class="text-right">
-                                        <button @click="deleteIntent(intent.requested_model_id)"
+                                        <button @click="deleteIntent(intent.model_id)"
                                                 class="btn btn-ghost btn-xs text-error">删除</button>
                                     </td>
                                 </tr>
@@ -406,7 +406,7 @@ export default {
                                 <div class="label pb-1">
                                     <span class="label-text font-semibold">客户端发来的模型名 *</span>
                                 </div>
-                                <input x-model="intentForm.requested_model_id"
+                                <input x-model="intentForm.model_id"
                                        type="text"
                                        class="input input-bordered w-full font-mono text-info"
                                        placeholder="e.g. my-assistant, internal-coder" />

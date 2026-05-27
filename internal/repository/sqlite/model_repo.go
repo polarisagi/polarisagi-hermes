@@ -42,7 +42,7 @@ func (r *ModelRepo) GetUserModels(ctx context.Context) ([]domain.UserModel, erro
 // GetSysModels 获取系统内置的所有官方模型物理参数
 func (r *ModelRepo) GetSysModels(ctx context.Context) ([]domain.SysModel, error) {
 	query := `
-		SELECT model_id, provider_id, display_name, IFNULL(capability_tier, 'smart'), context_length, max_output_tokens, supports_vision, supports_tools
+		SELECT model_id, provider_id, display_name, context_length, max_output_tokens, supports_vision, supports_tools
 		FROM sys_models
 	`
 	rows, err := DB().QueryContext(ctx, query)
@@ -55,7 +55,7 @@ func (r *ModelRepo) GetSysModels(ctx context.Context) ([]domain.SysModel, error)
 	for rows.Next() {
 		var m domain.SysModel
 		err := rows.Scan(
-			&m.ModelID, &m.ProviderID, &m.DisplayName, &m.CapabilityTier, &m.ContextLength, &m.MaxOutputTokens, &m.SupportsVision, &m.SupportsTools,
+			&m.ModelID, &m.ProviderID, &m.DisplayName, &m.ContextLength, &m.MaxOutputTokens, &m.SupportsVision, &m.SupportsTools,
 		)
 		if err != nil {
 			return nil, err

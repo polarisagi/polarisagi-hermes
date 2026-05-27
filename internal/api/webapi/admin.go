@@ -421,12 +421,12 @@ func (h *AdminHandler) HandleIntents(w http.ResponseWriter, r *http.Request) {
 		}
 		// 转换为列表格式
 		type IntentItem struct {
-			RequestedModelID string `json:"requested_model_id"`
-			CapabilityTier   string `json:"capability_tier"`
+			ModelID        string `json:"model_id"`
+			CapabilityTier string `json:"capability_tier"`
 		}
 		var list []IntentItem
 		for k, v := range intents {
-			list = append(list, IntentItem{RequestedModelID: k, CapabilityTier: v})
+			list = append(list, IntentItem{ModelID: k, CapabilityTier: v})
 		}
 		if list == nil {
 			list = []IntentItem{}
@@ -436,15 +436,15 @@ func (h *AdminHandler) HandleIntents(w http.ResponseWriter, r *http.Request) {
 
 	case http.MethodPost:
 		var payload struct {
-			RequestedModelID string `json:"requested_model_id"`
-			CapabilityTier   string `json:"capability_tier"`
+			ModelID        string `json:"model_id"`
+			CapabilityTier string `json:"capability_tier"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		if payload.RequestedModelID == "" || payload.CapabilityTier == "" {
-			http.Error(w, "requested_model_id and capability_tier are required", http.StatusBadRequest)
+		if payload.ModelID == "" || payload.CapabilityTier == "" {
+			http.Error(w, "model_id and capability_tier are required", http.StatusBadRequest)
 			return
 		}
 		validTiers := map[string]bool{"smart": true, "fast": true, "reasoning": true}
@@ -453,9 +453,9 @@ func (h *AdminHandler) HandleIntents(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		intent := &domain.UserModelIntentDict{
-			RequestedModelID: payload.RequestedModelID,
-			CapabilityTier:   payload.CapabilityTier,
-			Source:           "manual",
+			ModelID:        payload.ModelID,
+			CapabilityTier: payload.CapabilityTier,
+			Source:         "manual",
 		}
 		if err := h.intentRepo.SaveUserIntent(r.Context(), intent); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
