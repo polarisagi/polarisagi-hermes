@@ -4,11 +4,11 @@ export default {
         return {
             nodeModal: { show: false, isEdit: false },
             sysProviders: [],
-            sysAuthModes: [],
-            availableAuthModes: [],
-            selectedAuthMode: null,
+            sysEndpoints: [],
+            availableEndpoints: [],
+            selectedEndpoint: null,
             nodeForm: {
-                id: 0, protocol: 'openai', provider: 'openai', sys_auth_mode_id: '', name: '', credentials: '', project_id: '', location: 'global', base_url: '',
+                id: 0, protocol: 'openai', provider: 'openai', endpoint_id: '', name: '', credentials: '', project_id: '', location: 'global', base_url: '',
                 priority: 10, limit_percent: 90.0, balance: 0.0, min_request_interval_sec: 0, concurrency: 0,
                 valid_from: '', valid_to: '', status: 1
             },
@@ -38,7 +38,9 @@ export default {
                     const res = await fetch('/api/admin/nodes');
                     let nodes = await res.json() || [];
                     nodes = nodes.map(n => {
-                        n.provider = n.sys_provider_id;
+                        // find endpoint
+                        const ep = this.sysEndpoints.find(e => e.endpoint_id === n.endpoint_id);
+                        n.provider = ep ? ep.provider_id : 'unknown';
                         n.concurrency = n.concurrency_limit || 0;
                         n.min_request_interval_sec = n.min_interval_sec || 0;
                         return n;
@@ -53,7 +55,7 @@ export default {
                     const data = await res.json();
                     if (data && data.providers) {
                         this.sysProviders = data.providers;
-                        this.sysAuthModes = data.auth_modes;
+                        this.sysEndpoints = data.endpoints;
                     }
                 } catch (e) { console.error("Failed to fetch sys_providers", e); }
             },
@@ -61,8 +63,11 @@ export default {
             openNodeModal(node = null) {
                 if (node) {
                     let protocol = 'openai';
-                    const pInfo = this.sysProviders.find(p => p.provider_id === node.provider);
-                    if (pInfo) protocol = pInfo.api_protocol;
+                    const ep = this.sysEndpoints.find(e => e.endpoint_id === node.endpoint_id);
+                    if (ep) {
+                        protocol = ep.api_protocol;
+                        node.provider = ep.provider_id;
+                    }
                     
                     const origCreds = node.auth_credentials || {};
 
@@ -119,26 +124,25 @@ export default {
                     let authCreds = {};
                     if (this.nodeModal.isEdit && !form.credentials) {
                         authCreds = { ...(form.auth_credentials || {}) };
-                    } else if (this.selectedAuthMode) {
-                        if (this.selectedAuthMode.auth_type === 'adc') {
+                    } else if (this.selectedEndpoint) {
+                        if (this.selectedEndpoint.auth_type === 'adc') {
                             try {
                                 authCreds = JSON.parse(form.credentials);
                             } catch(e) {
                                 authCreds.adc_json = form.credentials;
                             }
-                        } else if (this.selectedAuthMode.auth_type !== 'none') {
+                        } else if (this.selectedEndpoint.auth_type !== 'none') {
                             authCreds.api_key = form.credentials;
                         }
                     }
-                    if (this.selectedAuthMode) {
-                        if (this.selectedAuthMode.required_fields.includes('project_id')) authCreds.project_id = form.project_id;
-                        if (this.selectedAuthMode.required_fields.includes('region')) authCreds.region = form.location;
+                    if (this.selectedEndpoint) {
+                        if (this.selectedEndpoint.required_credential_fields.includes('project_id')) authCreds.project_id = form.project_id;
+                        if (this.selectedEndpoint.required_credential_fields.includes('region')) authCreds.region = form.location;
                     }
                     
                     const payload = {
                         ...form,
-                        sys_provider_id: form.provider,
-                        sys_auth_mode_id: form.sys_auth_mode_id,
+                        endpoint_id: form.endpoint_id,
                         auth_credentials: authCreds,
                         concurrency_limit: form.concurrency,
                         min_interval_sec: form.min_request_interval_sec,
@@ -217,16 +221,19 @@ export default {
                 
                 // Function to update computed auth mode state
                 const updateAuthModes = () => {
-                    this.availableAuthModes = this.sysAuthModes.filter(m => m.provider_id === this.nodeForm.provider);
-                    if (this.availableAuthModes.length > 0) {
+                    this.availableEndpoints = this.sysEndpoints.filter(m => 
+                        m.provider_id === this.nodeForm.provider && 
+                        m.api_protocol === this.nodeForm.protocol
+                    );
+                    if (this.availableEndpoints.length > 0) {
                         // If current auth mode is not in available, select the first one
-                        if (!this.availableAuthModes.find(m => m.mode_id === this.nodeForm.sys_auth_mode_id)) {
-                            this.nodeForm.sys_auth_mode_id = this.availableAuthModes[0].mode_id;
+                        if (!this.availableEndpoints.find(m => m.endpoint_id === this.nodeForm.endpoint_id)) {
+                            this.nodeForm.endpoint_id = this.availableEndpoints[0].endpoint_id;
                         }
-                        this.selectedAuthMode = this.availableAuthModes.find(m => m.mode_id === this.nodeForm.sys_auth_mode_id) || null;
+                        this.selectedEndpoint = this.availableEndpoints.find(m => m.endpoint_id === this.nodeForm.endpoint_id) || null;
                     } else {
-                        this.nodeForm.sys_auth_mode_id = '';
-                        this.selectedAuthMode = null;
+                        this.nodeForm.endpoint_id = '';
+                        this.selectedEndpoint = null;
                     }
                 };
 
@@ -256,8 +263,8 @@ export default {
                     }
                 });
 
-                this.$watch('nodeForm.sys_auth_mode_id', (newVal) => {
-                    this.selectedAuthMode = this.availableAuthModes.find(m => m.mode_id === newVal) || null;
+                this.$watch('nodeForm.endpoint_id', (newVal) => {
+                    this.selectedEndpoint = this.availableEndpoints.find(m => m.endpoint_id === newVal) || null;
                 });
                 
                 // Also trigger initial calculation when modal opens
@@ -377,7 +384,7 @@ export default {
                                 <label class="form-control w-full">
                                     <div class="label"><span class="label-text font-medium">大模型厂商 <span class="text-error">*</span></span></div>
                                     <select x-model="nodeForm.provider" class="select select-bordered select-sm w-full">
-                                        <template x-for="p in sysProviders.filter(x => x.api_protocol === nodeForm.protocol)" :key="p.provider_id">
+                                        <template x-for="p in sysProviders.filter(x => sysEndpoints.some(e => e.provider_id === x.provider_id && e.api_protocol === nodeForm.protocol))" :key="p.provider_id">
                                             <option :value="p.provider_id" x-text="p.provider_name"></option>
                                         </template>
                                     </select>
@@ -391,13 +398,13 @@ export default {
                             </div>
                             
                             <!-- 动态鉴权方式选择 (仅当厂商有多种鉴权模式时显示) -->
-                            <template x-if="availableAuthModes.length > 1">
+                            <template x-if="availableEndpoints.length > 1">
                                 <div class="grid grid-cols-1 gap-4 mb-4">
                                     <label class="form-control w-full">
                                         <div class="label"><span class="label-text font-medium">鉴权方式 <span class="text-error">*</span></span></div>
                                         <div class="join">
-                                            <template x-for="m in availableAuthModes" :key="m.mode_id">
-                                                <input class="join-item btn btn-sm w-1/2" type="radio" :aria-label="m.mode_name" x-model="nodeForm.sys_auth_mode_id" :value="m.mode_id" />
+                                            <template x-for="m in availableEndpoints" :key="m.endpoint_id">
+                                                <input class="join-item btn btn-sm w-1/2" type="radio" :aria-label="m.display_name" x-model="nodeForm.endpoint_id" :value="m.endpoint_id" />
                                             </template>
                                         </div>
                                     </label>
@@ -407,26 +414,26 @@ export default {
                             <label class="form-control w-full">
                                 <div class="label">
                                     <span class="label-text font-medium">
-                                        <template x-if="selectedAuthMode && selectedAuthMode.auth_type === 'adc'"><span>ADC JSON</span></template>
-                                        <template x-if="!selectedAuthMode || selectedAuthMode.auth_type !== 'adc'"><span>API Key</span></template>
+                                        <template x-if="selectedEndpoint && selectedEndpoint.auth_type === 'adc'"><span>ADC JSON</span></template>
+                                        <template x-if="!selectedEndpoint || selectedEndpoint.auth_type !== 'adc'"><span>API Key</span></template>
                                         
-                                        <template x-if="selectedAuthMode && selectedAuthMode.auth_type !== 'none'"><span class="text-error">*</span></template>
+                                        <template x-if="selectedEndpoint && selectedEndpoint.auth_type !== 'none'"><span class="text-error">*</span></template>
                                         
                                         <!-- 动态提示词 -->
-                                        <template x-if="selectedAuthMode && selectedAuthMode.auth_type === 'adc'"><span class="text-base-content/50 text-xs ml-1 font-normal" x-text="$store.global.t('hint_adc_paste')"></span></template>
-                                        <template x-if="selectedAuthMode && selectedAuthMode.auth_type === 'header'"><span class="text-base-content/50 text-xs ml-1 font-normal" x-text="'(放在 ' + selectedAuthMode.header_name + ' 请求头中)'"></span></template>
-                                        <template x-if="selectedAuthMode && selectedAuthMode.auth_type === 'bearer'"><span class="text-base-content/50 text-xs ml-1 font-normal" x-text="$store.global.t('hint_sk_bearer')"></span></template>
-                                        <template x-if="selectedAuthMode && selectedAuthMode.auth_type === 'none'"><span class="text-base-content/50 text-xs ml-1 font-normal">通常无需验证，留空即可</span></template>
+                                        <template x-if="selectedEndpoint && selectedEndpoint.auth_type === 'adc'"><span class="text-base-content/50 text-xs ml-1 font-normal" x-text="$store.global.t('hint_adc_paste')"></span></template>
+                                        <template x-if="selectedEndpoint && selectedEndpoint.auth_type === 'header'"><span class="text-base-content/50 text-xs ml-1 font-normal" x-text="'(放在 ' + selectedEndpoint.auth_header + ' 请求头中)'"></span></template>
+                                        <template x-if="selectedEndpoint && selectedEndpoint.auth_type === 'bearer'"><span class="text-base-content/50 text-xs ml-1 font-normal" x-text="$store.global.t('hint_sk_bearer')"></span></template>
+                                        <template x-if="selectedEndpoint && selectedEndpoint.auth_type === 'none'"><span class="text-base-content/50 text-xs ml-1 font-normal">通常无需验证，留空即可</span></template>
                                     </span>
-                                    <template x-if="selectedAuthMode && selectedAuthMode.auth_type === 'adc'">
+                                    <template x-if="selectedEndpoint && selectedEndpoint.auth_type === 'adc'">
                                         <button @click="startGoogleAuth" class="btn btn-xs btn-outline btn-info">🔑 <span x-text="$store.global.t('btn_oauth_auto')"></span></button>
                                     </template>
                                 </div>
                                 
-                                <template x-if="selectedAuthMode && selectedAuthMode.auth_type === 'adc'">
+                                <template x-if="selectedEndpoint && selectedEndpoint.auth_type === 'adc'">
                                     <textarea x-model="nodeForm.credentials" rows="3" :placeholder="nodeModal.isEdit ? $store.global.t('placeholder_adc_edit') : $store.global.t('placeholder_adc_new')" class="textarea textarea-bordered font-mono text-xs w-full"></textarea>
                                 </template>
-                                <template x-if="!selectedAuthMode || selectedAuthMode.auth_type !== 'adc'">
+                                <template x-if="!selectedEndpoint || selectedEndpoint.auth_type !== 'adc'">
                                     <input x-model="nodeForm.credentials" type="password" :placeholder="nodeModal.isEdit ? $store.global.t('placeholder_key_edit') : $store.global.t('placeholder_key_new')" class="input input-bordered input-sm w-full">
                                 </template>
                             </label>
@@ -467,15 +474,15 @@ export default {
                         <!-- 区块 2: 供应商配置 -->
                         <div class="bg-base-200 p-4 rounded-xl space-y-4 border border-base-300">
                             <h4 class="text-xs font-bold text-base-content/50 uppercase tracking-wider" x-text="$store.global.t('section_provider')"></h4>
-                            <template x-if="selectedAuthMode && (selectedAuthMode.required_fields.includes('project_id') || selectedAuthMode.required_fields.includes('region'))">
+                            <template x-if="selectedEndpoint && (selectedEndpoint.required_credential_fields.includes('project_id') || selectedEndpoint.required_credential_fields.includes('region'))">
                                 <div class="grid grid-cols-2 gap-4">
-                                    <template x-if="selectedAuthMode.required_fields.includes('project_id')">
+                                    <template x-if="selectedEndpoint.required_credential_fields.includes('project_id')">
                                         <label class="form-control w-full">
                                             <div class="label"><span class="label-text font-medium"><span x-text="$store.global.t('gcp_project_id')"></span> <span class="text-error">*</span></span></div>
                                             <input x-model="nodeForm.project_id" type="text" placeholder="your-gcp-project-id" class="input input-bordered input-sm w-full">
                                         </label>
                                     </template>
-                                    <template x-if="selectedAuthMode.required_fields.includes('region')">
+                                    <template x-if="selectedEndpoint.required_credential_fields.includes('region')">
                                         <label class="form-control w-full">
                                             <div class="label"><span class="label-text" x-text="$store.global.t('gcp_location')"></span></div>
                                             <input x-model="nodeForm.location" type="text" placeholder="global" class="input input-bordered input-sm w-full">

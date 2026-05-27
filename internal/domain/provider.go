@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+
 // SysProvider 代表大模型官方厂商（系统内置字典）
 type SysProvider struct {
 	ProviderID          string `json:"provider_id"`
@@ -14,15 +15,17 @@ type SysProvider struct {
 	DefaultTimeoutSec   int    `json:"default_timeout_sec"`
 }
 
-// SysProviderAuthMode 代表某厂商官方提供的一种鉴权/接入模式
-type SysProviderAuthMode struct {
-	ModeID         string          `json:"mode_id"`
-	ProviderID     string          `json:"provider_id"`
-	ModeName       string          `json:"mode_name"`
-	AuthType       string          `json:"auth_type"` // e.g., bearer, api_key_header, gcp_adc
-	HeaderName     string          `json:"header_name"`
-	URLTemplate    string          `json:"url_template"`
-	RequiredFields json.RawMessage `json:"required_fields"` // JSON array of field names
+// SysAccessEndpoint 代表某厂商的一种具体接入方式（端点）
+type SysAccessEndpoint struct {
+	EndpointID             string          `json:"endpoint_id"`
+	ProviderID             string          `json:"provider_id"`
+	DisplayName            string          `json:"display_name"`
+	APIProtocol            string          `json:"api_protocol"`
+	DefaultBaseURL         string          `json:"default_base_url"`
+	AuthType               string          `json:"auth_type"` // e.g., bearer, header, adc
+	AuthHeader             string          `json:"auth_header"`
+	RequiredCredentialFields json.RawMessage `json:"required_credential_fields"` // JSON array of field names
+	DisplayOrder           int             `json:"display_order"`
 }
 
 // AuthType constants defining the system-level authentication methods.
@@ -39,8 +42,7 @@ const (
 type UserProvider struct {
 	ID                int             `json:"id"`
 	Name              string          `json:"name"`
-	SysProviderID     string          `json:"sys_provider_id"`
-	SysAuthModeID     string          `json:"sys_auth_mode_id"`
+	EndpointID        string          `json:"endpoint_id"`
 	BaseURL           string          `json:"base_url"`
 	AuthCredentials   json.RawMessage `json:"auth_credentials"` // JSON key-value pairs
 	Priority          int             `json:"priority"`

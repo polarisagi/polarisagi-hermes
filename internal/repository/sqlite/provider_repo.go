@@ -17,7 +17,7 @@ func NewProviderRepo() *ProviderRepo {
 // GetUserProviders 获取所有未删除的用户配置渠道
 func (r *ProviderRepo) GetUserProviders(ctx context.Context) ([]domain.UserProvider, error) {
 	query := `
-		SELECT id, name, sys_provider_id, sys_auth_mode_id, base_url, auth_credentials, 
+		SELECT id, name, endpoint_id, base_url, auth_credentials, 
 		       priority, weight, concurrency_limit, min_interval_sec, timeout_sec, retry_times, status, 
 		       balance, limit_percent, used_amount, IFNULL(valid_from, ''), IFNULL(valid_to, ''), created_at
 		FROM user_providers
@@ -33,7 +33,7 @@ func (r *ProviderRepo) GetUserProviders(ctx context.Context) ([]domain.UserProvi
 		var p domain.UserProvider
 		var creds []byte
 		err := rows.Scan(
-			&p.ID, &p.Name, &p.SysProviderID, &p.SysAuthModeID, &p.BaseURL, &creds,
+			&p.ID, &p.Name, &p.EndpointID, &p.BaseURL, &creds,
 			&p.Priority, &p.Weight, &p.ConcurrencyLimit, &p.MinIntervalSec, &p.TimeoutSec, &p.RetryTimes, &p.Status,
 			&p.Balance, &p.LimitPercent, &p.UsedAmount, &p.ValidFrom, &p.ValidTo, &p.CreatedAt,
 		)
@@ -46,16 +46,16 @@ func (r *ProviderRepo) GetUserProviders(ctx context.Context) ([]domain.UserProvi
 	return providers, nil
 }
 
-// GetSysProvider 获取系统预置大厂的底层协议信息
+// GetSysProvider 获取系统预置大厂的基本信息
 func (r *ProviderRepo) GetSysProvider(ctx context.Context, providerID string) (*domain.SysProvider, error) {
 	query := `
-		SELECT provider_id, provider_name, api_protocol, default_concurrency, default_timeout_sec
+		SELECT provider_id, provider_name
 		FROM sys_providers
 		WHERE provider_id = ?
 	`
 	var p domain.SysProvider
 	err := DB().QueryRowContext(ctx, query, providerID).Scan(
-		&p.ProviderID, &p.ProviderName, &p.APIProtocol, &p.DefaultConcurrency, &p.DefaultTimeoutSec,
+		&p.ProviderID, &p.ProviderName,
 	)
 	if err != nil {
 		return nil, err
@@ -63,28 +63,28 @@ func (r *ProviderRepo) GetSysProvider(ctx context.Context, providerID string) (*
 	return &p, nil
 }
 
-// GetSysProviderAuthMode 获取指定的系统鉴权模式详情
-func (r *ProviderRepo) GetSysProviderAuthMode(ctx context.Context, modeID string) (*domain.SysProviderAuthMode, error) {
+// GetSysAccessEndpoint 获取指定的系统接入端点详情
+func (r *ProviderRepo) GetSysAccessEndpoint(ctx context.Context, endpointID string) (*domain.SysAccessEndpoint, error) {
 	query := `
-		SELECT mode_id, provider_id, mode_name, auth_type, header_name, url_template, required_fields
-		FROM sys_provider_auth_modes
-		WHERE mode_id = ?
+		SELECT endpoint_id, provider_id, display_name, api_protocol, default_base_url, auth_type, auth_header, required_credential_fields, display_order
+		FROM sys_access_endpoints
+		WHERE endpoint_id = ?
 	`
-	var m domain.SysProviderAuthMode
+	var e domain.SysAccessEndpoint
 	var reqFields []byte
-	err := DB().QueryRowContext(ctx, query, modeID).Scan(
-		&m.ModeID, &m.ProviderID, &m.ModeName, &m.AuthType, &m.HeaderName, &m.URLTemplate, &reqFields,
+	err := DB().QueryRowContext(ctx, query, endpointID).Scan(
+		&e.EndpointID, &e.ProviderID, &e.DisplayName, &e.APIProtocol, &e.DefaultBaseURL, &e.AuthType, &e.AuthHeader, &reqFields, &e.DisplayOrder,
 	)
 	if err != nil {
 		return nil, err
 	}
-	m.RequiredFields = json.RawMessage(reqFields)
-	return &m, nil
+	e.RequiredCredentialFields = json.RawMessage(reqFields)
+	return &e, nil
 }
 
 // GetAllSysProviders 获取所有系统预置大厂
 func (r *ProviderRepo) GetAllSysProviders(ctx context.Context) ([]domain.SysProvider, error) {
-	query := "SELECT provider_id, provider_name, api_protocol, default_concurrency, default_timeout_sec FROM sys_providers"
+	query := "SELECT provider_id, provider_name FROM sys_providers"
 	rows, err := DB().QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
@@ -94,7 +94,7 @@ func (r *ProviderRepo) GetAllSysProviders(ctx context.Context) ([]domain.SysProv
 	var providers []domain.SysProvider
 	for rows.Next() {
 		var p domain.SysProvider
-		if err := rows.Scan(&p.ProviderID, &p.ProviderName, &p.APIProtocol, &p.DefaultConcurrency, &p.DefaultTimeoutSec); err != nil {
+		if err := rows.Scan(&p.ProviderID, &p.ProviderName); err != nil {
 			return nil, err
 		}
 		providers = append(providers, p)
@@ -102,35 +102,35 @@ func (r *ProviderRepo) GetAllSysProviders(ctx context.Context) ([]domain.SysProv
 	return providers, nil
 }
 
-// GetAllSysProviderAuthModes 获取所有系统鉴权模式
-func (r *ProviderRepo) GetAllSysProviderAuthModes(ctx context.Context) ([]domain.SysProviderAuthMode, error) {
-	query := "SELECT mode_id, provider_id, mode_name, auth_type, header_name, url_template, required_fields FROM sys_provider_auth_modes"
+// GetAllSysAccessEndpoints 获取所有系统接入端点
+func (r *ProviderRepo) GetAllSysAccessEndpoints(ctx context.Context) ([]domain.SysAccessEndpoint, error) {
+	query := "SELECT endpoint_id, provider_id, display_name, api_protocol, default_base_url, auth_type, auth_header, required_credential_fields, display_order FROM sys_access_endpoints ORDER BY display_order ASC"
 	rows, err := DB().QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var modes []domain.SysProviderAuthMode
+	var endpoints []domain.SysAccessEndpoint
 	for rows.Next() {
-		var m domain.SysProviderAuthMode
+		var e domain.SysAccessEndpoint
 		var reqFields []byte
-		if err := rows.Scan(&m.ModeID, &m.ProviderID, &m.ModeName, &m.AuthType, &m.HeaderName, &m.URLTemplate, &reqFields); err != nil {
+		if err := rows.Scan(&e.EndpointID, &e.ProviderID, &e.DisplayName, &e.APIProtocol, &e.DefaultBaseURL, &e.AuthType, &e.AuthHeader, &reqFields, &e.DisplayOrder); err != nil {
 			return nil, err
 		}
-		m.RequiredFields = json.RawMessage(reqFields)
-		modes = append(modes, m)
+		e.RequiredCredentialFields = json.RawMessage(reqFields)
+		endpoints = append(endpoints, e)
 	}
-	return modes, nil
+	return endpoints, nil
 }
 
 // CreateUserProvider 创建新用户渠道
 func (r *ProviderRepo) CreateUserProvider(ctx context.Context, p *domain.UserProvider) error {
 	query := `
 		INSERT INTO user_providers (
-			name, sys_provider_id, sys_auth_mode_id, base_url, auth_credentials,
+			name, endpoint_id, base_url, auth_credentials,
 			priority, weight, concurrency_limit, min_interval_sec, timeout_sec, retry_times, status, balance, limit_percent, used_amount, valid_from, valid_to
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	creds, _ := json.Marshal(p.AuthCredentials)
 	if len(creds) == 0 || string(creds) == "null" {
@@ -138,7 +138,7 @@ func (r *ProviderRepo) CreateUserProvider(ctx context.Context, p *domain.UserPro
 	}
 
 	res, err := DB().ExecContext(ctx, query,
-		p.Name, p.SysProviderID, p.SysAuthModeID, p.BaseURL, creds,
+		p.Name, p.EndpointID, p.BaseURL, creds,
 		p.Priority, p.Weight, p.ConcurrencyLimit, p.MinIntervalSec, p.TimeoutSec, p.RetryTimes, p.Status, p.Balance, p.LimitPercent, p.UsedAmount, p.ValidFrom, p.ValidTo,
 	)
 	if err != nil {
@@ -155,7 +155,7 @@ func (r *ProviderRepo) CreateUserProvider(ctx context.Context, p *domain.UserPro
 func (r *ProviderRepo) UpdateUserProvider(ctx context.Context, p *domain.UserProvider) error {
 	query := `
 		UPDATE user_providers SET
-			name = ?, sys_provider_id = ?, sys_auth_mode_id = ?, base_url = ?, auth_credentials = ?,
+			name = ?, endpoint_id = ?, base_url = ?, auth_credentials = ?,
 			priority = ?, weight = ?, concurrency_limit = ?, min_interval_sec = ?, timeout_sec = ?, retry_times = ?, status = ?, balance = ?, limit_percent = ?, valid_from = ?, valid_to = ?
 		WHERE id = ?
 	`
@@ -165,7 +165,7 @@ func (r *ProviderRepo) UpdateUserProvider(ctx context.Context, p *domain.UserPro
 	}
 
 	_, err := DB().ExecContext(ctx, query,
-		p.Name, p.SysProviderID, p.SysAuthModeID, p.BaseURL, creds,
+		p.Name, p.EndpointID, p.BaseURL, creds,
 		p.Priority, p.Weight, p.ConcurrencyLimit, p.MinIntervalSec, p.TimeoutSec, p.RetryTimes, p.Status, p.Balance, p.LimitPercent, p.ValidFrom, p.ValidTo,
 		p.ID,
 	)

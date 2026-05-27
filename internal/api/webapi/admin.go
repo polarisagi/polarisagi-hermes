@@ -304,15 +304,15 @@ func (h *AdminHandler) HandleSysProviders(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	authModes, err := h.providerRepo.GetAllSysProviderAuthModes(r.Context())
+	endpoints, err := h.providerRepo.GetAllSysAccessEndpoints(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	res := map[string]interface{}{
-		"providers":  providers,
-		"auth_modes": authModes,
+		"providers": providers,
+		"endpoints": endpoints,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

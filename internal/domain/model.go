@@ -1,15 +1,22 @@
 package domain
 
-// SysModel 官方大模型的基础物理属性（不含意图分级）
+// SysModel 代表系统内置支持的各厂商的大模型
 type SysModel struct {
-	ID               int    `json:"id"`
+	ModelID          string `json:"model_id"`
 	ProviderID       string `json:"provider_id"`
-	ActualModelID    string `json:"actual_model_id"` // 如 "gemini-3.0-pro"
 	DisplayName      string `json:"display_name"`
+	CapabilityTier   string `json:"capability_tier"`
 	ContextLength    int    `json:"context_length"`
 	MaxOutputTokens  int    `json:"max_output_tokens"`
 	SupportsVision   bool   `json:"supports_vision"`
 	SupportsTools    bool   `json:"supports_tools"`
+}
+
+// SysModelEndpointBinding 解决同一模型在不同端点 API 字符串不同的问题
+type SysModelEndpointBinding struct {
+	ModelID        string `json:"model_id"`
+	EndpointID     string `json:"endpoint_id"`
+	ActualModelID  string `json:"actual_model_id"`
 }
 
 // SysModelIntent 全局公认的模型意图映射字典
@@ -23,7 +30,7 @@ type UserModel struct {
 	ID               int    `json:"id"`
 	UserProviderID   int    `json:"user_provider_id"`
 	DisplayName      string `json:"display_name"`
-	ActualModelID    string `json:"actual_model_id"`
+	ModelID          string `json:"model_id"`
 	CapabilityTier   string `json:"capability_tier"`    // 主观标记该模型的梯队
 	IsActive         bool   `json:"is_active"`
 }

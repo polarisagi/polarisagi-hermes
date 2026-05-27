@@ -8,29 +8,29 @@
 CREATE TABLE IF NOT EXISTS sys_providers (
     provider_id VARCHAR PRIMARY KEY,
     provider_name VARCHAR NOT NULL,
-    api_protocol VARCHAR NOT NULL,
-    default_concurrency INTEGER DEFAULT 0,
-    default_timeout_sec INTEGER DEFAULT 120
+    description TEXT
 );
 
--- 2. sys_provider_auth_modes
-CREATE TABLE IF NOT EXISTS sys_provider_auth_modes (
-    mode_id VARCHAR PRIMARY KEY,
+-- 2. sys_access_endpoints
+CREATE TABLE IF NOT EXISTS sys_access_endpoints (
+    endpoint_id VARCHAR PRIMARY KEY,
     provider_id VARCHAR NOT NULL,
-    mode_name VARCHAR NOT NULL,
+    display_name VARCHAR NOT NULL,
+    api_protocol VARCHAR NOT NULL,
+    default_base_url VARCHAR NOT NULL,
     auth_type VARCHAR NOT NULL,
-    header_name VARCHAR,
-    url_template VARCHAR NOT NULL,
-    required_fields JSON NOT NULL,
+    auth_header VARCHAR,
+    required_credential_fields JSON NOT NULL,
+    display_order INTEGER DEFAULT 0,
     FOREIGN KEY(provider_id) REFERENCES sys_providers(provider_id)
 );
 
 -- 3. sys_models (Objective metadata only)
 CREATE TABLE IF NOT EXISTS sys_models (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    model_id VARCHAR PRIMARY KEY,
     provider_id VARCHAR NOT NULL,
-    actual_model_id VARCHAR NOT NULL,
     display_name VARCHAR NOT NULL,
+    capability_tier VARCHAR DEFAULT 'smart',
     context_length INTEGER,
     max_output_tokens INTEGER,
     supports_vision BOOLEAN DEFAULT 0,
@@ -38,7 +38,17 @@ CREATE TABLE IF NOT EXISTS sys_models (
     FOREIGN KEY(provider_id) REFERENCES sys_providers(provider_id)
 );
 
--- 4. sys_model_intent_dict (Global mapping of requested model strings to capability intents)
+-- 4. sys_model_endpoint_bindings
+CREATE TABLE IF NOT EXISTS sys_model_endpoint_bindings (
+    model_id VARCHAR NOT NULL,
+    endpoint_id VARCHAR NOT NULL,
+    actual_model_id VARCHAR NOT NULL,
+    PRIMARY KEY (model_id, endpoint_id),
+    FOREIGN KEY(model_id) REFERENCES sys_models(model_id),
+    FOREIGN KEY(endpoint_id) REFERENCES sys_access_endpoints(endpoint_id)
+);
+
+-- 4b. sys_model_intent_dict (Global mapping of requested model strings to capability intents)
 CREATE TABLE IF NOT EXISTS sys_model_intent_dict (
     requested_model_id VARCHAR PRIMARY KEY,
     capability_tier VARCHAR NOT NULL
@@ -52,9 +62,8 @@ CREATE TABLE IF NOT EXISTS sys_model_intent_dict (
 CREATE TABLE IF NOT EXISTS user_providers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name VARCHAR NOT NULL,
-    sys_provider_id VARCHAR NOT NULL,
-    sys_auth_mode_id VARCHAR NOT NULL,
-    base_url VARCHAR NOT NULL,
+    endpoint_id VARCHAR NOT NULL,
+    base_url VARCHAR,
     auth_credentials JSON NOT NULL,
     priority INTEGER DEFAULT 10,
     weight INTEGER DEFAULT 100,
@@ -69,19 +78,19 @@ CREATE TABLE IF NOT EXISTS user_providers (
     valid_from DATETIME,
     valid_to DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(sys_provider_id) REFERENCES sys_providers(provider_id),
-    FOREIGN KEY(sys_auth_mode_id) REFERENCES sys_provider_auth_modes(mode_id)
+    FOREIGN KEY(endpoint_id) REFERENCES sys_access_endpoints(endpoint_id)
 );
 
 -- 6. user_models
 CREATE TABLE IF NOT EXISTS user_models (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_provider_id INTEGER NOT NULL,
-    display_name VARCHAR NOT NULL,
-    actual_model_id VARCHAR NOT NULL,
+    display_name VARCHAR,
+    model_id VARCHAR NOT NULL,
     capability_tier VARCHAR NOT NULL,
     is_active BOOLEAN DEFAULT 1,
-    FOREIGN KEY(user_provider_id) REFERENCES user_providers(id)
+    FOREIGN KEY(user_provider_id) REFERENCES user_providers(id) ON DELETE CASCADE,
+    FOREIGN KEY(model_id) REFERENCES sys_models(model_id)
 );
 
 -- 7. user_model_intent_dict (User overrides and auto-learned intents)

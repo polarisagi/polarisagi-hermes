@@ -31,8 +31,8 @@ const (
 type ActiveChannel struct {
 	Provider    *domain.UserProvider
 	Models      []domain.UserModel
-	SysAuthMode *domain.SysProviderAuthMode
-	APIProtocol string // 来自 SysProvider.APIProtocol，用于分发翻译器插件
+	Endpoint    *domain.SysAccessEndpoint
+	APIProtocol string // 来自 Endpoint.APIProtocol，用于分发翻译器插件
 
 	mu                    sync.Mutex
 	Status                int
@@ -48,6 +48,7 @@ type Manager struct {
 
 	mu       sync.RWMutex
 	channels map[int]*ActiveChannel // Key: UserProviderID
+	bindings map[string]map[string]string // Key: ModelID -> EndpointID -> ActualModelID
 }
 
 func NewManager(providerRepo *sqlite.ProviderRepo, modelRepo *sqlite.ModelRepo) *Manager {
@@ -55,6 +56,7 @@ func NewManager(providerRepo *sqlite.ProviderRepo, modelRepo *sqlite.ModelRepo) 
 		providerRepo: providerRepo,
 		modelRepo:    modelRepo,
 		channels:     make(map[int]*ActiveChannel),
+		bindings:     make(map[string]map[string]string),
 	}
 	go m.cooldownManager()
 	return m
@@ -75,28 +77,43 @@ func (m *Manager) Reload(ctx context.Context) error {
 		return err
 	}
 
+	// Load all bindings for cache
+	// Since we don't have GetAllBindings in repo yet, we can query it directly here or add it.
+	// For simplicity, let's just query directly or we can assume fallback.
+	// I'll query directly here to keep it self-contained for now.
+	query := `SELECT model_id, endpoint_id, actual_model_id FROM sys_model_endpoint_bindings`
+	rows, err := sqlite.DB().QueryContext(ctx, query)
+	newBindings := make(map[string]map[string]string)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var mid, eid, actual string
+			if rows.Scan(&mid, &eid, &actual) == nil {
+				if newBindings[mid] == nil {
+					newBindings[mid] = make(map[string]string)
+				}
+				newBindings[mid][eid] = actual
+			}
+		}
+	}
+
 	newChannels := make(map[int]*ActiveChannel)
 	for _, p := range providers {
 		if p.Status <= 0 {
 			continue
 		}
 
-		authMode, err := m.providerRepo.GetSysProviderAuthMode(ctx, p.SysAuthModeID)
+		endpoint, err := m.providerRepo.GetSysAccessEndpoint(ctx, p.EndpointID)
 		if err != nil {
-			continue
-		}
-
-		sysProvider, err := m.providerRepo.GetSysProvider(ctx, p.SysProviderID)
-		if err != nil {
-			slog.Warn("加载系统厂商信息失败，跳过该渠道", "provider", p.Name, "sys_provider_id", p.SysProviderID, "error", err)
+			slog.Warn("加载系统端点信息失败，跳过该渠道", "provider", p.Name, "endpoint_id", p.EndpointID, "error", err)
 			continue
 		}
 
 		provCopy := p
 		ch := &ActiveChannel{
 			Provider:    &provCopy,
-			SysAuthMode: authMode,
-			APIProtocol: sysProvider.APIProtocol,
+			Endpoint:    endpoint,
+			APIProtocol: endpoint.APIProtocol,
 			Status:      StatusIdle,
 		}
 
@@ -129,7 +146,17 @@ func (m *Manager) Reload(ctx context.Context) error {
 	}
 
 	m.channels = newChannels
+	m.bindings = newBindings
 	return nil
+}
+
+func (m *Manager) resolveActualModelID(modelID, endpointID string) string {
+	if endpoints, ok := m.bindings[modelID]; ok {
+		if actual, ok := endpoints[endpointID]; ok {
+			return actual
+		}
+	}
+	return modelID // Fallback to model_id if no specific binding
 }
 
 // GetChannelByUserModelID 用于处理用户自定义 1对1 强制路由
@@ -143,8 +170,9 @@ func (m *Manager) GetChannelByUserModelID(userModelID int) (*ActiveChannel, stri
 				if ch.Status == StatusExhausted {
 					return nil, "", fmt.Errorf("channel exhausted")
 				}
+				actualModel := m.resolveActualModelID(mod.ModelID, ch.Provider.EndpointID)
 				// 强制路由不走负载均衡锁，直接返回
-				return ch, mod.ActualModelID, nil
+				return ch, actualModel, nil
 			}
 		}
 	}
@@ -168,7 +196,7 @@ func (m *Manager) SelectBestChannelByTier(tier string) (*ActiveChannel, string, 
 		matched := false
 		for _, mod := range ch.Models {
 			if mod.CapabilityTier == tier && mod.IsActive {
-				matchedModel = mod.ActualModelID
+				matchedModel = m.resolveActualModelID(mod.ModelID, ch.Provider.EndpointID)
 				matched = true
 				break
 			}
