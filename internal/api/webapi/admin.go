@@ -3,7 +3,6 @@ package webapi
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -12,6 +11,7 @@ import (
 
 	"polaris-hermes/internal/domain"
 	"polaris-hermes/internal/repository/sqlite"
+	"polaris-hermes/internal/service/client"
 	"polaris-hermes/pkg/logger"
 )
 
@@ -26,14 +26,16 @@ type AdminHandler struct {
 	modelRepo    *sqlite.ModelRepo
 	routeRepo    *sqlite.RouteRepo
 	settingsRepo *sqlite.SettingsRepo
+	clientSvc    *client.Manager
 }
 
-func NewAdminHandler(pRepo *sqlite.ProviderRepo, mRepo *sqlite.ModelRepo, rRepo *sqlite.RouteRepo, sRepo *sqlite.SettingsRepo) *AdminHandler {
+func NewAdminHandler(pRepo *sqlite.ProviderRepo, mRepo *sqlite.ModelRepo, rRepo *sqlite.RouteRepo, sRepo *sqlite.SettingsRepo, clientSvc *client.Manager) *AdminHandler {
 	return &AdminHandler{
 		providerRepo: pRepo,
 		modelRepo:    mRepo,
 		routeRepo:    rRepo,
 		settingsRepo: sRepo,
+		clientSvc:    clientSvc,
 	}
 }
 
@@ -55,8 +57,53 @@ func (h *AdminHandler) GetStats(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AdminHandler) GetClientsStatus(w http.ResponseWriter, r *http.Request) {
+	statuses, err := h.clientSvc.GetAllStatuses(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write([]byte(`[]`))
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"clients": statuses})
+}
+
+func (h *AdminHandler) ApplyClientConfig(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var payload struct {
+		Client string `json:"client"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil || payload.Client == "" {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if err := h.clientSvc.ApplyConfig(r.Context(), payload.Client); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write([]byte(`{"status":"success"}`))
+}
+
+func (h *AdminHandler) RestoreClientConfig(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var payload struct {
+		Client string `json:"client"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil || payload.Client == "" {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if err := h.clientSvc.RestoreConfig(r.Context(), payload.Client); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write([]byte(`{"status":"success"}`))
 }
 
 func (h *AdminHandler) HandleSettings(w http.ResponseWriter, r *http.Request) {
@@ -426,20 +473,12 @@ func (h *AdminHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/stats", h.GetStats)
 	mux.HandleFunc("/api/admin/settings", h.HandleSettings)
 	mux.HandleFunc("/api/admin/clients/status", h.GetClientsStatus)
+	mux.HandleFunc("/api/admin/clients/apply", h.ApplyClientConfig)
+	mux.HandleFunc("/api/admin/clients/restore", h.RestoreClientConfig)
 	mux.HandleFunc("/api/admin/logs", h.GetLogs)
 	mux.HandleFunc("/api/admin/debug", h.SetDebug)
 
 	// OAuth 2.0 API
 	mux.HandleFunc("/api/admin/oauth/google/start", h.StartGoogleOAuth)
 	mux.HandleFunc("/api/admin/oauth/google/callback", h.CallbackGoogleOAuth)
-
-	// 旧版客户端打桩
-	mux.HandleFunc("/api/admin/clients/apply", func(w http.ResponseWriter, r *http.Request) {
-		_, _ = io.Copy(io.Discard, r.Body)
-		_, _ = w.Write([]byte(`{"status":"success"}`))
-	})
-	mux.HandleFunc("/api/admin/clients/restore", func(w http.ResponseWriter, r *http.Request) {
-		_, _ = io.Copy(io.Discard, r.Body)
-		_, _ = w.Write([]byte(`{"status":"success"}`))
-	})
 }

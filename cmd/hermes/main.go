@@ -11,6 +11,7 @@ import (
 	"polaris-hermes/internal/proxy"
 	"polaris-hermes/internal/repository/sqlite"
 	"polaris-hermes/internal/service/channel"
+	"polaris-hermes/internal/service/client"
 	"polaris-hermes/internal/service/router"
 	"polaris-hermes/internal/translator"
 	"polaris-hermes/internal/translator/anthropic"
@@ -56,7 +57,8 @@ func main() {
 	proxyServer := proxy.NewServer(pipeline, chanManager, transFactory)
 
 	// 7. 初始化控制面 WebAPI
-	adminHandler := webapi.NewAdminHandler(providerRepo, modelRepo, routeRepo, settingsRepo)
+	clientSvc := client.NewManager(settingsRepo)
+	adminHandler := webapi.NewAdminHandler(providerRepo, modelRepo, routeRepo, settingsRepo, clientSvc)
 
 	// 8. 路由挂载
 	mux := http.NewServeMux()
