@@ -32,6 +32,7 @@ type ActiveChannel struct {
 	Provider    *domain.UserProvider
 	Models      []domain.UserModel
 	SysAuthMode *domain.SysProviderAuthMode
+	APIProtocol string // 来自 SysProvider.APIProtocol，用于分发翻译器插件
 
 	mu                    sync.Mutex
 	Status                int
@@ -85,10 +86,17 @@ func (m *Manager) Reload(ctx context.Context) error {
 			continue
 		}
 
+		sysProvider, err := m.providerRepo.GetSysProvider(ctx, p.SysProviderID)
+		if err != nil {
+			slog.Warn("加载系统厂商信息失败，跳过该渠道", "provider", p.Name, "sys_provider_id", p.SysProviderID, "error", err)
+			continue
+		}
+
 		provCopy := p
 		ch := &ActiveChannel{
 			Provider:    &provCopy,
 			SysAuthMode: authMode,
+			APIProtocol: sysProvider.APIProtocol,
 			Status:      StatusIdle,
 		}
 

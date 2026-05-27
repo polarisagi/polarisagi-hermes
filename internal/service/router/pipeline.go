@@ -86,15 +86,28 @@ func (p *Pipeline) resolveCapabilityTier(ctx context.Context, requestedModelID s
 }
 
 // checkCustomRoute 检查是否存在针对该请求模型的自定义硬路由
+// 匹配优先级：精确匹配 > 正则匹配 > 通配符 *
 func (p *Pipeline) checkCustomRoute(ctx context.Context, requestedModelID string) int {
 	routes, err := p.routeRepo.GetUserCustomRoutes(ctx)
 	if err != nil {
 		return 0
 	}
+
+	var wildcardTarget int
 	for _, r := range routes {
-		if r.RequestedModelID == requestedModelID && r.IsActive {
+		if !r.IsActive {
+			continue
+		}
+		// 精确匹配 — 最高优先级，直接返回
+		if r.RequestedModelID == requestedModelID {
 			return r.TargetUserModelID
 		}
+		// 通配符 — 记录为兜底候选
+		if r.RequestedModelID == "*" {
+			wildcardTarget = r.TargetUserModelID
+		}
 	}
-	return 0
+
+	// 精确匹配未命中时，使用通配符兜底
+	return wildcardTarget
 }

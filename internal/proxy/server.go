@@ -81,10 +81,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer s.chanManager.ReleaseChannel(activeChan)
 
 	// 呼叫协议翻译插件
-	trans := s.transFactory.GetTranslator(activeChan.Provider.SysProviderID)
+	trans := s.transFactory.GetTranslator(activeChan.APIProtocol)
 	if trans == nil {
-		slog.Warn("未找到对应的翻译器插件，暂不支持该厂商", "provider", activeChan.Provider.SysProviderID)
-		http.Error(w, "Translator not implemented for "+activeChan.Provider.SysProviderID, http.StatusNotImplemented)
+		slog.Warn("未找到对应的翻译器插件，暂不支持该协议", "api_protocol", activeChan.APIProtocol, "provider", activeChan.Provider.SysProviderID)
+		http.Error(w, "Translator not implemented for protocol: "+activeChan.APIProtocol, http.StatusNotImplemented)
 		return
 	}
 

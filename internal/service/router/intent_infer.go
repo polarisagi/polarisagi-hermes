@@ -22,11 +22,15 @@ func NewIntentInferer(intentRepo *sqlite.IntentRepo) *IntentInferer {
 // InferUnknownModel 对未知模型进行自动学习与分类
 func (i *IntentInferer) InferUnknownModel(ctx context.Context, modelID string) string {
 	// 1. 正则/关键字快速推断 (优先级高，成本低)
+	source := "auto_regex"
 	tier := i.inferByKeywords(modelID)
 
 	// 2. 如果关键字推断失败，触发 LLM 智能推断
 	if tier == "" {
 		tier = i.inferByLLM(ctx, modelID)
+		if tier != "" {
+			source = "auto_llm"
+		}
 	}
 
 	// 3. 兜底策略：如果连 LLM 都失败了，默认归类为 smart 旗舰模型，避免网关阻塞
@@ -35,11 +39,6 @@ func (i *IntentInferer) InferUnknownModel(ctx context.Context, modelID string) s
 	}
 
 	// 4. 将推断结果持久化，形成闭环进化
-	source := "auto_regex"
-	if tier == i.inferByLLM(ctx, modelID) && tier != "" {
-		source = "auto_llm"
-	}
-	
 	_ = i.intentRepo.SaveUserIntent(ctx, &domain.UserModelIntentDict{
 		RequestedModelID: modelID,
 		CapabilityTier:   tier,
