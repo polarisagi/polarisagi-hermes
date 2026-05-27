@@ -218,14 +218,25 @@ func (h *AdminHandler) GetLogs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AdminHandler) SetDebug(w http.ResponseWriter, r *http.Request) {
-	var payload struct {
-		Enabled bool `json:"enabled"`
+	if r.Method == http.MethodGet {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]bool{"debug": logger.IsDebugEnabled()})
+		return
 	}
-	if err := json.NewDecoder(r.Body).Decode(&payload); err == nil {
-		logger.SetDebug(payload.Enabled)
+
+	if r.Method == http.MethodPost {
+		var payload struct {
+			Enabled bool `json:"enabled"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err == nil {
+			logger.SetDebug(payload.Enabled)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "success", "debug": logger.IsDebugEnabled()})
+		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write([]byte(`{"status":"success"}`))
+	
+	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 }
 
 // ---------------------------------------------------------

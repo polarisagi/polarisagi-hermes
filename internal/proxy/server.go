@@ -10,6 +10,7 @@ import (
 	"polaris-hermes/internal/service/channel"
 	"polaris-hermes/internal/service/router"
 	"polaris-hermes/internal/translator"
+	"polaris-hermes/pkg/logger"
 )
 
 // Server 网关的 HTTP 代理数据面
@@ -72,6 +73,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if baseReq.Model == "" {
 		http.Error(w, "Missing 'model' parameter in payload", http.StatusBadRequest)
 		return
+	}
+
+	if logger.IsDebugEnabled() {
+		slog.Debug("Client Request Debug Info",
+			"url", r.URL.String(),
+			"method", r.Method,
+			"model", baseReq.Model,
+			"body", string(bodyBytes),
+		)
 	}
 
 	// 呼叫大脑：4级智能降维路由

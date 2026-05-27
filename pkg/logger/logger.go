@@ -16,6 +16,7 @@ import (
 
 var logWriter io.Writer // 多路输出 writer（stdout + 文件）
 var mu sync.Mutex       // 保护 debugEnabled 和 slog handler 切换
+var debugEnabled bool   // 记录当前 debug 状态
 
 // GetLogPath 返回日志文件的完整路径
 func GetLogPath() string {
@@ -40,6 +41,7 @@ func GetLogPath() string {
 func SetDebug(enabled bool) {
 	mu.Lock()
 	defer mu.Unlock()
+	debugEnabled = enabled
 	level := slog.LevelInfo
 	if enabled {
 		level = slog.LevelDebug
@@ -60,10 +62,18 @@ func SetDebug(enabled bool) {
 	slog.SetDefault(slog.New(handler))
 }
 
+// IsDebugEnabled 返回当前是否开启了 debug 日志
+func IsDebugEnabled() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	return debugEnabled
+}
+
 // InitLogger initializes the global slog instance with lumberjack log rotation.
 func InitLogger() {
+	debugEnabled = true // 默认开启 debug 日志
 	opts := &slog.HandlerOptions{
-		Level: slog.LevelDebug, // 默认开启 debug 日志
+		Level: slog.LevelDebug,
 	}
 
 	logPath := GetLogPath()
