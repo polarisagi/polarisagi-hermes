@@ -39,26 +39,27 @@ type clientDef struct {
 	ConfigRelPath string
 
 	// 对于 env 类型：需要注入的 KEY 列表
-	// 对于 json 类型：通过 buildJSONPatch 函数生成合并补丁
 	EnvKeys []envKeyDef
 
 	// 对于 JSON 类型的补丁生成器
 	BuildJSONPatch func(listenAddr string) map[string]interface{}
 
-	// 检测"已配置"的特征 key（仅用于 env 类型）
+	// 检测"已配置"的特征 key（env 类型）
 	SignatureEnvKey string
-	// 检测"已配置"的 JSON path（仅用于 json 类型），"dot.notation"
+	// 检测"已配置"的 JSON dot.path（json 类型）
 	SignatureJSONPath string
-	SignatureJSONVal  string
 }
 
 type envKeyDef struct {
 	Key   string
-	Value func(listenAddr string) string // 动态生成 value
+	Value func(listenAddr string) string
 }
 
 // polarisAPIKey 是注入给客户端的占位 API Key（网关内部不校验 key，直接路由）
 const polarisAPIKey = "sk-polaris-hermes"
+
+// polarisMarker 用于检测配置中是否已被 Polaris 注入（通过端口号或标识字符串）
+const polarisMarker = "27777"
 
 // allClients 是全部支持的客户端定义列表
 var allClients = []clientDef{
@@ -97,7 +98,6 @@ var allClients = []clientDef{
 			}
 		},
 		SignatureJSONPath: "providers.openai.baseURL",
-		SignatureJSONVal:  polarisBaseURLMarker,
 	},
 
 	// ── 3. OpenCode ─────────────────────────────────────────────────
@@ -130,13 +130,8 @@ var allClients = []clientDef{
 			}
 		},
 		SignatureJSONPath: "apiEndpoint",
-		SignatureJSONVal:  polarisBaseURLMarker,
 	},
 }
-
-// polarisBaseURLMarker 用于检测 JSON 配置中是否已被注入
-// 只检测是否含 "polaris" 标记，不做完整地址匹配（防端口变化后误判）
-const polarisBaseURLMarker = "polaris-hermes"
 
 // ─────────────────────────────────────────────
 // Manager
@@ -145,11 +140,15 @@ const polarisBaseURLMarker = "polaris-hermes"
 // Manager 管理所有客户端的自动配置注入和恢复
 type Manager struct {
 	settingsRepo *sqlite.SettingsRepo
+	backupRepo   *sqlite.ClientBackupRepo
 }
 
 // NewManager 创建一个新的 Manager
-func NewManager(settingsRepo *sqlite.SettingsRepo) *Manager {
-	return &Manager{settingsRepo: settingsRepo}
+func NewManager(settingsRepo *sqlite.SettingsRepo, backupRepo *sqlite.ClientBackupRepo) *Manager {
+	return &Manager{
+		settingsRepo: settingsRepo,
+		backupRepo:   backupRepo,
+	}
 }
 
 // ─────────────────────────────────────────────
@@ -163,16 +162,23 @@ func (m *Manager) GetAllStatuses(ctx context.Context) ([]domain.ClientStatus, er
 		return nil, fmt.Errorf("无法获取用户主目录: %w", err)
 	}
 
+	// 批量加载所有备份记录，避免 N+1 查询
+	backups, err := m.backupRepo.GetAll(ctx)
+	if err != nil {
+		slog.Warn("加载客户端备份记录失败", "error", err)
+		backups = make(map[string]*sqlite.ClientBackupRecord)
+	}
+
 	statuses := make([]domain.ClientStatus, 0, len(allClients))
 	for _, def := range allClients {
-		st := m.detectStatus(ctx, home, def)
+		st := m.detectStatus(home, def, backups)
 		statuses = append(statuses, st)
 	}
 	return statuses, nil
 }
 
 // detectStatus 探测单个客户端的状态
-func (m *Manager) detectStatus(ctx context.Context, home string, def clientDef) domain.ClientStatus {
+func (m *Manager) detectStatus(home string, def clientDef, backups map[string]*sqlite.ClientBackupRecord) domain.ClientStatus {
 	st := domain.ClientStatus{
 		Name:        def.Name,
 		DisplayName: def.DisplayName,
@@ -181,24 +187,22 @@ func (m *Manager) detectStatus(ctx context.Context, home string, def clientDef) 
 	}
 
 	configPath := filepath.Join(home, def.ConfigRelPath)
+
 	// 检测是否已安装（父目录存在即视为安装）
-	parentDir := filepath.Dir(configPath)
-	if _, err := os.Stat(parentDir); err == nil {
+	if _, err := os.Stat(filepath.Dir(configPath)); err == nil {
 		st.IsInstalled = true
 	}
 
 	// 检测是否已注入代理配置
 	switch def.InjectType {
 	case injectTypeEnv:
-		st.IsConfigured = m.isEnvConfigured(configPath, def.SignatureEnvKey)
+		st.IsConfigured = isEnvConfigured(configPath, def.SignatureEnvKey)
 	case injectTypeJSON:
-		st.IsConfigured = m.isJSONConfigured(configPath, def.SignatureJSONPath, def.SignatureJSONVal)
+		st.IsConfigured = isJSONConfigured(configPath, def.SignatureJSONPath)
 	}
 
-	// 检测是否有备份
-	backupKey := backupSettingKey(def.Name)
-	val, _ := m.settingsRepo.GetSetting(ctx, backupKey)
-	st.HasBackup = val != ""
+	// 检测是否有备份（来自批量预加载的 map）
+	_, st.HasBackup = backups[def.Name]
 
 	return st
 }
@@ -232,7 +236,7 @@ func (m *Manager) ApplyConfig(ctx context.Context, clientName string) error {
 		return fmt.Errorf("无法创建配置目录: %w", err)
 	}
 
-	// 备份现有配置
+	// 备份现有配置到专用表
 	if err := m.backup(ctx, def.Name, configPath); err != nil {
 		slog.Warn("备份配置文件失败，继续写入", "client", def.Name, "error", err)
 	}
@@ -240,66 +244,76 @@ func (m *Manager) ApplyConfig(ctx context.Context, clientName string) error {
 	// 执行注入
 	switch def.InjectType {
 	case injectTypeEnv:
-		err = m.applyEnvConfig(configPath, def.EnvKeys, listenAddr)
+		err = applyEnvConfig(configPath, def.EnvKeys, listenAddr)
 	case injectTypeJSON:
-		err = m.applyJSONConfig(configPath, def.BuildJSONPatch(listenAddr))
+		err = applyJSONConfig(configPath, def.BuildJSONPatch(listenAddr))
 	}
 
 	if err != nil {
 		return fmt.Errorf("注入配置失败: %w", err)
 	}
 
-	slog.Info("✅ 客户端代理配置注入成功", "client", def.DisplayName, "config", configPath)
+	slog.Info("客户端代理配置注入成功", "client", def.DisplayName, "config", configPath)
 	return nil
 }
 
 // ─────────────────────────────────────────────
-// RestoreConfig — 从备份恢复原始配置
+// RestoreConfig — 从专用表恢复原始配置
 // ─────────────────────────────────────────────
 
-// RestoreConfig 从备份恢复指定客户端的原始配置
+// RestoreConfig 从 client_config_backups 表恢复指定客户端的原始配置
 func (m *Manager) RestoreConfig(ctx context.Context, clientName string) error {
 	def, ok := findClient(clientName)
 	if !ok {
 		return fmt.Errorf("不支持的客户端: %s", clientName)
 	}
 
-	backupKey := backupSettingKey(def.Name)
-	backupJSON, err := m.settingsRepo.GetSetting(ctx, backupKey)
-	if err != nil || backupJSON == "" {
+	rec, err := m.backupRepo.Get(ctx, clientName)
+	if err != nil {
+		return fmt.Errorf("查询备份记录失败: %w", err)
+	}
+	if rec == nil {
 		return fmt.Errorf("未找到客户端 %s 的备份数据", def.DisplayName)
 	}
 
-	var bk domain.ClientBackup
-	if err := json.Unmarshal([]byte(backupJSON), &bk); err != nil {
-		return fmt.Errorf("备份数据解析失败: %w", err)
-	}
-
-	if bk.Content == "" {
-		// 原来文件不存在，直接删除当前配置文件
-		if err := os.Remove(bk.Path); err != nil && !os.IsNotExist(err) {
+	if rec.OriginalContent == "" {
+		// 备份时文件不存在，恢复时删除注入的配置文件
+		if err := os.Remove(rec.ConfigPath); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("删除注入的配置文件失败: %w", err)
 		}
 	} else {
-		if err := os.WriteFile(bk.Path, []byte(bk.Content), 0644); err != nil {
+		if err := os.WriteFile(rec.ConfigPath, []byte(rec.OriginalContent), 0644); err != nil {
 			return fmt.Errorf("恢复配置文件失败: %w", err)
 		}
 	}
 
-	// 清除备份记录
-	_ = m.settingsRepo.SetSetting(ctx, backupKey, "")
+	// 删除备份记录
+	if err := m.backupRepo.Delete(ctx, clientName); err != nil {
+		slog.Warn("删除备份记录失败", "client", clientName, "error", err)
+	}
 
-	slog.Info("✅ 客户端配置已恢复原始状态", "client", def.DisplayName)
+	slog.Info("客户端配置已恢复原始状态", "client", def.DisplayName)
 	return nil
 }
 
 // ─────────────────────────────────────────────
-// 内部：env 注入
+// 内部：备份到专用表
 // ─────────────────────────────────────────────
 
-// applyEnvConfig 修改 KEY=VALUE 格式的 .env 文件
-func (m *Manager) applyEnvConfig(path string, keys []envKeyDef, listenAddr string) error {
-	// 读取现有内容（文件不存在时视为空）
+func (m *Manager) backup(ctx context.Context, clientName, configPath string) error {
+	content := ""
+	if data, err := os.ReadFile(configPath); err == nil {
+		content = string(data)
+	}
+	// 使用 Upsert：重复执行 Apply 时更新备份而不是报错
+	return m.backupRepo.Upsert(ctx, clientName, configPath, content)
+}
+
+// ─────────────────────────────────────────────
+// 内部：env 注入 & 检测
+// ─────────────────────────────────────────────
+
+func applyEnvConfig(path string, keys []envKeyDef, listenAddr string) error {
 	existingLines := []string{}
 	if data, err := os.ReadFile(path); err == nil {
 		scanner := bufio.NewScanner(strings.NewReader(string(data)))
@@ -308,30 +322,40 @@ func (m *Manager) applyEnvConfig(path string, keys []envKeyDef, listenAddr strin
 		}
 	}
 
-	// 建立要注入的 key set
-	injectMap := make(map[string]string, len(keys))
+	injectSet := make(map[string]struct{}, len(keys))
 	for _, k := range keys {
-		injectMap[k.Key] = k.Value(listenAddr)
+		injectSet[k.Key] = struct{}{}
 	}
 
-	// 过滤掉已存在的同名 key 行
+	// 过滤掉已存在的同名 key 行及旧的 Polaris 注释块
 	filtered := make([]string, 0, len(existingLines))
+	skipBlock := false
 	for _, line := range existingLines {
 		trimmed := strings.TrimSpace(line)
+		if strings.Contains(trimmed, "Polaris-Hermes Proxy Config") {
+			skipBlock = true
+		}
+		if strings.Contains(trimmed, "End Polaris-Hermes") {
+			skipBlock = false
+			continue
+		}
+		if skipBlock {
+			continue
+		}
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			filtered = append(filtered, line)
 			continue
 		}
 		parts := strings.SplitN(trimmed, "=", 2)
 		if len(parts) == 2 {
-			if _, exists := injectMap[parts[0]]; exists {
+			if _, exists := injectSet[parts[0]]; exists {
 				continue // 跳过旧值行
 			}
 		}
 		filtered = append(filtered, line)
 	}
 
-	// 追加新 key
+	// 追加新注入块
 	filtered = append(filtered, "")
 	filtered = append(filtered, "# ── Polaris-Hermes Proxy Config (auto-injected) ──")
 	for _, k := range keys {
@@ -339,12 +363,10 @@ func (m *Manager) applyEnvConfig(path string, keys []envKeyDef, listenAddr strin
 	}
 	filtered = append(filtered, "# ── End Polaris-Hermes ──")
 
-	content := strings.Join(filtered, "\n") + "\n"
-	return os.WriteFile(path, []byte(content), 0644)
+	return os.WriteFile(path, []byte(strings.Join(filtered, "\n")+"\n"), 0644)
 }
 
-// isEnvConfigured 检测 .env 文件中是否含有指定 KEY 且值包含 polaris 标记
-func (m *Manager) isEnvConfigured(path string, signatureKey string) bool {
+func isEnvConfigured(path, signatureKey string) bool {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return false
@@ -354,26 +376,22 @@ func (m *Manager) isEnvConfigured(path string, signatureKey string) bool {
 		line := strings.TrimSpace(scanner.Text())
 		if strings.HasPrefix(line, signatureKey+"=") {
 			val := strings.TrimPrefix(line, signatureKey+"=")
-			return strings.Contains(val, "27777") || strings.Contains(val, "polaris")
+			return strings.Contains(val, polarisMarker) || strings.Contains(strings.ToLower(val), "polaris")
 		}
 	}
 	return false
 }
 
 // ─────────────────────────────────────────────
-// 内部：JSON 注入
+// 内部：JSON 注入 & 检测
 // ─────────────────────────────────────────────
 
-// applyJSONConfig 深度合并 JSON 补丁到配置文件
-func (m *Manager) applyJSONConfig(path string, patch map[string]interface{}) error {
+func applyJSONConfig(path string, patch map[string]interface{}) error {
 	existing := make(map[string]interface{})
 	if data, err := os.ReadFile(path); err == nil {
 		_ = json.Unmarshal(data, &existing)
 	}
-
-	// 深度合并
 	merged := deepMerge(existing, patch)
-
 	out, err := json.MarshalIndent(merged, "", "  ")
 	if err != nil {
 		return err
@@ -381,8 +399,7 @@ func (m *Manager) applyJSONConfig(path string, patch map[string]interface{}) err
 	return os.WriteFile(path, out, 0644)
 }
 
-// isJSONConfigured 检测 JSON 配置文件中指定 dot.path 的值是否含有 marker
-func (m *Manager) isJSONConfigured(path string, jsonPath string, marker string) bool {
+func isJSONConfigured(path, jsonPath string) bool {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return false
@@ -391,18 +408,10 @@ func (m *Manager) isJSONConfigured(path string, jsonPath string, marker string) 
 	if err := json.Unmarshal(data, &obj); err != nil {
 		return false
 	}
-	val := getJSONPath(obj, jsonPath)
-	if val == nil {
-		return false
-	}
-	strVal, ok := val.(string)
-	if !ok {
-		return false
-	}
-	return strings.Contains(strVal, marker) || strings.Contains(strVal, "27777")
+	val, _ := getJSONPath(obj, jsonPath).(string)
+	return strings.Contains(val, polarisMarker) || strings.Contains(strings.ToLower(val), "polaris")
 }
 
-// deepMerge 递归合并两个 map，patch 覆盖 base
 func deepMerge(base, patch map[string]interface{}) map[string]interface{} {
 	result := make(map[string]interface{}, len(base))
 	for k, v := range base {
@@ -420,7 +429,6 @@ func deepMerge(base, patch map[string]interface{}) map[string]interface{} {
 	return result
 }
 
-// getJSONPath 通过 "a.b.c" 格式路径从 map 中取值
 func getJSONPath(obj map[string]interface{}, path string) interface{} {
 	parts := strings.SplitN(path, ".", 2)
 	val, ok := obj[parts[0]]
@@ -438,33 +446,8 @@ func getJSONPath(obj map[string]interface{}, path string) interface{} {
 }
 
 // ─────────────────────────────────────────────
-// 内部：备份
+// 工具
 // ─────────────────────────────────────────────
-
-// backup 将指定文件内容存入 SQLite settings 表
-func (m *Manager) backup(ctx context.Context, clientName string, configPath string) error {
-	content := ""
-	if data, err := os.ReadFile(configPath); err == nil {
-		content = string(data)
-	}
-	bk := domain.ClientBackup{
-		Path:    configPath,
-		Content: content,
-	}
-	bkJSON, err := json.Marshal(bk)
-	if err != nil {
-		return err
-	}
-	return m.settingsRepo.SetSetting(ctx, backupSettingKey(clientName), string(bkJSON))
-}
-
-// ─────────────────────────────────────────────
-// 工具函数
-// ─────────────────────────────────────────────
-
-func backupSettingKey(clientName string) string {
-	return "client_backup:" + clientName
-}
 
 func findClient(name string) (clientDef, bool) {
 	for _, c := range allClients {

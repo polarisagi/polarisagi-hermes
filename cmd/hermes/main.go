@@ -37,6 +37,7 @@ func main() {
 	routeRepo := sqlite.NewRouteRepo()
 	intentRepo := sqlite.NewIntentRepo()
 	settingsRepo := sqlite.NewSettingsRepo(sqlite.DB())
+	clientBackupRepo := sqlite.NewClientBackupRepo(sqlite.DB())
 
 	// 4. 初始化 Service/Brain 层
 	intentInferer := router.NewIntentInferer(intentRepo)
@@ -57,7 +58,7 @@ func main() {
 	proxyServer := proxy.NewServer(pipeline, chanManager, transFactory)
 
 	// 7. 初始化控制面 WebAPI
-	clientSvc := client.NewManager(settingsRepo)
+	clientSvc := client.NewManager(settingsRepo, clientBackupRepo)
 	adminHandler := webapi.NewAdminHandler(providerRepo, modelRepo, routeRepo, settingsRepo, clientSvc)
 
 	// 8. 路由挂载
