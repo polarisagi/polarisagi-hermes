@@ -12,7 +12,7 @@
 -- TIER: reasoning
 -- Deep reasoning, chain-of-thought, thinking models
 -- ============================================================
-INSERT OR IGNORE INTO sys_model_intent_dict (requested_model_id, capability_tier) VALUES
+INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 
 -- OpenAI o-series reasoning models
 ('o1', 'reasoning'),
@@ -93,7 +93,7 @@ INSERT OR IGNORE INTO sys_model_intent_dict (requested_model_id, capability_tier
 -- TIER: fast
 -- Lightweight, cost-efficient, small parameter models
 -- ============================================================
-INSERT OR IGNORE INTO sys_model_intent_dict (requested_model_id, capability_tier) VALUES
+INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 
 -- OpenAI mini/nano models
 ('gpt-4o-mini', 'fast'),
@@ -310,7 +310,7 @@ INSERT OR IGNORE INTO sys_model_intent_dict (requested_model_id, capability_tier
 -- TIER: smart
 -- Flagship, powerful, large parameter models (default tier)
 -- ============================================================
-INSERT OR IGNORE INTO sys_model_intent_dict (requested_model_id, capability_tier) VALUES
+INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 
 -- OpenAI GPT flagship models
 ('gpt-4', 'smart'),

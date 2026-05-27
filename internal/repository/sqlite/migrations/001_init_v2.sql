@@ -30,7 +30,6 @@ CREATE TABLE IF NOT EXISTS sys_models (
     model_id VARCHAR PRIMARY KEY,
     provider_id VARCHAR NOT NULL,
     display_name VARCHAR NOT NULL,
-    capability_tier VARCHAR DEFAULT 'smart',
     context_length INTEGER,
     max_output_tokens INTEGER,
     supports_vision BOOLEAN DEFAULT 0,
@@ -50,7 +49,7 @@ CREATE TABLE IF NOT EXISTS sys_model_endpoint_bindings (
 
 -- 4b. sys_model_intent_dict (Global mapping of requested model strings to capability intents)
 CREATE TABLE IF NOT EXISTS sys_model_intent_dict (
-    requested_model_id VARCHAR PRIMARY KEY,
+    model_id VARCHAR PRIMARY KEY,
     capability_tier VARCHAR NOT NULL
 );
 
@@ -96,7 +95,7 @@ CREATE TABLE IF NOT EXISTS user_models (
 -- 7. user_model_intent_dict (User overrides and auto-learned intents)
 CREATE TABLE IF NOT EXISTS user_model_intent_dict (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    requested_model_id VARCHAR NOT NULL UNIQUE,
+    model_id VARCHAR NOT NULL UNIQUE,
     capability_tier VARCHAR NOT NULL,
     source VARCHAR DEFAULT 'manual'
 );
