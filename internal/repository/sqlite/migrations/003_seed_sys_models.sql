@@ -339,4 +339,24 @@ INSERT OR IGNORE INTO sys_models (provider_id, actual_model_id, display_name) VA
 ('01ai', 'yi-lightning', 'Yi Lightning'),
 
 -- SenseNova
-('sensenova', 'sensenova-6.0', 'SenseNova 6.0');
+('sensenova', 'sensenova-6.0', 'SenseNova 6.0'),
+
+-- CC-Switch Sync Additions
+('minimax', 'MiniMax-M2.7', 'MiniMax M2.7'),
+('qianfan', 'qianfan-code-latest', 'Qianfan Code Latest'),
+('stepfun', 'step-3.5-flash-2603', 'Step 3.5 Flash 2603'),
+('doubao', 'doubao-seed-2-0-code-preview-latest', 'Doubao Seed 2.0 Code Preview'),
+('openrouter', 'anthropic/claude-haiku-4-5', 'Claude Haiku 4.5 (OR)'),
+('openrouter', 'anthropic/claude-sonnet-4-6', 'Claude Sonnet 4.6 (OR)'),
+('openrouter', 'anthropic/claude-opus-4-7', 'Claude Opus 4.7 (OR)'),
+('openrouter', 'google/gemini-3-pro', 'Gemini 3 Pro (OR)'),
+('anthropic', 'claude-sonnet-4-5-20250929', 'Claude Sonnet 4.5'),
+('anthropic', 'claude-opus-4-5-20251101', 'Claude Opus 4.5'),
+('anthropic', 'claude-haiku-4-5-20251001', 'Claude Haiku 4.5'),
+('anthropic', 'gemini-claude-opus-4-5-thinking', 'Antigravity - Claude Opus 4.5'),
+('anthropic', 'gemini-claude-sonnet-4-5-thinking', 'Antigravity - Claude Sonnet 4.5'),
+('google', 'gemini-3-flash-preview', 'Gemini 3 Flash Preview'),
+('google', 'gemini-3-pro-preview', 'Gemini 3 Pro Preview'),
+('google', 'gemini-2.5-flash-lite', 'Gemini 2.5 Flash Lite'),
+('bedrock', 'us.meta.llama4-maverick-17b-instruct-v1:0', 'Llama 4 Maverick 17B (Bedrock)'),
+('bedrock', 'us.deepseek.r1-v1:0', 'DeepSeek R1 (Bedrock)');
