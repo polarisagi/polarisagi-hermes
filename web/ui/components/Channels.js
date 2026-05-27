@@ -8,7 +8,7 @@ export default {
             availableEndpoints: [],
             selectedEndpoint: null,
             nodeForm: {
-                id: 0, protocol: 'openai', provider: 'openai', endpoint_id: '', name: '', credentials: '', project_id: '', location: 'global', base_url: '',
+                id: 0, provider: 'openai', endpoint_id: '', name: '', credentials: '', project_id: '', location: 'global', base_url: '',
                 priority: 10, limit_percent: 90.0, balance: 0.0, min_request_interval_sec: 0, concurrency: 0,
                 valid_from: '', valid_to: '', status: 1
             },
@@ -62,10 +62,8 @@ export default {
 
             openNodeModal(node = null) {
                 if (node) {
-                    let protocol = 'openai';
                     const ep = this.sysEndpoints.find(e => e.endpoint_id === node.endpoint_id);
                     if (ep) {
-                        protocol = ep.api_protocol;
                         node.provider = ep.provider_id;
                     }
                     
@@ -73,7 +71,7 @@ export default {
 
                     this.nodeForm = {
                         ...node,
-                        protocol: protocol,
+                        
                         credentials: '',
                         project_id: origCreds.project_id || '',
                         location: origCreds.region || 'global',
@@ -85,7 +83,7 @@ export default {
                 } else {
                     const today = this.todayPrefix();
                     this.nodeForm = {
-                        id: 0, protocol: 'openai', provider: 'openai', name: '', credentials: '', project_id: '', location: 'global', base_url: '',
+                        id: 0, provider: 'openai', name: '', credentials: '', project_id: '', location: 'global', base_url: '',
                         priority: 10, limit_percent: 90.0, balance: 0.0, min_request_interval_sec: 0, concurrency: 0,
                         valid_from: `${today}T00:00:00`, valid_to: `2099-12-31T23:59:59`, status: 1
                     };
@@ -210,21 +208,11 @@ export default {
             init() {
                 this.fetchSysProviders();
                 this.fetchNodes();
-                this.$watch('nodeForm.protocol', (newVal) => {
-                    if (!this.nodeModal.isEdit) {
-                        const available = this.sysProviders.filter(x => x.api_protocol === newVal);
-                        if (available.length > 0 && !available.find(x => x.provider_id === this.nodeForm.provider)) {
-                            this.nodeForm.provider = available[0].provider_id;
-                        }
-                    }
-                });
+
                 
                 // Function to update computed auth mode state
                 const updateAuthModes = () => {
-                    this.availableEndpoints = this.sysEndpoints.filter(m => 
-                        m.provider_id === this.nodeForm.provider && 
-                        m.api_protocol === this.nodeForm.protocol
-                    );
+                    this.availableEndpoints = this.sysEndpoints.filter(m => m.provider_id === this.nodeForm.provider);
                     if (this.availableEndpoints.length > 0) {
                         // If current auth mode is not in available, select the first one
                         if (!this.availableEndpoints.find(m => m.endpoint_id === this.nodeForm.endpoint_id)) {
@@ -372,19 +360,11 @@ export default {
                         <div class="bg-base-200 p-4 rounded-xl space-y-4 border border-base-300">
                             <h4 class="text-xs font-bold text-base-content/50 uppercase tracking-wider" x-text="$store.global.t('section_basic')"></h4>
                             <div class="grid grid-cols-2 gap-4">
-                                <label class="form-control w-full">
-                                    <div class="label"><span class="label-text font-medium"><span x-text="$store.global.t('protocol_type_req')"></span> <span class="text-error">*</span></span></div>
-                                    <select x-model="nodeForm.protocol" class="select select-bordered select-sm w-full">
-                                        <option value="openai">OpenAI 协议</option>
-                                        <option value="anthropic">Anthropic 协议</option>
-                                        <option value="google">Google API 协议</option>
-                                        <option value="local">本地部署协议</option>
-                                    </select>
-                                </label>
+
                                 <label class="form-control w-full">
                                     <div class="label"><span class="label-text font-medium">大模型厂商 <span class="text-error">*</span></span></div>
                                     <select x-model="nodeForm.provider" class="select select-bordered select-sm w-full">
-                                        <template x-for="p in sysProviders.filter(x => sysEndpoints.some(e => e.provider_id === x.provider_id && e.api_protocol === nodeForm.protocol))" :key="p.provider_id">
+                                        <template x-for="p in sysProviders" :key="p.provider_id">
                                             <option :value="p.provider_id" x-text="p.provider_name"></option>
                                         </template>
                                     </select>
