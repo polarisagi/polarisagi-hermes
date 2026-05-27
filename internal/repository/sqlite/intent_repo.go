@@ -54,3 +54,41 @@ func (r *IntentRepo) SaveUserIntent(ctx context.Context, intent *domain.UserMode
 	_, err := DB().ExecContext(ctx, query, intent.RequestedModelID, intent.CapabilityTier, intent.Source)
 	return err
 }
+
+// GetAllSysIntents 全量加载系统意图字典到内存 map（用于 Pipeline 热重载缓存）
+func (r *IntentRepo) GetAllSysIntents(ctx context.Context) (map[string]string, error) {
+	rows, err := DB().QueryContext(ctx, `SELECT requested_model_id, capability_tier FROM sys_model_intent_dict`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string]string)
+	for rows.Next() {
+		var k, v string
+		if err := rows.Scan(&k, &v); err != nil {
+			return nil, err
+		}
+		result[k] = v
+	}
+	return result, nil
+}
+
+// GetAllUserIntents 全量加载用户意图字典到内存 map（用于 Pipeline 热重载缓存）
+func (r *IntentRepo) GetAllUserIntents(ctx context.Context) (map[string]string, error) {
+	rows, err := DB().QueryContext(ctx, `SELECT requested_model_id, capability_tier FROM user_model_intent_dict`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string]string)
+	for rows.Next() {
+		var k, v string
+		if err := rows.Scan(&k, &v); err != nil {
+			return nil, err
+		}
+		result[k] = v
+	}
+	return result, nil
+}

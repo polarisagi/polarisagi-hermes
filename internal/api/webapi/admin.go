@@ -1,8 +1,10 @@
 package webapi
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -11,7 +13,9 @@ import (
 
 	"polaris-hermes/internal/domain"
 	"polaris-hermes/internal/repository/sqlite"
+	"polaris-hermes/internal/service/channel"
 	"polaris-hermes/internal/service/client"
+	"polaris-hermes/internal/service/router"
 	"polaris-hermes/pkg/logger"
 )
 
@@ -27,15 +31,46 @@ type AdminHandler struct {
 	routeRepo    *sqlite.RouteRepo
 	settingsRepo *sqlite.SettingsRepo
 	clientSvc    *client.Manager
+
+	// 热重载目标：写操作完成后同步刷新内存状态
+	chanManager *channel.Manager
+	pipeline    *router.Pipeline
 }
 
-func NewAdminHandler(pRepo *sqlite.ProviderRepo, mRepo *sqlite.ModelRepo, rRepo *sqlite.RouteRepo, sRepo *sqlite.SettingsRepo, clientSvc *client.Manager) *AdminHandler {
+func NewAdminHandler(
+	pRepo *sqlite.ProviderRepo,
+	mRepo *sqlite.ModelRepo,
+	rRepo *sqlite.RouteRepo,
+	sRepo *sqlite.SettingsRepo,
+	clientSvc *client.Manager,
+	chanManager *channel.Manager,
+	pipeline *router.Pipeline,
+) *AdminHandler {
 	return &AdminHandler{
 		providerRepo: pRepo,
 		modelRepo:    mRepo,
 		routeRepo:    rRepo,
 		settingsRepo: sRepo,
 		clientSvc:    clientSvc,
+		chanManager:  chanManager,
+		pipeline:     pipeline,
+	}
+}
+
+// reloadAll 在任何会影响路由或渠道的写操作后触发热重载
+func (h *AdminHandler) reloadAll(ctx context.Context) {
+	if err := h.chanManager.Reload(ctx); err != nil {
+		slog.Warn("⚠️ [Admin] 渠道热重载失败", "error", err)
+	}
+	if err := h.pipeline.Reload(ctx); err != nil {
+		slog.Warn("⚠️ [Admin] 路由管线热重载失败", "error", err)
+	}
+}
+
+// reloadPipeline 仅刷新路由管线缓存（路由规则变更时使用）
+func (h *AdminHandler) reloadPipeline(ctx context.Context) {
+	if err := h.pipeline.Reload(ctx); err != nil {
+		slog.Warn("⚠️ [Admin] 路由管线热重载失败", "error", err)
 	}
 }
 
@@ -215,6 +250,7 @@ func (h *AdminHandler) HandleNodes(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		go h.reloadAll(context.Background())
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "success", "id": p.ID})
 
@@ -228,6 +264,7 @@ func (h *AdminHandler) HandleNodes(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		go h.reloadAll(context.Background())
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "success"})
 
@@ -242,6 +279,7 @@ func (h *AdminHandler) HandleNodes(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		go h.reloadAll(context.Background())
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"status":"success"}`))
 
@@ -313,6 +351,7 @@ func (h *AdminHandler) HandleModels(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		go h.reloadAll(context.Background())
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"status": "success",
@@ -352,6 +391,7 @@ func (h *AdminHandler) HandleRoutes(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		go h.reloadPipeline(context.Background())
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "success", "id": rt.ID})
 
@@ -365,6 +405,7 @@ func (h *AdminHandler) HandleRoutes(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		go h.reloadPipeline(context.Background())
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "success"})
 
@@ -379,6 +420,7 @@ func (h *AdminHandler) HandleRoutes(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		go h.reloadPipeline(context.Background())
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"status":"success"}`))
 

@@ -50,6 +50,11 @@ func main() {
 
 	pipeline := router.NewPipeline(routeRepo, intentRepo, intentInferer, chanManager)
 
+	// 预热路由缓存（自定义路由表 + 系统意图字典 + 用户意图字典）
+	if err := pipeline.Reload(context.Background()); err != nil {
+		slog.Warn("路由管线缓存预热失败，将降级为实时查询", "error", err)
+	}
+
 	// 5. 初始化协议转换工厂
 	transFactory := translator.NewTranslatorFactory()
 	transFactory.Register("google", anthropic.NewAnthropicGoogleTranslator())
@@ -59,7 +64,7 @@ func main() {
 
 	// 7. 初始化控制面 WebAPI
 	clientSvc := client.NewManager(settingsRepo, clientBackupRepo)
-	adminHandler := webapi.NewAdminHandler(providerRepo, modelRepo, routeRepo, settingsRepo, clientSvc)
+	adminHandler := webapi.NewAdminHandler(providerRepo, modelRepo, routeRepo, settingsRepo, clientSvc, chanManager, pipeline)
 
 	// 8. 路由挂载
 	mux := http.NewServeMux()
