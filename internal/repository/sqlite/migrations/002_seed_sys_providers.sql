@@ -81,29 +81,15 @@ INSERT OR IGNORE INTO sys_providers (provider_id, provider_name, api_protocol, d
 
 -- pi/packages/ai Providers
 ('amazon-bedrock', 'Amazon-Bedrock (pi)', 'openai', 0, 120),
-('anthropic', 'Anthropic (pi)', 'openai', 0, 120),
 ('azure-openai-responses', 'Azure-Openai-Responses (pi)', 'openai', 0, 120),
-('cerebras', 'Cerebras (pi)', 'openai', 0, 120),
 ('cloudflare-ai-gateway', 'Cloudflare-Ai-Gateway (pi)', 'openai', 0, 120),
 ('cloudflare-workers-ai', 'Cloudflare-Workers-Ai (pi)', 'openai', 0, 120),
-('deepseek', 'Deepseek (pi)', 'openai', 0, 120),
-('fireworks', 'Fireworks (pi)', 'openai', 0, 120),
 ('github-copilot', 'Github-Copilot (pi)', 'openai', 0, 120),
-('google', 'Google (pi)', 'openai', 0, 120),
 ('google-vertex', 'Google-Vertex (pi)', 'openai', 0, 120),
-('groq', 'Groq (pi)', 'openai', 0, 120),
-('huggingface', 'Huggingface (pi)', 'openai', 0, 120),
 ('kimi-coding', 'Kimi-Coding (pi)', 'openai', 0, 120),
-('mistral', 'Mistral (pi)', 'openai', 0, 120),
-('openai', 'Openai (pi)', 'openai', 0, 120),
 ('openai-codex', 'Openai-Codex (pi)', 'openai', 0, 120),
-('opencode', 'Opencode (pi)', 'openai', 0, 120),
 ('opencode-go', 'Opencode-Go (pi)', 'openai', 0, 120),
-('openrouter', 'Openrouter (pi)', 'openai', 0, 120),
-('together', 'Together (pi)', 'openai', 0, 120),
-('vercel-ai-gateway', 'Vercel-Ai-Gateway (pi)', 'openai', 0, 120),
-('xai', 'Xai (pi)', 'openai', 0, 120),
-('zai', 'Zai (pi)', 'openai', 0, 120);
+('vercel-ai-gateway', 'Vercel-Ai-Gateway (pi)', 'openai', 0, 120);
 
 INSERT OR IGNORE INTO sys_provider_auth_modes (mode_id, provider_id, mode_name, auth_type, header_name, url_template, required_fields) VALUES
 -- 国际大厂
