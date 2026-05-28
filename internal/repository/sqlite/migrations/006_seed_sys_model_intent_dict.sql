@@ -283,14 +283,50 @@ INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 
 -- GPT-5.1 instant (fast variant)
 ('gpt-5.1-instant', 'fast'),
-('openai/gpt-5.1-instant', 'fast');
+('openai/gpt-5.1-instant', 'fast'),
 
 
 -- ============================================================
--- TIER: smart
+-- 
+-- Moved from smart / Added explicitly
+('alibaba/qwen-3-14b', 'fast'),
+('Qwen/Qwen3.5-397B-A17B-TEE', 'fast'),
+('qwen/qwen3-vl-8b-instruct', 'fast'),
+('meta-llama/llama-4-scout-17b-16e-instruct', 'fast'),
+('meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8', 'fast'),
+('meta-llama/Llama-4-Scout-17B-16E-Instruct', 'fast'),
+('us.meta.llama4-maverick-17b-instruct-v1:0', 'fast'),
+('NousResearch/DeepHermes-3-Mistral-24B-Preview', 'fast'),
+('chutesai/Mistral-Small-3.1-24B-Instruct-2503', 'fast'),
+('chutesai/Mistral-Small-3.2-24B-Instruct-2506', 'fast'),
+('MiniMax-M2.1', 'fast'),
+('MiniMax-M2.5-highspeed', 'fast'),
+('MiniMax-M2.7', 'fast'),
+('MiniMax-M2.7-highspeed', 'fast'),
+('MiniMaxAI/MiniMax-M2.5-TEE', 'fast'),
+('MiniMaxAI/MiniMax-M2.5', 'fast'),
+('minimaxai/minimax-m2.5', 'fast'),
+('minimax/minimax-m2.7', 'fast'),
+('minimax-m21', 'fast'),
+('minimax-m25', 'fast'),
+('nvidia/NVIDIA-Nemotron-3-Super-120B-A12B', 'fast'),
+('nvidia/nemotron-3-super-120b-a12b', 'fast'),
+('nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16-TEE', 'fast'),
+('meta-llama/Llama-4-8B-Instruct', 'fast'),
+('mistral-31-24b', 'fast'),
+('openai-gpt-4o-mini-2024-07-18', 'fast'),
+('vllm/meta-llama/Llama-4-8B-Instruct', 'fast'),
+('gemini-1.5-flash', 'fast'),
+('gemini-1.5-flash-8b', 'fast');
+
+TIER: smart
 -- Flagship, powerful, large parameter models (default tier)
 -- ============================================================
 INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
+
+-- Added explicitly
+('gemini-1.5-pro', 'smart'),
+('gemini-1.5-pro-vision', 'smart'),
 
 -- OpenAI GPT flagship models
 ('gpt-4o', 'smart'),
@@ -499,7 +535,6 @@ INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 ('qwen/qwen3.5-9b', 'smart'),
 ('qwen/qwen3.6-35b-a3b', 'smart'),
 ('qwen/qwen3.6-plus', 'smart'),
-('alibaba/qwen-3-14b', 'smart'),
 ('alibaba/qwen-3-30b', 'smart'),
 ('alibaba/qwen3-coder', 'smart'),
 ('alibaba/qwen3-coder-30b-a3b', 'smart'),
@@ -519,13 +554,11 @@ INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 ('Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8', 'smart'),
 ('Qwen/Qwen3-Next-80B-A3B-Instruct', 'smart'),
 ('Qwen/Qwen3-VL-235B-A22B-Instruct', 'smart'),
-('Qwen/Qwen3.5-397B-A17B-TEE', 'smart'),
 ('Qwen/Qwen3.6-Plus', 'smart'),
 ('Qwen/Qwen-3-72B-Instruct', 'smart'),
 ('Qwen/Qwen3.5-72B-Instruct', 'smart'),
 ('qwen/qwen3-32b', 'smart'),
 ('qwen/qwen3-vl-30b-a3b-instruct', 'smart'),
-('qwen/qwen3-vl-8b-instruct', 'smart'),
 ('qwen3-coder-480b-a35b-instruct', 'smart'),
 ('qwen3-coder-480b-a35b-instruct-turbo', 'smart'),
 ('qwen3-next-80b', 'smart'),
@@ -535,18 +568,13 @@ INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 
 -- Llama large models (70b/405b)
 ('meta-llama/Meta-Llama-4-70B-Instruct', 'smart'),
-('meta-llama/llama-4-scout-17b-16e-instruct', 'smart'),
-('meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8', 'smart'),
-('meta-llama/Llama-4-Scout-17B-16E-Instruct', 'smart'),
 ('meta/llama-4-maverick', 'smart'),
 ('meta/llama-4-scout', 'smart'),
 ('meta.llama-4-70b-instruct', 'smart'),
-('us.meta.llama4-maverick-17b-instruct-v1:0', 'smart'),
 ('meta/llama-4-70b-instruct', 'smart'),
 ('llama4:70b', 'smart'),
 ('hermes-3-405b', 'smart'),
 ('hermes-3-70b', 'smart'),
-('NousResearch/DeepHermes-3-Mistral-24B-Preview', 'smart'),
 ('NousResearch/Hermes-4-405B-FP8-TEE', 'smart'),
 
 -- Mistral large/medium models
@@ -563,25 +591,10 @@ INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 ('mistralai/mistral-medium-3-5', 'smart'),
 ('mistralai/mistral-medium-3.1', 'smart'),
 ('mistral/mistral-medium-3.5', 'smart'),
-('chutesai/Mistral-Small-3.1-24B-Instruct-2503', 'smart'),
-('chutesai/Mistral-Small-3.2-24B-Instruct-2506', 'smart'),
 
 -- MiniMax flagship
-('MiniMax-M2.1', 'smart'),
-('MiniMax-M2.5-highspeed', 'smart'),
-('MiniMax-M2.7', 'smart'),
-('MiniMax-M2.7-highspeed', 'smart'),
-('MiniMaxAI/MiniMax-M2.5-TEE', 'smart'),
-('MiniMaxAI/MiniMax-M2.5', 'smart'),
-('minimaxai/minimax-m2.5', 'smart'),
-('minimax/minimax-m2.7', 'smart'),
-('minimax-m21', 'smart'),
-('minimax-m25', 'smart'),
 
 -- NVIDIA Nemotron large
-('nvidia/NVIDIA-Nemotron-3-Super-120B-A12B', 'smart'),
-('nvidia/nemotron-3-super-120b-a12b', 'smart'),
-('nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16-TEE', 'smart'),
 ('nemotron-3-super-free', 'smart'),
 
 -- Gemma large models
@@ -667,8 +680,4 @@ INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 ('mimo-v2-pro', 'smart'),
 ('mimo-v2-omni', 'smart'),
 ('qwen3:32b', 'smart'),
-('meta-llama/Llama-4-8B-Instruct', 'smart'),
-('mistral-31-24b', 'smart'),
-('openai-gpt-4o-mini-2024-07-18', 'smart'),
 ('rednote-hilab/dots.ocr', 'smart'),
-('vllm/meta-llama/Llama-4-8B-Instruct', 'smart');
