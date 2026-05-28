@@ -161,7 +161,7 @@ export default {
                     <div class="space-y-4">
                         <label class="form-control w-full">
                             <div class="label"><span class="label-text font-medium" x-text="$store.global.t('listen_addr_label')"></span></div>
-                            <input x-model="$store.global.settings.listen_addr" type="text" class="input input-bordered w-full">
+                            <input name="store_global_settings_listen_addr" x-model="$store.global.settings.listen_addr" type="text" class="input input-bordered w-full">
                             <div class="label"><span class="label-text-alt text-base-content/50" x-text="$store.global.t('listen_addr_hint')"></span></div>
                         </label>
                     </div>
@@ -172,19 +172,19 @@ export default {
                     <div class="grid grid-cols-2 gap-4">
                         <label class="form-control w-full">
                             <div class="label"><span class="label-text" x-text="$store.global.t('cb_threshold_label')"></span></div>
-                            <input x-model.number="$store.global.settings.breaker.failure_threshold" type="number" min="0" class="input input-bordered w-full">
+                            <input name="store_global_settings_breaker_failure_threshold" x-model.number="$store.global.settings.breaker.failure_threshold" type="number" min="0" class="input input-bordered w-full">
                         </label>
                         <label class="form-control w-full">
                             <div class="label"><span class="label-text" x-text="$store.global.t('cb_failure_window')"></span></div>
-                            <input x-model.number="$store.global.settings.breaker.failure_window_seconds" type="number" min="0" class="input input-bordered w-full">
+                            <input name="store_global_settings_breaker_failure_window_seconds" x-model.number="$store.global.settings.breaker.failure_window_seconds" type="number" min="0" class="input input-bordered w-full">
                         </label>
                         <label class="form-control w-full">
                             <div class="label"><span class="label-text" x-text="$store.global.t('cb_initial_cooldown')"></span></div>
-                            <input x-model.number="$store.global.settings.breaker.initial_cooldown_seconds" type="number" min="0" class="input input-bordered w-full">
+                            <input name="store_global_settings_breaker_initial_cooldown_seconds" x-model.number="$store.global.settings.breaker.initial_cooldown_seconds" type="number" min="0" class="input input-bordered w-full">
                         </label>
                         <label class="form-control w-full">
                             <div class="label"><span class="label-text" x-text="$store.global.t('cb_max_cooldown')"></span></div>
-                            <input x-model.number="$store.global.settings.breaker.max_cooldown_seconds" type="number" min="0" class="input input-bordered w-full">
+                            <input name="store_global_settings_breaker_max_cooldown_seconds" x-model.number="$store.global.settings.breaker.max_cooldown_seconds" type="number" min="0" class="input input-bordered w-full">
                         </label>
                     </div>
                 </div>

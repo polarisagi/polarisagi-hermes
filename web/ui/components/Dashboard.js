@@ -175,7 +175,7 @@ export default {
                         </div>
                     </div>
                     <div class="flex flex-col justify-end">
-                        <select x-model="$store.global.selectedAccount" class="select select-bordered select-sm w-full max-w-xs">
+                        <select name="store_global_selectedAccount" x-model="$store.global.selectedAccount" class="select select-bordered select-sm w-full max-w-xs">
                             <option value="all" x-text="$store.global.t('view_all_protocols')"></option>
                             <template x-for="acc in $store.global.availableAccounts" :key="acc.value">
                                 <option :value="acc.value" x-text="acc.label"></option>

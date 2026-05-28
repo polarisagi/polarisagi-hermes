@@ -465,7 +465,7 @@ export default {
 
                                 <label class="form-control w-full">
                                     <div class="label"><span class="label-text font-medium">大模型厂商 <span class="text-error">*</span></span></div>
-                                    <select x-model="nodeForm.provider" class="select select-bordered select-sm w-full">
+                                    <select name="nodeForm_provider" x-model="nodeForm.provider" class="select select-bordered select-sm w-full">
                                         <template x-for="p in sysProviders" :key="p.provider_id">
                                             <option :value="p.provider_id" x-text="p.provider_name"></option>
                                         </template>
@@ -476,7 +476,7 @@ export default {
                                     <div class="form-control w-full justify-center">
                                         <label class="label cursor-pointer pb-0 mt-2">
                                             <span class="label-text font-medium">开启 Claude 模型支持</span> 
-                                            <input type="checkbox" x-model="nodeForm.enable_claude" class="toggle toggle-primary toggle-sm" />
+                                            <input name="nodeForm_enable_claude" type="checkbox" x-model="nodeForm.enable_claude" class="toggle toggle-primary toggle-sm" />
                                         </label>
                                         <div class="label pt-1"><span class="label-text-alt text-base-content/50">若关闭，将不导入 Claude 模型</span></div>
                                     </div>
@@ -485,7 +485,7 @@ export default {
                             <div class="grid grid-cols-1 gap-4">
                                 <label class="form-control w-full">
                                     <div class="label"><span class="label-text font-medium"><span x-text="$store.global.t('node_name_req')"></span> <span class="text-error">*</span></span></div>
-                                    <input x-model="nodeForm.name" type="text" :placeholder="$store.global.t('placeholder_node_name')" class="input input-bordered input-sm w-full">
+                                    <input name="nodeForm_name" x-model="nodeForm.name" type="text" :placeholder="$store.global.t('placeholder_node_name')" class="input input-bordered input-sm w-full">
                                 </label>
                             </div>
                             
@@ -511,10 +511,10 @@ export default {
                                 </div>
                                 
                                 <template x-if="selectedEndpoint && selectedEndpoint.auth_type === 'adc'">
-                                    <textarea x-model="nodeForm.credentials" rows="3" :placeholder="nodeModal.isEdit ? $store.global.t('placeholder_adc_edit') : $store.global.t('placeholder_adc_new')" class="textarea textarea-bordered font-mono text-xs w-full"></textarea>
+                                    <textarea name="nodeForm_credentials" x-model="nodeForm.credentials" rows="3" :placeholder="nodeModal.isEdit ? $store.global.t('placeholder_adc_edit') : $store.global.t('placeholder_adc_new')" class="textarea textarea-bordered font-mono text-xs w-full"></textarea>
                                 </template>
                                 <template x-if="!selectedEndpoint || selectedEndpoint.auth_type !== 'adc'">
-                                    <input x-model="nodeForm.credentials" type="password" :placeholder="nodeModal.isEdit ? $store.global.t('placeholder_key_edit') : $store.global.t('placeholder_key_new')" class="input input-bordered input-sm w-full">
+                                    <input name="nodeForm_credentials" x-model="nodeForm.credentials" type="password" :placeholder="nodeModal.isEdit ? $store.global.t('placeholder_key_edit') : $store.global.t('placeholder_key_new')" class="input input-bordered input-sm w-full">
                                 </template>
                             </label>
                             
@@ -522,12 +522,12 @@ export default {
                                 <div class="grid grid-cols-2 gap-4">
                                     <label class="form-control w-full">
                                         <div class="label"><span class="label-text" x-text="$store.global.t('priority')"></span></div>
-                                        <input x-model.number="nodeForm.priority" type="number" min="0" class="input input-bordered input-sm w-full">
+                                        <input name="nodeForm_priority" x-model.number="nodeForm.priority" type="number" min="0" class="input input-bordered input-sm w-full">
                                         <div class="label"><span class="label-text-alt text-base-content/50" x-text="$store.global.t('priority_hint')"></span></div>
                                     </label>
                                     <label class="form-control w-full">
                                         <div class="label"><span class="label-text" x-text="$store.global.t('min_interval_label')"></span></div>
-                                        <input x-model.number="nodeForm.min_request_interval_sec" type="number" min="0" class="input input-bordered input-sm w-full">
+                                        <input name="nodeForm_min_request_interval_sec" x-model.number="nodeForm.min_request_interval_sec" type="number" min="0" class="input input-bordered input-sm w-full">
                                         <div class="label"><span class="label-text-alt text-base-content/50" x-text="$store.global.t('min_interval_hint')"></span></div>
                                     </label>
                                 </div>
@@ -536,7 +536,7 @@ export default {
                                 <div class="grid grid-cols-2 gap-4">
                                     <label class="form-control w-full">
                                         <div class="label"><span class="label-text" x-text="$store.global.t('status')"></span></div>
-                                        <select x-model.number="nodeForm.status" class="select select-bordered select-sm w-full">
+                                        <select name="nodeForm_status" x-model.number="nodeForm.status" class="select select-bordered select-sm w-full">
                                             <option value="1" x-text="$store.global.t('status_option_enable')"></option>
                                             <option value="0" x-text="$store.global.t('status_option_disable')"></option>
                                             <option value="-1" x-text="$store.global.t('status_option_exhaust')"></option>
@@ -544,7 +544,7 @@ export default {
                                     </label>
                                     <label class="form-control w-full">
                                         <div class="label"><span class="label-text">Concurrency (并发限制)</span></div>
-                                        <input x-model.number="nodeForm.concurrency" type="number" min="0" max="1000" class="input input-bordered input-sm w-full">
+                                        <input name="nodeForm_concurrency" x-model.number="nodeForm.concurrency" type="number" min="0" max="1000" class="input input-bordered input-sm w-full">
                                         <div class="label"><span class="label-text-alt text-base-content/50">0 为无限制，上限 1000</span></div>
                                     </label>
                                 </div>
@@ -559,13 +559,13 @@ export default {
                                     <template x-if="selectedEndpoint.required_credential_fields.includes('project_id')">
                                         <label class="form-control w-full">
                                             <div class="label"><span class="label-text font-medium"><span x-text="$store.global.t('gcp_project_id')"></span> <span class="text-error">*</span></span></div>
-                                            <input x-model="nodeForm.project_id" type="text" placeholder="your-gcp-project-id" class="input input-bordered input-sm w-full">
+                                            <input name="nodeForm_project_id" x-model="nodeForm.project_id" type="text" placeholder="your-gcp-project-id" class="input input-bordered input-sm w-full">
                                         </label>
                                     </template>
                                     <template x-if="selectedEndpoint.required_credential_fields.includes('region')">
                                         <label class="form-control w-full">
                                             <div class="label"><span class="label-text" x-text="$store.global.t('gcp_location')"></span></div>
-                                            <input x-model="nodeForm.location" type="text" placeholder="global" class="input input-bordered input-sm w-full">
+                                            <input name="nodeForm_location" x-model="nodeForm.location" type="text" placeholder="global" class="input input-bordered input-sm w-full">
                                             <div class="label"><span class="label-text-alt text-base-content/50" x-text="$store.global.t('hint_location')"></span></div>
                                         </label>
                                     </template>
@@ -574,7 +574,7 @@ export default {
                             <template x-if="$store.global.proMode || nodeForm.provider === 'ollama' || nodeForm.provider === 'deepseek' || nodeForm.provider === 'siliconflow' || nodeForm.provider === 'grok' || nodeForm.provider === 'openrouter'">
                                 <label class="form-control w-full">
                                     <div class="label"><span class="label-text" x-text="$store.global.t('base_url_optional')"></span></div>
-                                    <input x-model="nodeForm.base_url" type="text" :placeholder="$store.global.t('placeholder_baseurl')" class="input input-bordered input-sm w-full">
+                                    <input name="nodeForm_base_url" x-model="nodeForm.base_url" type="text" :placeholder="$store.global.t('placeholder_baseurl')" class="input input-bordered input-sm w-full">
                                     <div class="label"><span class="label-text-alt text-base-content/50" x-text="$store.global.t('hint_custom_endpoint')"></span></div>
                                 </label>
                             </template>
@@ -587,21 +587,21 @@ export default {
                                 <div class="grid grid-cols-2 gap-4">
                                     <label class="form-control w-full">
                                         <div class="label"><span class="label-text" x-text="$store.global.t('label_total_balance')"></span></div>
-                                        <input x-model.number="nodeForm.balance" type="number" min="0" step="0.01" placeholder="0.00" class="input input-bordered input-sm w-full">
+                                        <input name="nodeForm_balance" x-model.number="nodeForm.balance" type="number" min="0" step="0.01" placeholder="0.00" class="input input-bordered input-sm w-full">
                                         <div class="label"><span class="label-text-alt text-base-content/50" x-text="$store.global.t('hint_unlimited')"></span></div>
                                     </label>
                                     <label class="form-control w-full">
                                         <div class="label"><span class="label-text" x-text="$store.global.t('label_limit_percent')"></span></div>
-                                        <input x-model.number="nodeForm.limit_percent" type="number" min="0" max="100" step="0.1" class="input input-bordered input-sm w-full">
+                                        <input name="nodeForm_limit_percent" x-model.number="nodeForm.limit_percent" type="number" min="0" max="100" step="0.1" class="input input-bordered input-sm w-full">
                                         <div class="label"><span class="label-text-alt text-base-content/50" x-text="$store.global.t('hint_limit_percent')"></span></div>
                                     </label>
                                     <label class="form-control w-full">
                                         <div class="label"><span class="label-text" x-text="$store.global.t('label_valid_from')"></span></div>
-                                        <input x-model="nodeForm.valid_from" type="datetime-local" step="1" class="input input-bordered input-sm w-full">
+                                        <input name="nodeForm_valid_from" x-model="nodeForm.valid_from" type="datetime-local" step="1" class="input input-bordered input-sm w-full">
                                     </label>
                                     <label class="form-control w-full">
                                         <div class="label"><span class="label-text" x-text="$store.global.t('label_valid_to')"></span></div>
-                                        <input x-model="nodeForm.valid_to" type="datetime-local" step="1" class="input input-bordered input-sm w-full">
+                                        <input name="nodeForm_valid_to" x-model="nodeForm.valid_to" type="datetime-local" step="1" class="input input-bordered input-sm w-full">
                                         <div class="label"><span class="label-text-alt text-base-content/50" x-text="$store.global.t('hint_expire_auto')"></span></div>
                                     </label>
                                 </div>
@@ -701,7 +701,7 @@ export default {
                     <div class="space-y-4">
                         <div class="form-control">
                             <div class="label pb-1"><span class="label-text font-medium">模型 ID *</span></div>
-                            <input x-model="addModelForm.model_id"
+                            <input name="addModelForm_model_id" x-model="addModelForm.model_id"
                                    type="text" class="input input-bordered input-sm w-full font-mono"
                                    placeholder="e.g. qwen3:32b, llama4:70b" />
                         </div>

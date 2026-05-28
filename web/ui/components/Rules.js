@@ -432,7 +432,7 @@ export default {
                                 <div class="label pb-1">
                                     <span class="label-text font-semibold">客户端发来的模型名 *</span>
                                 </div>
-                                <input x-model="intentForm.model_id"
+                                <input name="intentForm_model_id" x-model="intentForm.model_id"
                                        type="text"
                                        class="input input-bordered w-full font-mono text-info"
                                        placeholder="e.g. my-assistant, internal-coder" />
@@ -612,7 +612,7 @@ export default {
                                         </div>
                                     </span>
                                 </div>
-                                <input x-model="routeForm.requested_model_id"
+                                <input name="routeForm_requested_model_id" x-model="routeForm.requested_model_id"
                                        type="text"
                                        class="input input-bordered w-full font-mono text-info"
                                        :placeholder="$store.global.t('placeholder_pro_source') || 'e.g. gpt-4o 或 ^claude-.* 或 * 或 smart'" />
@@ -630,7 +630,7 @@ export default {
 
                                 <template x-if="$store.global.allModels && $store.global.allModels.length > 0">
                                     <div class="space-y-2">
-                                        <select x-model="routeForm.target_user_model_id"
+                                        <select name="routeForm_target_user_model_id" x-model="routeForm.target_user_model_id"
                                                 class="select select-bordered w-full font-mono text-success">
                                             <template x-for="m in $store.global.allModels" :key="m.id">
                                                 <option :value="m.id"
@@ -667,7 +667,7 @@ export default {
                                 <div class="label pb-1">
                                     <span class="label-text font-semibold" x-text="$store.global.t('label_route_status')"></span>
                                 </div>
-                                <select x-model="routeForm.is_active" class="select select-bordered select-sm w-full">
+                                <select name="routeForm_is_active" x-model="routeForm.is_active" class="select select-bordered select-sm w-full">
                                     <option value="true" x-text="$store.global.t('status_enabled_short')"></option>
                                     <option value="false" x-text="$store.global.t('status_disabled_short')"></option>
                                 </select>

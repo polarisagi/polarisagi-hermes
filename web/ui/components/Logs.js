@@ -71,7 +71,7 @@ export default {
             <div class="flex justify-between items-center mb-6 shrink-0">
                 <h2 class="text-3xl font-bold" x-text="$store.global.t('tab_logs_title')"></h2>
                 <div class="flex gap-3">
-                    <select x-model="$store.global.logLevelFilter" @change="fetchLogs" class="select select-bordered select-sm">
+                    <select name="store_global_logLevelFilter" x-model="$store.global.logLevelFilter" @change="fetchLogs" class="select select-bordered select-sm">
                         <option value="all" x-text="$store.global.t('log_level_all_desc')"></option>
                         <option value="info">INFO</option>
                         <option value="warn">WARN</option>
