@@ -4,6 +4,9 @@ INSERT OR IGNORE INTO sys_providers (provider_id, provider_name, description) VA
 ('01ai', '零一万物 (01.AI)', NULL),
 ('anthropic', 'Anthropic', NULL),
 ('arcee', 'Arcee AI', NULL),
+('custom_openai', '自定义 (OpenAI 兼容)', NULL),
+('custom_anthropic', '自定义 (Anthropic 兼容)', NULL),
+('custom_google', '自定义 (Google 兼容)', NULL),
 ('azure', 'Microsoft Azure OpenAI', NULL),
 ('azure_speech', 'Azure Speech', NULL),
 ('baichuan', '百川智能 (Baichuan)', NULL),
@@ -62,6 +65,9 @@ INSERT OR IGNORE INTO sys_providers (provider_id, provider_name, description) VA
 ('zhipu', '智谱 AI (ChatGLM)', NULL);
 
 INSERT OR IGNORE INTO sys_access_endpoints (endpoint_id, provider_id, display_name, api_protocol, default_base_url, auth_type, auth_header, required_credential_fields, display_order) VALUES
+('custom_openai_bearer', 'custom_openai', '自定义 OpenAI Key', 'openai', 'https://api.openai.com/v1', 'bearer', 'Authorization', '["api_key"]', 0),
+('custom_anthropic_key', 'custom_anthropic', '自定义 Anthropic Key', 'anthropic', 'https://api.anthropic.com/v1', 'header', 'x-api-key', '["api_key"]', 0),
+('custom_google_key', 'custom_google', '自定义 Google Key', 'google', 'https://generativelanguage.googleapis.com/v1beta', 'query', 'key', '["api_key"]', 0),
 ('01ai_bearer', '01ai', '零一万物 API Key', 'openai', 'https://api.lingyiwanwu.com/v1', 'bearer', 'Authorization', '["api_key"]', 0),
 ('anthropic_key', 'anthropic', 'Anthropic API Key', 'anthropic', 'https://api.anthropic.com/v1', 'header', 'x-api-key', '["api_key"]', 0),
 ('arcee_bearer', 'arcee', 'Arcee AI Key', 'openai', 'https://api.arcee.ai/v1', 'bearer', 'Authorization', '["api_key"]', 0),
