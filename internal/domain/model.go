@@ -13,7 +13,7 @@ type SysModel struct {
 	SupportsTools       bool     `json:"supports_tools"`
 	PromptPricePer1k    float64  `json:"prompt_price_per_1k"`
 	CompletionPricePer1k float64 `json:"completion_price_per_1k"`
-	ReleasedAt          *string  `json:"released_at"` // ISO8601 或 YYYY-MM-DD
+	ReleasedAt          int64    `json:"released_at"` // Unix timestamp (same as OpenRouter's 'created')
 	IsActive            bool     `json:"is_active"`
 	VersionWeight       int      `json:"version_weight"` // 版本权重（用于排序，越大越新）
 	IsLegacy            bool     `json:"is_legacy"`      // 是否为过时旧模型

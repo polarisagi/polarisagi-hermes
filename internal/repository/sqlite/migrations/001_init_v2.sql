@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS sys_models (
     supports_tools BOOLEAN DEFAULT FALSE,
     prompt_price_per_1k REAL DEFAULT 0.0,
     completion_price_per_1k REAL DEFAULT 0.0,
-    released_at DATETIME,
+    released_at INTEGER DEFAULT 0,
     is_active BOOLEAN DEFAULT TRUE,
     version_weight INTEGER DEFAULT 0,
     is_legacy BOOLEAN DEFAULT FALSE

@@ -83,7 +83,7 @@ func (r *ModelRepo) UpsertSysModel(ctx context.Context, m *domain.SysModel) erro
 			supports_tools = excluded.supports_tools,
 			prompt_price_per_1k = CASE WHEN excluded.prompt_price_per_1k > 0 THEN excluded.prompt_price_per_1k ELSE sys_models.prompt_price_per_1k END,
 			completion_price_per_1k = CASE WHEN excluded.completion_price_per_1k > 0 THEN excluded.completion_price_per_1k ELSE sys_models.completion_price_per_1k END,
-			released_at = CASE WHEN excluded.released_at IS NOT NULL THEN excluded.released_at ELSE sys_models.released_at END,
+			released_at = CASE WHEN excluded.released_at > 0 THEN excluded.released_at ELSE sys_models.released_at END,
 			version_weight = excluded.version_weight,
 			is_legacy = excluded.is_legacy
 	`

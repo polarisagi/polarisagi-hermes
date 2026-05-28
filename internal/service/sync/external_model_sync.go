@@ -117,8 +117,7 @@ func (s *SyncService) fetchOpenRouter(ctx context.Context, globalModels map[stri
 
 		// Created
 		if m.Created > 0 {
-			t := time.Unix(m.Created, 0).Format(time.RFC3339)
-			sysModel.ReleasedAt = &t
+			sysModel.ReleasedAt = m.Created
 		}
 
 		// Vision
