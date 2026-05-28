@@ -786,5 +786,5 @@ func (h *AdminHandler) SyncGlobalModels(w http.ResponseWriter, r *http.Request) 
 	}()
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(`{"status":"success","message":"Global model sync started in background"}`))
+	_, _ = w.Write([]byte(`{"status":"success","message":"Global model sync started in background"}`))
 }

@@ -71,11 +71,11 @@ func main() {
 	go func() {
 		// 启动后延迟 1 分钟执行一次全量同步，然后每天执行一次
 		time.Sleep(1 * time.Minute)
-		syncService.SyncGlobalModels(context.Background())
+		_ = syncService.SyncGlobalModels(context.Background())
 		
 		ticker := time.NewTicker(24 * time.Hour)
 		for range ticker.C {
-			syncService.SyncGlobalModels(context.Background())
+			_ = syncService.SyncGlobalModels(context.Background())
 		}
 	}()
 
