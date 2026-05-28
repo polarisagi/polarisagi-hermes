@@ -157,10 +157,6 @@ INSERT OR IGNORE INTO sys_models (model_id, provider_id, actual_model_id, displa
 ('claude-sonnet-4-5', 'anthropic', 'claude-sonnet-4-5', 'Claude Sonnet 4 5', 0, 0, 0, 0),
 ('claude-sonnet-4-5-20250929', 'anthropic', 'claude-sonnet-4-5-20250929', 'Claude Sonnet 4.5', 0, 0, 0, 0),
 ('claude-sonnet-4-6', 'anthropic', 'claude-sonnet-4-6', 'Claude Sonnet 4.6 (Claude CLI)', 0, 0, 0, 0),
-('gemini-claude-opus-4-5-thinking', 'anthropic', 'gemini-claude-opus-4-5-thinking', 'Antigravity - Claude Opus 4.5', 0, 0, 0, 0),
-('gemini-claude-opus-4-6-thinking', 'anthropic', 'gemini-claude-opus-4-6-thinking', 'Antigravity - Claude Opus 4.6', 0, 0, 0, 0),
-('gemini-claude-sonnet-4-5-thinking', 'anthropic', 'gemini-claude-sonnet-4-5-thinking', 'Antigravity - Claude Sonnet 4.5', 0, 0, 0, 0),
-('gemini-claude-sonnet-4-6-thinking', 'anthropic', 'gemini-claude-sonnet-4-6-thinking', 'Antigravity - Claude Sonnet 4.6', 0, 0, 0, 0),
 ('arcee-agent', 'arcee', 'arcee-agent', 'Arcee Agent', 0, 0, 0, 0),
 ('arcee-lite', 'arcee', 'arcee-lite', 'Arcee Lite', 0, 0, 0, 0),
 ('arcee-spark', 'arcee', 'arcee-spark', 'Arcee Spark', 0, 0, 0, 0),
@@ -391,6 +387,10 @@ INSERT OR IGNORE INTO sys_models (model_id, provider_id, actual_model_id, displa
 ('gemini-3.1-pro-preview', 'google_agent_platform', 'gemini-3.1-pro-preview', 'Gemini 3.1 Pro Preview', 0, 0, 0, 0),
 ('gemini-3.1-pro-preview-customtools', 'google_agent_platform', 'gemini-3.1-pro-preview-customtools', 'Gemini 3.1 Pro Preview Customtools', 0, 0, 0, 0),
 ('gemini-3.5-flash', 'google_agent_platform', 'gemini-3.5-flash', 'Gemini 3.5 Flash', 0, 0, 0, 0),
+('gemini-claude-opus-4-5-thinking', 'google_agent_platform', 'gemini-claude-opus-4-5-thinking', 'Antigravity - Claude Opus 4.5', 0, 0, 0, 0),
+('gemini-claude-opus-4-6-thinking', 'google_agent_platform', 'gemini-claude-opus-4-6-thinking', 'Antigravity - Claude Opus 4.6', 0, 0, 0, 0),
+('gemini-claude-sonnet-4-5-thinking', 'google_agent_platform', 'gemini-claude-sonnet-4-5-thinking', 'Antigravity - Claude Sonnet 4.5', 0, 0, 0, 0),
+('gemini-claude-sonnet-4-6-thinking', 'google_agent_platform', 'gemini-claude-sonnet-4-6-thinking', 'Antigravity - Claude Sonnet 4.6', 0, 0, 0, 0),
 ('gemini-flash-latest', 'google_agent_platform', 'gemini-flash-latest', 'Gemini Flash Latest', 0, 0, 0, 0),
 ('gemini-flash-lite-latest', 'google_agent_platform', 'gemini-flash-lite-latest', 'Gemini Flash Lite Latest', 0, 0, 0, 0),
 ('gemma-4', 'google_agent_platform', 'gemma-4', 'Gemma 4', 0, 0, 0, 0),
@@ -802,6 +802,7 @@ INSERT OR IGNORE INTO sys_models (model_id, provider_id, actual_model_id, displa
 ('glm-5', 'zhipu', 'glm-5', 'Glm 5', 0, 0, 0, 0),
 ('glm-5.1', 'zhipu', 'glm-5.1', 'Glm 5.1', 0, 0, 0, 0),
 ('glm-5.1-highspeed', 'zhipu', 'glm-5.1-highspeed', 'GLM 5.1 Highspeed', 0, 0, 0, 0);
+
 
 
 
