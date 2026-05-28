@@ -43,6 +43,7 @@ func (r *RouteRepo) GetAllUserCustomRoutes(ctx context.Context) ([]domain.UserCu
 	query := `
 		SELECT id, requested_model_id, target_user_model_id, is_active
 		FROM user_custom_routes
+		ORDER BY id ASC
 	`
 	rows, err := DB().QueryContext(ctx, query)
 	if err != nil {

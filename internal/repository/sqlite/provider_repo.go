@@ -21,6 +21,7 @@ func (r *ProviderRepo) GetUserProviders(ctx context.Context) ([]domain.UserProvi
 		       priority, weight, concurrency_limit, min_interval_sec, timeout_sec, retry_times, status, 
 		       balance, limit_percent, used_amount, IFNULL(valid_from, ''), IFNULL(valid_to, ''), created_at
 		FROM user_providers
+		ORDER BY id ASC
 	`
 	rows, err := DB().QueryContext(ctx, query)
 	if err != nil {
@@ -84,7 +85,7 @@ func (r *ProviderRepo) GetSysAccessEndpoint(ctx context.Context, endpointID stri
 
 // GetAllSysProviders 获取所有系统预置大厂
 func (r *ProviderRepo) GetAllSysProviders(ctx context.Context) ([]domain.SysProvider, error) {
-	query := "SELECT provider_id, provider_name FROM sys_providers"
+	query := "SELECT provider_id, provider_name FROM sys_providers ORDER BY provider_name ASC"
 	rows, err := DB().QueryContext(ctx, query)
 	if err != nil {
 		return nil, err

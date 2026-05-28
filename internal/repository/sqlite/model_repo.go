@@ -18,6 +18,7 @@ func (r *ModelRepo) GetUserModels(ctx context.Context) ([]domain.UserModel, erro
 		SELECT id, user_provider_id, IFNULL(display_name, ''), model_id, capability_tier, is_active
 		FROM user_models
 		WHERE is_active = 1
+		ORDER BY capability_tier ASC, model_id ASC
 	`
 	rows, err := DB().QueryContext(ctx, query)
 	if err != nil {
@@ -44,6 +45,7 @@ func (r *ModelRepo) GetSysModels(ctx context.Context) ([]domain.SysModel, error)
 	query := `
 		SELECT model_id, provider_id, display_name, context_length, max_output_tokens, supports_vision, supports_tools
 		FROM sys_models
+		ORDER BY provider_id ASC, model_id ASC
 	`
 	rows, err := DB().QueryContext(ctx, query)
 	if err != nil {

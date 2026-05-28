@@ -58,7 +58,7 @@ func (r *IntentRepo) SaveUserIntent(ctx context.Context, intent *domain.UserMode
 
 // GetAllSysIntents 全量加载系统意图字典到内存 map（用于 Pipeline 热重载缓存）
 func (r *IntentRepo) GetAllSysIntents(ctx context.Context) (map[string]string, error) {
-	rows, err := DB().QueryContext(ctx, `SELECT model_id, capability_tier FROM sys_model_intent_dict`)
+	rows, err := DB().QueryContext(ctx, `SELECT model_id, capability_tier FROM sys_model_intent_dict ORDER BY model_id ASC`)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +77,7 @@ func (r *IntentRepo) GetAllSysIntents(ctx context.Context) (map[string]string, e
 
 // GetAllUserIntents 全量加载用户意图字典到内存 map（用于 Pipeline 热重载缓存）
 func (r *IntentRepo) GetAllUserIntents(ctx context.Context) (map[string]string, error) {
-	rows, err := DB().QueryContext(ctx, `SELECT model_id, capability_tier FROM user_model_intent_dict`)
+	rows, err := DB().QueryContext(ctx, `SELECT model_id, capability_tier FROM user_model_intent_dict ORDER BY model_id ASC`)
 	if err != nil {
 		return nil, err
 	}
