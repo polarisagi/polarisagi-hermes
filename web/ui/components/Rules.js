@@ -48,6 +48,26 @@ export default {
                 } catch (e) { console.error(e); }
             },
 
+            async syncModels() {
+                const gStore = Alpine.store('global');
+                if (!confirm(gStore.lang === 'zh' ? '该操作会遍历所有渠道并同步最新的模型列表，可能需要几秒钟，确定继续？' : 'This will fetch latest models from all active providers. Continue?')) return;
+                
+                gStore.showToast(gStore.lang === 'zh' ? '正在同步模型，请稍候...' : 'Syncing models...', 'info');
+                try {
+                    const res = await fetch('/api/admin/models/sync', { method: 'POST' });
+                    if (res.ok) {
+                        const data = await res.json();
+                        gStore.showToast(gStore.lang === 'zh' ? \`同步完成！共更新 \${data.synced} 个模型。\` : \`Sync complete! Updated \${data.synced} models.\`, 'success');
+                        this.fetchAllModels();
+                        this.fetchUserIntents();
+                    } else {
+                        gStore.showToast('同步失败 (Sync failed)', 'error');
+                    }
+                } catch (e) {
+                    gStore.showToast('网络错误 (Network error)', 'error');
+                }
+            },
+
             // ─── Helpers ─────────────────────────────────────────────────────
 
             getTargetModelName(id) {
@@ -298,10 +318,16 @@ export default {
                         <h2 class="text-3xl font-bold">意图映射</h2>
                         <p class="text-base-content/60 text-sm mt-1">为自定义模型名配置能力梯队，系统内置 570+ 条主流模型自动生效无需配置</p>
                     </div>
-                    <button @click="openIntentModal()" class="btn btn-secondary shadow-lg shadow-secondary/20">
-                        <span class="text-lg">+</span>
-                        <span>添加意图映射</span>
-                    </button>
+                    <div class="flex gap-2">
+                        <button @click="syncModels()" class="btn btn-outline btn-info shadow-sm hover:shadow-info/30">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                            自动同步模型
+                        </button>
+                        <button @click="openIntentModal()" class="btn btn-secondary shadow-lg shadow-secondary/20">
+                            <span class="text-lg">+</span>
+                            <span>添加意图映射</span>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- 系统说明 Banner -->
@@ -321,17 +347,17 @@ export default {
                     <div class="card bg-warning/5 border border-warning/20 p-4">
                         <div class="text-xl mb-1">🏆</div>
                         <div class="font-bold text-sm">旗舰型 <span class="font-mono text-xs text-warning">smart</span></div>
-                        <div class="text-xs text-base-content/50 mt-1">gpt-4o、claude-sonnet、gemini-pro<br>→ deepseek-v4-flash、gemini-3.1-pro</div>
+                        <div class="text-xs text-base-content/50 mt-1">gpt-4o、claude-sonnet、gemini-pro<br>→ 自动路由到各厂**最新代**旗舰模型</div>
                     </div>
                     <div class="card bg-info/5 border border-info/20 p-4">
                         <div class="text-xl mb-1">⚡</div>
                         <div class="font-bold text-sm">极速型 <span class="font-mono text-xs text-info">fast</span></div>
-                        <div class="text-xs text-base-content/50 mt-1">gpt-4o-mini、claude-haiku、gemini-flash<br>→ deepseek-v4-flash、gemini-3.1-flash</div>
+                        <div class="text-xs text-base-content/50 mt-1">gpt-4o-mini、claude-haiku、gemini-flash<br>→ 自动路由到各厂**最新代**极速模型</div>
                     </div>
                     <div class="card bg-secondary/5 border border-secondary/20 p-4">
                         <div class="text-xl mb-1">🧠</div>
                         <div class="font-bold text-sm">沉思型 <span class="font-mono text-xs text-secondary">reasoning</span></div>
-                        <div class="text-xs text-base-content/50 mt-1">o1、o3、DeepSeek-R1<br>→ deepseek-v4-pro、gemini-thinking</div>
+                        <div class="text-xs text-base-content/50 mt-1">o1、o3、DeepSeek-R1<br>→ 自动路由到各厂**最新代**推理模型</div>
                     </div>
                 </div>
 
