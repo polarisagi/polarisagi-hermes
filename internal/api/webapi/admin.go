@@ -469,6 +469,7 @@ func (h *AdminHandler) SyncModels(w http.ResponseWriter, r *http.Request) {
 		for _, m := range res.Data {
 			weight := inferer.ParseVersionWeight(m.ID)
 			tier := inferer.InferUnknownModel(ctx, m.ID)
+			isLegacy := inferer.IsLegacyModel(m.ID)
 
 			sysModel := &domain.SysModel{
 				ModelID:       m.ID,
@@ -476,7 +477,7 @@ func (h *AdminHandler) SyncModels(w http.ResponseWriter, r *http.Request) {
 				ActualModelID: m.ID,
 				DisplayName:   m.ID,
 				VersionWeight: weight,
-				IsLegacy:      false,
+				IsLegacy:      isLegacy,
 			}
 			_ = h.modelRepo.UpsertSysModel(ctx, sysModel)
 			

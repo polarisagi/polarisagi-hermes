@@ -80,14 +80,8 @@ func (i *IntentInferer) inferByLLM(ctx context.Context, modelID string) string {
 func (i *IntentInferer) ParseVersionWeight(modelID string) int {
 	weight := 0
 	
-	dateRe := regexp.MustCompile(`(202\d)[-]?(\d{2})[-]?(\d{2})`)
-	if matches := dateRe.FindStringSubmatch(modelID); len(matches) == 4 {
-		year, _ := strconv.Atoi(matches[1])
-		month, _ := strconv.Atoi(matches[2])
-		day, _ := strconv.Atoi(matches[3])
-		weight += year*10000 + month*100 + day
-	} else if strings.Contains(modelID, "latest") {
-		weight += 20999999 // a very large date representation for "latest"
+	if strings.Contains(modelID, "latest") {
+		weight += 9999999 // latest remains a high weight
 	}
 
 	verRe := regexp.MustCompile(`(?:gpt-|gemini-|claude-|v|o)(\d+)(?:[-.](\d+))?(o)?`)
@@ -102,10 +96,34 @@ func (i *IntentInferer) ParseVersionWeight(modelID string) int {
 		if len(matches) > 3 && matches[3] == "o" {
 			baseWeight += 500
 		}
-		// prepend baseWeight so it dominates the date weight
-		weight += baseWeight * 100000000
+		// prepended baseWeight ensures newer major versions take precedence
+		weight += baseWeight * 10000
 	}
 
 	return weight
+}
+
+// IsLegacyModel 判断模型是否为过时的快照版本（例如带有日期后缀的 gpt-4o-2024-11-20，或带有 legacy 标识）
+func (i *IntentInferer) IsLegacyModel(modelID string) bool {
+	// 包含具体日期格式的，通常是历史快照，属于旧模型 (e.g. 2024-11-20, 20241120)
+	dateRe := regexp.MustCompile(`(202\d)[-]?(\d{2})[-]?(\d{2})`)
+	if dateRe.MatchString(modelID) {
+		return true
+	}
+	
+	// 其他四位或六位数字格式的日期后缀（如 -0314, -0613, -1106, -0125, -240718）
+	// (避免误伤 gpt-4 之类的数字，所以要求前面有连字符，或者是典型的月日结构)
+	shortDateRe := regexp.MustCompile(`-(0[1-9]|1[0-2])([0-2][0-9]|3[01])$|-\d{6}$`)
+	if shortDateRe.MatchString(modelID) {
+		return true
+	}
+	
+	// 明确标记为过时的
+	lowerID := strings.ToLower(modelID)
+	if strings.Contains(lowerID, "legacy") || strings.Contains(lowerID, "deprecated") || strings.Contains(lowerID, "gpt-3.5") {
+		return true
+	}
+	
+	return false
 }
 
