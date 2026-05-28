@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS sys_model_intent_dict (
 CREATE TABLE IF NOT EXISTS user_providers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name VARCHAR NOT NULL,
-    endpoint_id VARCHAR NOT NULL,
+    provider_id VARCHAR NOT NULL,
     base_url VARCHAR,
     auth_credentials JSON NOT NULL,
     priority INTEGER DEFAULT 10,
@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS user_providers (
     valid_from DATETIME,
     valid_to DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(endpoint_id) REFERENCES sys_access_endpoints(endpoint_id)
+    FOREIGN KEY(provider_id) REFERENCES sys_providers(provider_id)
 );
 
 -- 6. user_models

@@ -42,7 +42,7 @@ const (
 type UserProvider struct {
 	ID                int             `json:"id"`
 	Name              string          `json:"name"`
-	EndpointID        string          `json:"endpoint_id"`
+	ProviderID        string          `json:"provider_id"`
 	BaseURL           string          `json:"base_url"`
 	AuthCredentials   json.RawMessage `json:"auth_credentials"` // JSON key-value pairs
 	Priority          int             `json:"priority"`

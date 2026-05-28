@@ -12,7 +12,7 @@ export default {
             availableEndpoints: [],
             selectedEndpoint: null,
             nodeForm: {
-                id: 0, provider: 'openai', endpoint_id: '', name: '', credentials: '', project_id: '', location: 'global', base_url: '',
+                id: 0, provider: 'openai', name: '', credentials: '', project_id: '', location: 'global', base_url: '',
                 priority: 10, limit_percent: 90.0, balance: 0.0, min_request_interval_sec: 0, concurrency: 0,
                 valid_from: '', valid_to: '', status: 1
             },
@@ -43,8 +43,8 @@ export default {
                     let nodes = await res.json() || [];
                     nodes = nodes.map(n => {
                         // find endpoint
-                        const ep = this.sysEndpoints.find(e => e.endpoint_id === n.endpoint_id);
-                        n.provider = ep ? ep.provider_id : 'unknown';
+                        const ep = this.sysEndpoints.find(e => e.provider_id === n.provider_id);
+                        n.provider = n.provider_id;
                         n.concurrency = n.concurrency_limit || 0;
                         n.min_request_interval_sec = n.min_interval_sec || 0;
                         return n;
@@ -160,10 +160,8 @@ export default {
 
             openNodeModal(node = null) {
                 if (node) {
-                    const ep = this.sysEndpoints.find(e => e.endpoint_id === node.endpoint_id);
-                    if (ep) {
-                        node.provider = ep.provider_id;
-                    }
+                    node.provider = node.provider_id;
+                    const ep = this.sysEndpoints.find(e => e.provider_id === node.provider_id);
                     
                     const origCreds = node.auth_credentials || {};
 
@@ -238,7 +236,7 @@ export default {
                     
                     const payload = {
                         ...form,
-                        endpoint_id: form.endpoint_id,
+                        provider_id: form.provider,
                         auth_credentials: authCreds,
                         concurrency_limit: form.concurrency,
                         min_interval_sec: form.min_request_interval_sec,
@@ -313,13 +311,8 @@ export default {
                 const updateAuthModes = () => {
                     this.availableEndpoints = this.sysEndpoints.filter(m => m.provider_id === this.nodeForm.provider);
                     if (this.availableEndpoints.length > 0) {
-                        // If current auth mode is not in available, select the first one
-                        if (!this.availableEndpoints.find(m => m.endpoint_id === this.nodeForm.endpoint_id)) {
-                            this.nodeForm.endpoint_id = this.availableEndpoints[0].endpoint_id;
-                        }
-                        this.selectedEndpoint = this.availableEndpoints.find(m => m.endpoint_id === this.nodeForm.endpoint_id) || null;
+                        this.selectedEndpoint = this.availableEndpoints[0];
                     } else {
-                        this.nodeForm.endpoint_id = '';
                         this.selectedEndpoint = null;
                     }
                 };
@@ -350,9 +343,7 @@ export default {
                     }
                 });
 
-                this.$watch('nodeForm.endpoint_id', (newVal) => {
-                    this.selectedEndpoint = this.availableEndpoints.find(m => m.endpoint_id === newVal) || null;
-                });
+
                 
                 // Also trigger initial calculation when modal opens
                 this.$watch('nodeModal.show', (newVal) => {
@@ -487,19 +478,7 @@ export default {
                                 </label>
                             </div>
                             
-                            <!-- 动态鉴权方式选择 (仅当厂商有多种鉴权模式时显示) -->
-                            <template x-if="availableEndpoints.length > 1">
-                                <div class="grid grid-cols-1 gap-4 mb-4">
-                                    <label class="form-control w-full">
-                                        <div class="label"><span class="label-text font-medium">鉴权方式 <span class="text-error">*</span></span></div>
-                                        <div class="join">
-                                            <template x-for="m in availableEndpoints" :key="m.endpoint_id">
-                                                <input class="join-item btn btn-sm w-1/2" type="radio" :aria-label="m.display_name" x-model="nodeForm.endpoint_id" :value="m.endpoint_id" />
-                                            </template>
-                                        </div>
-                                    </label>
-                                </div>
-                            </template>
+
                             
                             <label class="form-control w-full">
                                 <div class="label">

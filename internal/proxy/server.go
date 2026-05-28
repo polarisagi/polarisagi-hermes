@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"polaris-hermes/internal/domain"
 	"polaris-hermes/internal/service/channel"
 	"polaris-hermes/internal/service/router"
 	"polaris-hermes/internal/translator"
@@ -32,6 +33,47 @@ func NewServer(
 	}
 }
 
+func detectPayloadProtocol(reqMap map[string]interface{}) string {
+	// 检查是否有顶级 system 字段 (Anthropic 独有)
+	if _, ok := reqMap["system"]; ok {
+		return "anthropic"
+	}
+	// Anthropic 必须包含 max_tokens
+	_, hasMaxTokens := reqMap["max_tokens"]
+	// 检查 messages 内部是否有 role="system" (OpenAI 特有，Anthropic 不允许在 messages 中用 system)
+	hasOpenAISystem := false
+	if msgs, ok := reqMap["messages"].([]interface{}); ok {
+		for _, m := range msgs {
+			if msgMap, ok := m.(map[string]interface{}); ok {
+				if role, _ := msgMap["role"].(string); role == "system" {
+					hasOpenAISystem = true
+				}
+			}
+		}
+	}
+	// Google 原生一般包含 contents 而非 messages
+	if _, ok := reqMap["contents"]; ok {
+		return "google"
+	}
+
+	if hasOpenAISystem {
+		return "openai"
+	}
+	if hasMaxTokens {
+		return "anthropic" // Anthropic 强制要求 max_tokens，OpenAI 偶尔有
+	}
+	
+	// 默认退化为不确定
+	return ""
+}
+
+// 协议优先级矩阵: 针对不同的客户端协议，我们首选什么协议作为后端请求
+var targetPriority = map[string][]string{
+	"anthropic": {"anthropic", "google", "openai"},
+	"openai":    {"openai", "anthropic", "google"},
+	"google":    {"google", "openai", "anthropic"},
+}
+
 // ServeHTTP 是网关处理一切客户端流量的主入口
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// 简单 CORS 处理
@@ -45,13 +87,16 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	// 支持 OpenAI 格式（/v1/chat/completions）和 Anthropic 原生格式（/v1/messages）。
-	// Claude Code 使用 /v1/messages，Codex 使用 /v1/chat/completions。
-	// 两种格式的请求体中均有 "model" 字段，可统一提取。
-	isOpenAI := strings.HasPrefix(r.URL.Path, "/v1/chat/completions")
-	isAnthropic := strings.HasPrefix(r.URL.Path, "/v1/messages")
-	if !isOpenAI && !isAnthropic {
-		http.Error(w, "Only /v1/chat/completions and /v1/messages are supported", http.StatusNotFound)
+	path := r.URL.Path
+	var clientProtocol string
+	if strings.HasPrefix(path, "/v1/openai/") {
+		clientProtocol = "openai"
+	} else if strings.HasPrefix(path, "/v1/anthropic/") {
+		clientProtocol = "anthropic"
+	} else if strings.HasPrefix(path, "/v1/google/") {
+		clientProtocol = "google"
+	} else {
+		http.Error(w, "Invalid gateway endpoint. Please use /v1/openai/, /v1/anthropic/, or /v1/google/", http.StatusNotFound)
 		return
 	}
 
@@ -62,15 +107,31 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	var baseReq struct {
-		Model  string `json:"model"`
-	}
-	if err := json.Unmarshal(bodyBytes, &baseReq); err != nil {
+	var reqMap map[string]interface{}
+	if err := json.Unmarshal(bodyBytes, &reqMap); err != nil {
 		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
 		return
 	}
 
-	if baseReq.Model == "" {
+	// Payload Validation: 拦截错配的报文
+	detected := detectPayloadProtocol(reqMap)
+	if detected != "" && detected != clientProtocol {
+		// e.g. Client requested /v1/anthropic/ but sent OpenAI payload
+		// 特例：OpenAI 也可以包含 max_tokens，不能单靠 max_tokens 判断它是 anthropic 并拦截 openai 客户端。
+		// 但如果我们在 /v1/anthropic/ 收到 role="system" 的 openai 报文，则报错。
+		if (clientProtocol == "anthropic" && detected == "openai") || (clientProtocol == "openai" && detected == "anthropic") || (clientProtocol != "google" && detected == "google") {
+			slog.Warn("Protocol Payload Mismatch", "client_protocol", clientProtocol, "detected_payload", detected)
+			http.Error(w, "Protocol Payload Mismatch: You connected to /v1/"+clientProtocol+"/ but sent a "+detected+" payload.", http.StatusBadRequest)
+			return
+		}
+	}
+
+	// 提取 Model 字段（三大协议通常第一层或深层都有 model，但为了兼容性最好手写一点逻辑，或者直接要求客户端传）
+	var modelName string
+	if m, ok := reqMap["model"].(string); ok {
+		modelName = m
+	}
+	if modelName == "" {
 		http.Error(w, "Missing 'model' parameter in payload", http.StatusBadRequest)
 		return
 	}
@@ -79,17 +140,17 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		slog.Debug("Client Request Debug Info",
 			"url", r.URL.String(),
 			"method", r.Method,
-			"model", baseReq.Model,
+			"client_protocol", clientProtocol,
+			"model", modelName,
 			"body", string(bodyBytes),
 		)
 	}
 
 	// 呼叫大脑：4级智能降维路由
-	activeChan, actualModel, err := s.pipeline.RouteRequest(r.Context(), baseReq.Model)
+	activeChan, actualModel, err := s.pipeline.RouteRequest(r.Context(), modelName)
 	if err != nil {
-		slog.Error("路由匹配失败", "requested_model", baseReq.Model, "error", err)
-		// 根据传入协议选择错误响应格式
-		if isAnthropic {
+		slog.Error("路由匹配失败", "requested_model", modelName, "error", err)
+		if clientProtocol == "anthropic" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusServiceUnavailable)
 			_, _ = w.Write([]byte(`{"type":"error","error":{"type":"overloaded_error","message":"No available upstream models to serve this request"}}`))
@@ -102,22 +163,43 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// 完美确保并发锁无论如何都能释放
 	defer s.chanManager.ReleaseChannel(activeChan)
 
-	// 呼叫协议翻译插件
-	trans := s.transFactory.GetTranslator(activeChan.APIProtocol)
+	// 智能挑选 TargetProtocol 和 TargetEndpoint
+	var targetProtocol string
+	var targetEndpoint *domain.SysAccessEndpoint
+	priorityList := targetPriority[clientProtocol]
+	
+	for _, p := range priorityList {
+		if ep, exists := activeChan.Endpoints[p]; exists {
+			targetProtocol = p
+			targetEndpoint = ep
+			break
+		}
+	}
+	
+	if targetProtocol == "" {
+		slog.Error("无兼容的后端协议端点", "channel", activeChan.Provider.Name, "client_protocol", clientProtocol)
+		http.Error(w, "No compatible backend protocol endpoint for channel", http.StatusBadGateway)
+		return
+	}
+
+	// 组装翻译器键名: "clientProtocol_targetProtocol"
+	translatorKey := clientProtocol + "_" + targetProtocol
+	trans := s.transFactory.GetTranslator(translatorKey)
+	
 	if trans == nil {
-		slog.Warn("未找到对应的翻译器插件，暂不支持该协议", "api_protocol", activeChan.APIProtocol, "provider", activeChan.Endpoint.ProviderID)
-		if isAnthropic {
+		slog.Warn("未找到对应的翻译器插件", "translator_key", translatorKey, "provider", activeChan.Provider.ProviderID)
+		if clientProtocol == "anthropic" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotImplemented)
-			_, _ = w.Write([]byte(`{"type":"error","error":{"type":"api_error","message":"Translator not implemented for protocol: ` + activeChan.APIProtocol + `"}}`))
+			_, _ = w.Write([]byte(`{"type":"error","error":{"type":"api_error","message":"Translator not implemented: ` + translatorKey + `"}}`))
 		} else {
-			http.Error(w, "Translator not implemented for protocol: "+activeChan.APIProtocol, http.StatusNotImplemented)
+			http.Error(w, "Translator not implemented: "+translatorKey, http.StatusNotImplemented)
 		}
 		return
 	}
 
 	// 将整个网络请求周期交给对应大厂的翻译器处理
-	if err := trans.TranslateAndExecute(r.Context(), w, r, bodyBytes, activeChan, actualModel); err != nil {
+	if err := trans.TranslateAndExecute(r.Context(), w, r, bodyBytes, activeChan, targetEndpoint, actualModel); err != nil {
 		slog.Error("翻译器执行失败", "error", err)
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"polaris-hermes/internal/domain"
 	"polaris-hermes/internal/pkg/httpclient"
 	"polaris-hermes/internal/service/channel"
 	"polaris-hermes/internal/translator"
@@ -32,6 +33,7 @@ func (t *OpenAITranslator) TranslateAndExecute(
 	r *http.Request,
 	bodyBytes []byte,
 	ch *channel.ActiveChannel,
+	targetEndpoint *domain.SysAccessEndpoint,
 	targetModel string,
 ) error {
 	// 1. 替换请求体中的 model 字段为路由器确定的真实后端模型名
@@ -50,7 +52,7 @@ func (t *OpenAITranslator) TranslateAndExecute(
 	}
 
 	// 2. 构造目标 URL（透传到后端的 /v1/chat/completions）
-	targetURL := translator.BuildTargetURL(ch, "/chat/completions")
+	targetURL := translator.BuildTargetURL(ch, targetEndpoint, "/chat/completions")
 
 	proxyReq, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(newBody))
 	if err != nil {

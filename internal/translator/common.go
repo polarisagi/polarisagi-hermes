@@ -6,12 +6,13 @@ import (
 	"net/http"
 	"strings"
 
+	"polaris-hermes/internal/domain"
 	"polaris-hermes/internal/service/channel"
 )
 
 // BuildTargetURL 实现多态路由分发，原生支持 Vertex 端点的多子路径拼接
 // 提取自旧代码的 transport.go，去除了对 config 包的依赖，改为依赖 ActiveChannel
-func BuildTargetURL(ch *channel.ActiveChannel, incomingPath string) string {
+func BuildTargetURL(ch *channel.ActiveChannel, targetEndpoint *domain.SysAccessEndpoint, incomingPath string) string {
 	// 1. 提取业务子路径 (例如 chat/completions)
 	subPath := strings.TrimPrefix(incomingPath, "/v1")
 	if !strings.HasPrefix(subPath, "/") {
@@ -23,6 +24,9 @@ func BuildTargetURL(ch *channel.ActiveChannel, incomingPath string) string {
 	// 目前为了兼容，先只进行标准的 BaseURL 拼接（假设用户配置的 BaseURL 就是完整的前缀）
 	
 	baseURL := strings.TrimSuffix(ch.Provider.BaseURL, "/")
+	if baseURL == "" && targetEndpoint != nil {
+		baseURL = strings.TrimSuffix(targetEndpoint.DefaultBaseURL, "/")
+	}
 
 	// 如果 baseURL 包含了 Vertex/GEAP 的占位符，按照老代码逻辑替换（由于新表设计我们把 ProjectID 放进了 Credentials JSON）
 	// 这里可以预留给业务层通过 AuthCredentials 解析。

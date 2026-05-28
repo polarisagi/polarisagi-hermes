@@ -123,21 +123,38 @@ export default {
             </div>
 
             <!-- Proxy address info banner -->
-            <div class="alert shadow-sm border border-base-300 bg-base-200/50">
-                <svg class="w-5 h-5 text-info flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20A10 10 0 0012 2z"/>
-                </svg>
-                <div class="flex-1 min-w-0">
-                    <p class="text-sm font-medium" x-text="$store.global.t('client_proxy_addr_label')"></p>
-                    <div class="flex items-center gap-2 mt-1">
-                        <code class="text-xs bg-base-300 px-2 py-0.5 rounded font-mono" x-text="'http://' + listenAddr"></code>
-                        <button @click="navigator.clipboard.writeText('http://'+listenAddr).then(()=>$store.global.showToast($store.global.lang==='zh'?'已复制':'Copied!'))"
-                            class="btn btn-ghost btn-xs gap-1">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                            </svg>
-                            <span x-text="$store.global.lang==='zh'?'复制':'Copy'"></span>
-                        </button>
+            <div class="alert shadow-sm border border-base-300 bg-base-200/50 block">
+                <div class="flex items-center gap-2 mb-2">
+                    <svg class="w-5 h-5 text-info flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20A10 10 0 0012 2z"/>
+                    </svg>
+                    <p class="text-sm font-medium">请为您的 AI 客户端配置对应的 Base URL（API Key 填任意值）:</p>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
+                    <!-- OpenAI -->
+                    <div class="bg-base-100 p-3 rounded border border-base-300">
+                        <div class="text-xs font-bold mb-1 opacity-70">OpenAI 协议 (如 Codex, OpenCode)</div>
+                        <div class="flex items-center gap-2">
+                            <code class="text-xs bg-base-200 px-2 py-0.5 rounded font-mono flex-1 truncate" x-text="'http://' + listenAddr + '/v1/openai/'"></code>
+                            <button @click="navigator.clipboard.writeText('http://'+listenAddr+'/v1/openai/').then(()=>$store.global.showToast($store.global.lang==='zh'?'已复制':'Copied!'))" class="btn btn-ghost btn-xs px-1">📋</button>
+                        </div>
+                    </div>
+                    <!-- Anthropic -->
+                    <div class="bg-base-100 p-3 rounded border border-base-300">
+                        <div class="text-xs font-bold mb-1 opacity-70">Anthropic 协议 (如 Claude Code)</div>
+                        <div class="flex items-center gap-2">
+                            <code class="text-xs bg-base-200 px-2 py-0.5 rounded font-mono flex-1 truncate" x-text="'http://' + listenAddr + '/v1/anthropic/'"></code>
+                            <button @click="navigator.clipboard.writeText('http://'+listenAddr+'/v1/anthropic/').then(()=>$store.global.showToast($store.global.lang==='zh'?'已复制':'Copied!'))" class="btn btn-ghost btn-xs px-1">📋</button>
+                        </div>
+                    </div>
+                    <!-- Google -->
+                    <div class="bg-base-100 p-3 rounded border border-base-300">
+                        <div class="text-xs font-bold mb-1 opacity-70">Google 协议 (如 Gemini CLI)</div>
+                        <div class="flex items-center gap-2">
+                            <code class="text-xs bg-base-200 px-2 py-0.5 rounded font-mono flex-1 truncate" x-text="'http://' + listenAddr + '/v1/google/'"></code>
+                            <button @click="navigator.clipboard.writeText('http://'+listenAddr+'/v1/google/').then(()=>$store.global.showToast($store.global.lang==='zh'?'已复制':'Copied!'))" class="btn btn-ghost btn-xs px-1">📋</button>
+                        </div>
                     </div>
                 </div>
             </div>

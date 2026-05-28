@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"polaris-hermes/internal/domain"
 	"polaris-hermes/internal/pkg/httpclient"
 	"polaris-hermes/internal/service/channel"
 	"polaris-hermes/internal/translator"
@@ -26,8 +27,11 @@ func isClaudeModel(model string) bool {
 }
 
 // buildGEAPURL 构建 Google Agent Platform 端点 URL
-func buildGEAPURL(ch *channel.ActiveChannel, publisher, subpath, defaultLocation string) string {
-	tmpl := ch.Provider.BaseURL
+func buildGEAPURL(ch *channel.ActiveChannel, targetEndpoint *domain.SysAccessEndpoint, publisher, subpath, defaultLocation string) string {
+	tmpl := strings.TrimSuffix(ch.Provider.BaseURL, "/")
+	if tmpl == "" && targetEndpoint != nil {
+		tmpl = strings.TrimSuffix(targetEndpoint.DefaultBaseURL, "/")
+	}
 	if tmpl == "" {
 		tmpl = "https://aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/" + publisher + "/{subpath}"
 	}
@@ -54,7 +58,7 @@ func NewAnthropicGoogleTranslator() *AnthropicGoogleTranslator {
 	return &AnthropicGoogleTranslator{}
 }
 
-func (t *AnthropicGoogleTranslator) TranslateAndExecute(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, ch *channel.ActiveChannel, targetModel string) error {
+func (t *AnthropicGoogleTranslator) TranslateAndExecute(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, ch *channel.ActiveChannel, targetEndpoint *domain.SysAccessEndpoint, targetModel string) error {
 	traceID := r.Header.Get("X-Request-Id")
 	if traceID == "" {
 		traceID = "req-unknown"
@@ -120,13 +124,13 @@ func (t *AnthropicGoogleTranslator) TranslateAndExecute(ctx context.Context, w h
 	}
 
 	if useGEAPClaude {
-		return handleGEAPClaude(ctx, w, r, bodyBytes, ch, traceID, finalModel, req.Stream)
+		return handleGEAPClaude(ctx, w, r, bodyBytes, ch, targetEndpoint, traceID, finalModel, req.Stream)
 	} else {
-		return handleGemini(ctx, w, bodyBytes, ch, traceID, finalModel, req, isCompact)
+		return handleGemini(ctx, w, bodyBytes, ch, targetEndpoint, traceID, finalModel, req, isCompact)
 	}
 }
 
-func handleGEAPClaude(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, ch *channel.ActiveChannel, traceID, model string, stream bool) error {
+func handleGEAPClaude(ctx context.Context, w http.ResponseWriter, r *http.Request, bodyBytes []byte, ch *channel.ActiveChannel, targetEndpoint *domain.SysAccessEndpoint, traceID, model string, stream bool) error {
 	geapBody, err := rewriteBodyForGEAPClaude(bodyBytes, false, "")
 	if err != nil {
 		http.Error(w, `{"type":"error","error":{"type":"invalid_request_error","message":"failed to rewrite body"}}`, http.StatusBadRequest)
@@ -139,7 +143,7 @@ func handleGEAPClaude(ctx context.Context, w http.ResponseWriter, r *http.Reques
 	} else {
 		subpath = fmt.Sprintf("models/%s:rawPredict", model)
 	}
-	targetURL := buildGEAPURL(ch, "anthropic", subpath, "us-east5")
+	targetURL := buildGEAPURL(ch, targetEndpoint, "anthropic", subpath, "us-east5")
 
 	proxyReq, _ := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(geapBody))
 	proxyReq.Header.Set("Content-Type", "application/json")
@@ -180,7 +184,7 @@ func handleGEAPClaude(ctx context.Context, w http.ResponseWriter, r *http.Reques
 	return nil
 }
 
-func handleGemini(ctx context.Context, w http.ResponseWriter, bodyBytes []byte, ch *channel.ActiveChannel, traceID, model string, req MessageRequest, isCompact bool) error {
+func handleGemini(ctx context.Context, w http.ResponseWriter, bodyBytes []byte, ch *channel.ActiveChannel, targetEndpoint *domain.SysAccessEndpoint, traceID, model string, req MessageRequest, isCompact bool) error {
 	vReq, _ := mapToVertexRequest(req, model)
 	if isCompact {
 		// 浓缩为纯文本给 Gemini
@@ -217,7 +221,7 @@ func handleGemini(ctx context.Context, w http.ResponseWriter, bodyBytes []byte, 
 	} else {
 		subpath = fmt.Sprintf("models/%s:generateContent", model)
 	}
-	targetURL := buildGEAPURL(ch, "google", subpath, "global")
+	targetURL := buildGEAPURL(ch, targetEndpoint, "google", subpath, "global")
 
 	proxyReq, _ := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(vReqBytes))
 	proxyReq.Header.Set("Content-Type", "application/json")

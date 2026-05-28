@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 
+	"polaris-hermes/internal/domain"
 	"polaris-hermes/internal/service/channel"
 )
 
@@ -12,7 +13,7 @@ import (
 // 根据您的指示，为了最小化修改极其复杂的核心转换逻辑（尤其是流式和重试），将执行权交给翻译器。
 type Translator interface {
 	// TranslateAndExecute 接管整个请求的翻译、上游网络请求以及响应的流式返回
-	TranslateAndExecute(ctx context.Context, w http.ResponseWriter, r *http.Request, originalBody []byte, channel *channel.ActiveChannel, targetModel string) error
+	TranslateAndExecute(ctx context.Context, w http.ResponseWriter, r *http.Request, originalBody []byte, channel *channel.ActiveChannel, targetEndpoint *domain.SysAccessEndpoint, targetModel string) error
 }
 
 // TranslatorFactory 是一个工厂，根据渠道的协议类型分配对应的 Translator 插件

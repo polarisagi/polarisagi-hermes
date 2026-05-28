@@ -58,12 +58,13 @@ func main() {
 
 	// 5. 初始化协议转换工厂
 	transFactory := translator.NewTranslatorFactory()
-	// google 协议：接收 Anthropic 格式请求，翻译后转发到 Google GEAP（Gemini/GEAP Claude）
-	transFactory.Register("google", anthropic.NewAnthropicGoogleTranslator())
-	// openai 协议：透传 OpenAI 格式请求到兼容 OpenAI 接口的后端（DeepSeek/OpenAI 等）
-	transFactory.Register("openai", openaitrans.NewOpenAITranslator())
-	// local 协议：与 openai 相同的透传方式，用于本地部署的模型（Ollama/vLLM/LM Studio 等）
-	transFactory.Register("local", openaitrans.NewOpenAITranslator())
+	
+	// OpenAI 源协议
+	transFactory.Register("openai_openai", openaitrans.NewOpenAITranslator()) // 直连透传
+	transFactory.Register("openai_local", openaitrans.NewOpenAITranslator()) // 本地模型透传 (等同 openai_openai)
+	
+	// Anthropic 源协议
+	transFactory.Register("anthropic_google", anthropic.NewAnthropicGoogleTranslator()) // Anthropic 转 Google GEAP
 
 	// 6. 初始化高并发 Proxy 层
 	proxyServer := proxy.NewServer(pipeline, chanManager, transFactory)

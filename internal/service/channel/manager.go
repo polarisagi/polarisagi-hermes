@@ -29,10 +29,9 @@ const (
 
 // ActiveChannel 代表内存中一个活跃的用户渠道实例
 type ActiveChannel struct {
-	Provider    *domain.UserProvider
-	Models      []domain.UserModel
-	Endpoint    *domain.SysAccessEndpoint
-	APIProtocol string // 来自 Endpoint.APIProtocol，用于分发翻译器插件
+	Provider  *domain.UserProvider
+	Models    []domain.UserModel
+	Endpoints map[string]*domain.SysAccessEndpoint // Key: APIProtocol
 
 	mu                    sync.Mutex
 	Status                int
@@ -103,18 +102,22 @@ func (m *Manager) Reload(ctx context.Context) error {
 			continue
 		}
 
-		endpoint, err := m.providerRepo.GetSysAccessEndpoint(ctx, p.EndpointID)
-		if err != nil {
-			slog.Warn("加载系统端点信息失败，跳过该渠道", "provider", p.Name, "endpoint_id", p.EndpointID, "error", err)
+		endpointsList, err := m.providerRepo.GetSysAccessEndpointsByProvider(ctx, p.ProviderID)
+		if err != nil || len(endpointsList) == 0 {
+			slog.Warn("加载系统端点信息失败或无端点，跳过该渠道", "provider", p.Name, "provider_id", p.ProviderID, "error", err)
 			continue
+		}
+
+		endpointsMap := make(map[string]*domain.SysAccessEndpoint)
+		for i := range endpointsList {
+			endpointsMap[endpointsList[i].APIProtocol] = &endpointsList[i]
 		}
 
 		provCopy := p
 		ch := &ActiveChannel{
-			Provider:    &provCopy,
-			Endpoint:    endpoint,
-			APIProtocol: endpoint.APIProtocol,
-			Status:      StatusIdle,
+			Provider:  &provCopy,
+			Endpoints: endpointsMap,
+			Status:    StatusIdle,
 		}
 
 		// 检查预算熔断
@@ -170,7 +173,15 @@ func (m *Manager) GetChannelByUserModelID(userModelID int) (*ActiveChannel, stri
 				if ch.Status == StatusExhausted {
 					return nil, "", fmt.Errorf("channel exhausted")
 				}
-				actualModel := m.resolveActualModelID(mod.ModelID, ch.Provider.EndpointID)
+				// Pick any valid actual model ID across all endpoints.
+				// In v2, the actual model should ideally be identical across endpoints for the same model_id.
+				// We'll just take the first endpoint to resolve actual model ID for priority queueing purposes.
+				var sampleEndpointID string
+				for _, ep := range ch.Endpoints {
+					sampleEndpointID = ep.EndpointID
+					break
+				}
+				actualModel := m.resolveActualModelID(mod.ModelID, sampleEndpointID)
 				// 强制路由不走负载均衡锁，直接返回
 				return ch, actualModel, nil
 			}
@@ -196,7 +207,12 @@ func (m *Manager) SelectBestChannelByTier(tier string) (*ActiveChannel, string, 
 		matched := false
 		for _, mod := range ch.Models {
 			if mod.CapabilityTier == tier && mod.IsActive {
-				matchedModel = m.resolveActualModelID(mod.ModelID, ch.Provider.EndpointID)
+				var sampleEndpointID string
+				for _, ep := range ch.Endpoints {
+					sampleEndpointID = ep.EndpointID
+					break
+				}
+				matchedModel = m.resolveActualModelID(mod.ModelID, sampleEndpointID)
 				matched = true
 				break
 			}

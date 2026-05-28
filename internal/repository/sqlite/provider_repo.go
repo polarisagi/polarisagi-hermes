@@ -17,7 +17,7 @@ func NewProviderRepo() *ProviderRepo {
 // GetUserProviders 获取所有未删除的用户配置渠道
 func (r *ProviderRepo) GetUserProviders(ctx context.Context) ([]domain.UserProvider, error) {
 	query := `
-		SELECT id, name, endpoint_id, base_url, auth_credentials, 
+		SELECT id, name, provider_id, base_url, auth_credentials, 
 		       priority, weight, concurrency_limit, min_interval_sec, timeout_sec, retry_times, status, 
 		       balance, limit_percent, used_amount, IFNULL(valid_from, ''), IFNULL(valid_to, ''), created_at
 		FROM user_providers
@@ -33,7 +33,7 @@ func (r *ProviderRepo) GetUserProviders(ctx context.Context) ([]domain.UserProvi
 		var p domain.UserProvider
 		var creds []byte
 		err := rows.Scan(
-			&p.ID, &p.Name, &p.EndpointID, &p.BaseURL, &creds,
+			&p.ID, &p.Name, &p.ProviderID, &p.BaseURL, &creds,
 			&p.Priority, &p.Weight, &p.ConcurrencyLimit, &p.MinIntervalSec, &p.TimeoutSec, &p.RetryTimes, &p.Status,
 			&p.Balance, &p.LimitPercent, &p.UsedAmount, &p.ValidFrom, &p.ValidTo, &p.CreatedAt,
 		)
@@ -102,7 +102,30 @@ func (r *ProviderRepo) GetAllSysProviders(ctx context.Context) ([]domain.SysProv
 	return providers, nil
 }
 
-// GetAllSysAccessEndpoints 获取所有系统接入端点
+// GetSysAccessEndpointsByProvider 获取指定厂商的所有接入端点
+func (r *ProviderRepo) GetSysAccessEndpointsByProvider(ctx context.Context, providerID string) ([]domain.SysAccessEndpoint, error) {
+	query := `SELECT endpoint_id, provider_id, display_name, api_protocol, default_base_url, auth_type, auth_header, required_credential_fields, display_order 
+	          FROM sys_access_endpoints WHERE provider_id = ? ORDER BY display_order ASC`
+	rows, err := DB().QueryContext(ctx, query, providerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var endpoints []domain.SysAccessEndpoint
+	for rows.Next() {
+		var e domain.SysAccessEndpoint
+		var reqFields []byte
+		if err := rows.Scan(&e.EndpointID, &e.ProviderID, &e.DisplayName, &e.APIProtocol, &e.DefaultBaseURL, &e.AuthType, &e.AuthHeader, &reqFields, &e.DisplayOrder); err != nil {
+			return nil, err
+		}
+		e.RequiredCredentialFields = json.RawMessage(reqFields)
+		endpoints = append(endpoints, e)
+	}
+	return endpoints, nil
+}
+
+// GetAllSysAccessEndpoints 获取所有系统接入端点配置
 func (r *ProviderRepo) GetAllSysAccessEndpoints(ctx context.Context) ([]domain.SysAccessEndpoint, error) {
 	query := "SELECT endpoint_id, provider_id, display_name, api_protocol, default_base_url, auth_type, auth_header, required_credential_fields, display_order FROM sys_access_endpoints ORDER BY display_order ASC"
 	rows, err := DB().QueryContext(ctx, query)
@@ -128,7 +151,7 @@ func (r *ProviderRepo) GetAllSysAccessEndpoints(ctx context.Context) ([]domain.S
 func (r *ProviderRepo) CreateUserProvider(ctx context.Context, p *domain.UserProvider) error {
 	query := `
 		INSERT INTO user_providers (
-			name, endpoint_id, base_url, auth_credentials,
+			name, provider_id, base_url, auth_credentials,
 			priority, weight, concurrency_limit, min_interval_sec, timeout_sec, retry_times, status, balance, limit_percent, used_amount, valid_from, valid_to
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
@@ -138,7 +161,7 @@ func (r *ProviderRepo) CreateUserProvider(ctx context.Context, p *domain.UserPro
 	}
 
 	res, err := DB().ExecContext(ctx, query,
-		p.Name, p.EndpointID, p.BaseURL, creds,
+		p.Name, p.ProviderID, p.BaseURL, creds,
 		p.Priority, p.Weight, p.ConcurrencyLimit, p.MinIntervalSec, p.TimeoutSec, p.RetryTimes, p.Status, p.Balance, p.LimitPercent, p.UsedAmount, p.ValidFrom, p.ValidTo,
 	)
 	if err != nil {
@@ -153,15 +176,14 @@ func (r *ProviderRepo) CreateUserProvider(ctx context.Context, p *domain.UserPro
 	// 使用 COALESCE 优先采用 sys_model_intent_dict 中正确的 tier 数据。
 	// 本地模型（auth_type='none'，如 Ollama/vLLM）跳过自动导入，由用户手动配置模型名。
 	if p.ID > 0 {
-		_ = r.seedUserModels(ctx, p.ID, p.EndpointID)
+		_ = r.seedUserModels(ctx, p.ID, p.ProviderID)
 	}
 	return nil
 }
 
 // seedUserModels 在创建渠道后，批量将该厂商的所有系统模型导入为用户模型实例。
 // tier 从 sys_model_intent_dict 获取（单一数据源），若无记录则 fallback 到 'smart'。
-// 本地协议（auth_type='none'）的端点不执行自动导入。
-func (r *ProviderRepo) seedUserModels(ctx context.Context, userProviderID int, endpointID string) error {
+func (r *ProviderRepo) seedUserModels(ctx context.Context, userProviderID int, providerID string) error {
 	seedSQL := `
 		INSERT OR IGNORE INTO user_models (user_provider_id, display_name, model_id, capability_tier, is_active)
 		SELECT
@@ -174,11 +196,9 @@ func (r *ProviderRepo) seedUserModels(ctx context.Context, userProviderID int, e
 			) AS capability_tier,
 			1 AS is_active
 		FROM sys_models sm
-		JOIN sys_access_endpoints sae ON sm.provider_id = sae.provider_id
-		WHERE sae.endpoint_id = ?
-		  AND sae.auth_type != 'none'
+		WHERE sm.provider_id = ?
 	`
-	_, err := DB().ExecContext(ctx, seedSQL, userProviderID, endpointID)
+	_, err := DB().ExecContext(ctx, seedSQL, userProviderID, providerID)
 	return err
 }
 
@@ -187,7 +207,7 @@ func (r *ProviderRepo) seedUserModels(ctx context.Context, userProviderID int, e
 func (r *ProviderRepo) UpdateUserProvider(ctx context.Context, p *domain.UserProvider) error {
 	query := `
 		UPDATE user_providers SET
-			name = ?, endpoint_id = ?, base_url = ?, auth_credentials = ?,
+			name = ?, provider_id = ?, base_url = ?, auth_credentials = ?,
 			priority = ?, weight = ?, concurrency_limit = ?, min_interval_sec = ?, timeout_sec = ?, retry_times = ?, status = ?, balance = ?, limit_percent = ?, valid_from = ?, valid_to = ?
 		WHERE id = ?
 	`
@@ -197,7 +217,7 @@ func (r *ProviderRepo) UpdateUserProvider(ctx context.Context, p *domain.UserPro
 	}
 
 	_, err := DB().ExecContext(ctx, query,
-		p.Name, p.EndpointID, p.BaseURL, creds,
+		p.Name, p.ProviderID, p.BaseURL, creds,
 		p.Priority, p.Weight, p.ConcurrencyLimit, p.MinIntervalSec, p.TimeoutSec, p.RetryTimes, p.Status, p.Balance, p.LimitPercent, p.ValidFrom, p.ValidTo,
 		p.ID,
 	)
