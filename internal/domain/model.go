@@ -4,19 +4,13 @@ package domain
 type SysModel struct {
 	ModelID          string `json:"model_id"`
 	ProviderID       string `json:"provider_id"`
+	ActualModelID    string `json:"actual_model_id"`
 	DisplayName      string `json:"display_name"`
 	// capability_tier 已移至 sys_model_intent_dict，不再在此冗余存储
 	ContextLength    int    `json:"context_length"`
 	MaxOutputTokens  int    `json:"max_output_tokens"`
 	SupportsVision   bool   `json:"supports_vision"`
 	SupportsTools    bool   `json:"supports_tools"`
-}
-
-// SysModelEndpointBinding 解决同一模型在不同端点 API 字符串不同的问题
-type SysModelEndpointBinding struct {
-	ModelID        string `json:"model_id"`
-	EndpointID     string `json:"endpoint_id"`
-	ActualModelID  string `json:"actual_model_id"`
 }
 
 // SysModelIntent 全局模型 ID → 能力梯队字典

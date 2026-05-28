@@ -43,7 +43,7 @@ func (r *ModelRepo) GetUserModels(ctx context.Context) ([]domain.UserModel, erro
 // GetSysModels 获取系统内置的所有官方模型物理参数
 func (r *ModelRepo) GetSysModels(ctx context.Context) ([]domain.SysModel, error) {
 	query := `
-		SELECT model_id, provider_id, display_name, context_length, max_output_tokens, supports_vision, supports_tools
+		SELECT model_id, provider_id, actual_model_id, display_name, context_length, max_output_tokens, supports_vision, supports_tools
 		FROM sys_models
 		ORDER BY provider_id ASC, model_id ASC
 	`
@@ -57,7 +57,7 @@ func (r *ModelRepo) GetSysModels(ctx context.Context) ([]domain.SysModel, error)
 	for rows.Next() {
 		var m domain.SysModel
 		err := rows.Scan(
-			&m.ModelID, &m.ProviderID, &m.DisplayName, &m.ContextLength, &m.MaxOutputTokens, &m.SupportsVision, &m.SupportsTools,
+			&m.ModelID, &m.ProviderID, &m.ActualModelID, &m.DisplayName, &m.ContextLength, &m.MaxOutputTokens, &m.SupportsVision, &m.SupportsTools,
 		)
 		if err != nil {
 			return nil, err
@@ -67,22 +67,7 @@ func (r *ModelRepo) GetSysModels(ctx context.Context) ([]domain.SysModel, error)
 	return models, nil
 }
 
-// GetModelEndpointBinding 获取同一模型在某端点的具体请求字符串
-func (r *ModelRepo) GetModelEndpointBinding(ctx context.Context, modelID, endpointID string) (*domain.SysModelEndpointBinding, error) {
-	query := `
-		SELECT model_id, endpoint_id, actual_model_id
-		FROM sys_model_endpoint_bindings
-		WHERE model_id = ? AND endpoint_id = ?
-	`
-	var b domain.SysModelEndpointBinding
-	err := DB().QueryRowContext(ctx, query, modelID, endpointID).Scan(
-		&b.ModelID, &b.EndpointID, &b.ActualModelID,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return &b, nil
-}
+
 
 // UpdateUserModelTier 更新用户模型的意图分级
 func (r *ModelRepo) UpdateUserModelTier(ctx context.Context, id int, tier string) error {

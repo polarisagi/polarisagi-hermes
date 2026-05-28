@@ -27,25 +27,19 @@ CREATE TABLE IF NOT EXISTS sys_access_endpoints (
 
 -- 3. sys_models (Objective metadata only)
 CREATE TABLE IF NOT EXISTS sys_models (
-    model_id VARCHAR PRIMARY KEY,
+    model_id VARCHAR NOT NULL,
     provider_id VARCHAR NOT NULL,
+    actual_model_id VARCHAR NOT NULL,
     display_name VARCHAR NOT NULL,
     context_length INTEGER,
     max_output_tokens INTEGER,
     supports_vision BOOLEAN DEFAULT 0,
     supports_tools BOOLEAN DEFAULT 0,
+    PRIMARY KEY(model_id, provider_id),
     FOREIGN KEY(provider_id) REFERENCES sys_providers(provider_id)
 );
 
--- 4. sys_model_endpoint_bindings
-CREATE TABLE IF NOT EXISTS sys_model_endpoint_bindings (
-    model_id VARCHAR NOT NULL,
-    endpoint_id VARCHAR NOT NULL,
-    actual_model_id VARCHAR NOT NULL,
-    PRIMARY KEY (model_id, endpoint_id),
-    FOREIGN KEY(model_id) REFERENCES sys_models(model_id),
-    FOREIGN KEY(endpoint_id) REFERENCES sys_access_endpoints(endpoint_id)
-);
+
 
 -- 4b. sys_model_intent_dict (Global mapping of requested model strings to capability intents)
 CREATE TABLE IF NOT EXISTS sys_model_intent_dict (

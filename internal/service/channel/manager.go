@@ -47,7 +47,7 @@ type Manager struct {
 
 	mu       sync.RWMutex
 	channels map[int]*ActiveChannel // Key: UserProviderID
-	bindings map[string]map[string]string // Key: ModelID -> EndpointID -> ActualModelID
+	sysModels map[string]map[string]string // Key: ModelID -> ProviderID -> ActualModelID
 }
 
 func NewManager(providerRepo *sqlite.ProviderRepo, modelRepo *sqlite.ModelRepo) *Manager {
@@ -55,7 +55,7 @@ func NewManager(providerRepo *sqlite.ProviderRepo, modelRepo *sqlite.ModelRepo) 
 		providerRepo: providerRepo,
 		modelRepo:    modelRepo,
 		channels:     make(map[int]*ActiveChannel),
-		bindings:     make(map[string]map[string]string),
+		sysModels:    make(map[string]map[string]string),
 	}
 	go m.cooldownManager()
 	return m
@@ -76,23 +76,15 @@ func (m *Manager) Reload(ctx context.Context) error {
 		return err
 	}
 
-	// Load all bindings for cache
-	// Since we don't have GetAllBindings in repo yet, we can query it directly here or add it.
-	// For simplicity, let's just query directly or we can assume fallback.
-	// I'll query directly here to keep it self-contained for now.
-	query := `SELECT model_id, endpoint_id, actual_model_id FROM sys_model_endpoint_bindings`
-	rows, err := sqlite.DB().QueryContext(ctx, query)
-	newBindings := make(map[string]map[string]string)
+	// Load all sys_models for actual_model_id resolution
+	sysModelsMap := make(map[string]map[string]string)
+	sysModelsList, err := m.modelRepo.GetSysModels(ctx)
 	if err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var mid, eid, actual string
-			if rows.Scan(&mid, &eid, &actual) == nil {
-				if newBindings[mid] == nil {
-					newBindings[mid] = make(map[string]string)
-				}
-				newBindings[mid][eid] = actual
+		for _, sm := range sysModelsList {
+			if sysModelsMap[sm.ModelID] == nil {
+				sysModelsMap[sm.ModelID] = make(map[string]string)
 			}
+			sysModelsMap[sm.ModelID][sm.ProviderID] = sm.ActualModelID
 		}
 	}
 
@@ -149,13 +141,13 @@ func (m *Manager) Reload(ctx context.Context) error {
 	}
 
 	m.channels = newChannels
-	m.bindings = newBindings
+	m.sysModels = sysModelsMap
 	return nil
 }
 
-func (m *Manager) resolveActualModelID(modelID, endpointID string) string {
-	if endpoints, ok := m.bindings[modelID]; ok {
-		if actual, ok := endpoints[endpointID]; ok {
+func (m *Manager) resolveActualModelID(modelID, providerID string) string {
+	if providers, ok := m.sysModels[modelID]; ok {
+		if actual, ok := providers[providerID]; ok {
 			return actual
 		}
 	}
@@ -173,15 +165,7 @@ func (m *Manager) GetChannelByUserModelID(userModelID int) (*ActiveChannel, stri
 				if ch.Status == StatusExhausted {
 					return nil, "", fmt.Errorf("channel exhausted")
 				}
-				// Pick any valid actual model ID across all endpoints.
-				// In v2, the actual model should ideally be identical across endpoints for the same model_id.
-				// We'll just take the first endpoint to resolve actual model ID for priority queueing purposes.
-				var sampleEndpointID string
-				for _, ep := range ch.Endpoints {
-					sampleEndpointID = ep.EndpointID
-					break
-				}
-				actualModel := m.resolveActualModelID(mod.ModelID, sampleEndpointID)
+				actualModel := m.resolveActualModelID(mod.ModelID, ch.Provider.ProviderID)
 				// 强制路由不走负载均衡锁，直接返回
 				return ch, actualModel, nil
 			}
@@ -207,12 +191,7 @@ func (m *Manager) SelectBestChannelByTier(tier string) (*ActiveChannel, string, 
 		matched := false
 		for _, mod := range ch.Models {
 			if mod.CapabilityTier == tier && mod.IsActive {
-				var sampleEndpointID string
-				for _, ep := range ch.Endpoints {
-					sampleEndpointID = ep.EndpointID
-					break
-				}
-				matchedModel = m.resolveActualModelID(mod.ModelID, sampleEndpointID)
+				matchedModel = m.resolveActualModelID(mod.ModelID, ch.Provider.ProviderID)
 				matched = true
 				break
 			}
