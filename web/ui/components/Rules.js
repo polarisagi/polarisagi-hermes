@@ -57,7 +57,7 @@ export default {
                     const res = await fetch('/api/admin/models/sync', { method: 'POST' });
                     if (res.ok) {
                         const data = await res.json();
-                        gStore.showToast(gStore.lang === 'zh' ? \`同步完成！共更新 \${data.synced} 个模型。\` : \`Sync complete! Updated \${data.synced} models.\`, 'success');
+                        gStore.showToast(gStore.lang === 'zh' ? '同步完成！共更新 ' + data.synced + ' 个模型。' : 'Sync complete! Updated ' + data.synced + ' models.', 'success');
                         this.fetchAllModels();
                         this.fetchUserIntents();
                     } else {
