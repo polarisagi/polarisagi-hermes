@@ -1,24 +1,29 @@
 package domain
 
-// SysModel 代表系统内置支持的各厂商的大模型（仅存储客观技术元数据）
+// SysModel 代表系统内置支持的各厂商的大模型（全球唯一的模型实体字典）
 type SysModel struct {
-	ModelID          string `json:"model_id"`
-	ProviderID       string `json:"provider_id"`
-	ActualModelID    string `json:"actual_model_id"`
-	DisplayName      string `json:"display_name"`
-	ContextLength    int    `json:"context_length"`
-	MaxOutputTokens  int    `json:"max_output_tokens"`
-	SupportsVision   bool   `json:"supports_vision"`
-	SupportsTools    bool   `json:"supports_tools"`
-	VersionWeight    int    `json:"version_weight"` // 版本权重（用于排序，越大越新）
-	IsLegacy         bool   `json:"is_legacy"`      // 是否为过时旧模型
+	ModelID             string   `json:"model_id"`
+	DisplayName         string   `json:"display_name"`
+	CapabilityTier      string   `json:"capability_tier"`
+	ContextLength       int      `json:"context_length"`
+	MaxOutputTokens     int      `json:"max_output_tokens"`
+	SupportsVision      bool     `json:"supports_vision"`
+	SupportsAudioInput  bool     `json:"supports_audio_input"`
+	SupportsAudioOutput bool     `json:"supports_audio_output"`
+	SupportsTools       bool     `json:"supports_tools"`
+	PromptPricePer1k    float64  `json:"prompt_price_per_1k"`
+	CompletionPricePer1k float64 `json:"completion_price_per_1k"`
+	ReleasedAt          *string  `json:"released_at"` // ISO8601 或 YYYY-MM-DD
+	IsActive            bool     `json:"is_active"`
+	VersionWeight       int      `json:"version_weight"` // 版本权重（用于排序，越大越新）
+	IsLegacy            bool     `json:"is_legacy"`      // 是否为过时旧模型
 }
 
-// SysModelIntent 全局模型 ID → 能力梯队字典
-// 同时覆盖客户端模型名（gpt-4o、claude-sonnet）和服务端模型名（deepseek-v4-flash、gemini-2.5-pro）
-type SysModelIntent struct {
-	ModelID        string `json:"model_id"`       // 任意模型标识符，不限于客户端请求
-	CapabilityTier string `json:"capability_tier"` // "smart", "fast", "reasoning"
+// SysProviderModel 代表某个厂商提供的模型映射
+type SysProviderModel struct {
+	ProviderID     string `json:"provider_id"`
+	ModelID        string `json:"model_id"`
+	ActualModelID  string `json:"actual_model_id"`
 }
 
 // UserModel 用户为自己的某个渠道配置的模型实体（包含了主观的意图分级）

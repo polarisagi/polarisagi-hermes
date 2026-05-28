@@ -123,17 +123,31 @@ func (m *Manager) Reload(ctx context.Context) error {
 	}
 
 	// Load all sys_models for actual_model_id resolution
-	sysModelsMap := make(map[string]map[string]SysModelCacheInfo)
+	globalSysModels := make(map[string]domain.SysModel)
 	sysModelsList, err := m.modelRepo.GetSysModels(ctx)
 	if err == nil {
 		for _, sm := range sysModelsList {
-			if sysModelsMap[sm.ModelID] == nil {
-				sysModelsMap[sm.ModelID] = make(map[string]SysModelCacheInfo)
+			globalSysModels[sm.ModelID] = sm
+		}
+	}
+
+	sysModelsMap := make(map[string]map[string]SysModelCacheInfo)
+	sysProviderModels, err := m.modelRepo.GetSysProviderModels(ctx)
+	if err == nil {
+		for _, pm := range sysProviderModels {
+			if sysModelsMap[pm.ModelID] == nil {
+				sysModelsMap[pm.ModelID] = make(map[string]SysModelCacheInfo)
 			}
-			sysModelsMap[sm.ModelID][sm.ProviderID] = SysModelCacheInfo{
-				ActualModelID: sm.ActualModelID,
-				IsLegacy:      sm.IsLegacy,
-				VersionWeight: sm.VersionWeight,
+			isLegacy := false
+			versionWeight := 0
+			if sm, ok := globalSysModels[pm.ModelID]; ok {
+				isLegacy = sm.IsLegacy
+				versionWeight = sm.VersionWeight
+			}
+			sysModelsMap[pm.ModelID][pm.ProviderID] = SysModelCacheInfo{
+				ActualModelID: pm.ActualModelID,
+				IsLegacy:      isLegacy,
+				VersionWeight: versionWeight,
 			}
 		}
 	}

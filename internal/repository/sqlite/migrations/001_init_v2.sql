@@ -25,29 +25,38 @@ CREATE TABLE IF NOT EXISTS sys_access_endpoints (
     FOREIGN KEY(provider_id) REFERENCES sys_providers(provider_id)
 );
 
--- 3. sys_models (Objective metadata only)
+-- 3. sys_models (Global Model Dictionary)
 CREATE TABLE IF NOT EXISTS sys_models (
-    model_id TEXT NOT NULL,
-    provider_id TEXT NOT NULL,
-    actual_model_id TEXT NOT NULL,
+    model_id TEXT PRIMARY KEY,
     display_name TEXT NOT NULL,
+    capability_tier TEXT,
     context_length INTEGER DEFAULT 0,
     max_output_tokens INTEGER DEFAULT 0,
     supports_vision BOOLEAN DEFAULT FALSE,
+    supports_audio_input BOOLEAN DEFAULT FALSE,
+    supports_audio_output BOOLEAN DEFAULT FALSE,
     supports_tools BOOLEAN DEFAULT FALSE,
+    prompt_price_per_1k REAL DEFAULT 0.0,
+    completion_price_per_1k REAL DEFAULT 0.0,
+    released_at DATETIME,
+    is_active BOOLEAN DEFAULT TRUE,
     version_weight INTEGER DEFAULT 0,
-    is_legacy BOOLEAN DEFAULT FALSE,
+    is_legacy BOOLEAN DEFAULT FALSE
+);
+
+-- 4. sys_provider_models (Mapping providers to models)
+CREATE TABLE IF NOT EXISTS sys_provider_models (
+    provider_id TEXT NOT NULL,
+    model_id TEXT NOT NULL,
+    actual_model_id TEXT NOT NULL,
     PRIMARY KEY (provider_id, model_id),
-    FOREIGN KEY(provider_id) REFERENCES sys_providers(provider_id)
+    FOREIGN KEY(provider_id) REFERENCES sys_providers(provider_id),
+    FOREIGN KEY(model_id) REFERENCES sys_models(model_id)
 );
 
 
 
--- 4b. sys_model_intent_dict (Global mapping of requested model strings to capability intents)
-CREATE TABLE IF NOT EXISTS sys_model_intent_dict (
-    model_id VARCHAR PRIMARY KEY,
-    capability_tier VARCHAR NOT NULL
-);
+
 
 -- ==========================================
 -- LAYER 2: USER CONFIGURATION (DYNAMIC)

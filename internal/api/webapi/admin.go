@@ -12,11 +12,13 @@ import (
 	"sync"
 	"time"
 
-	"polaris-hermes/internal/domain"
 	"polaris-hermes/internal/repository/sqlite"
 	"polaris-hermes/internal/service/channel"
 	"polaris-hermes/internal/service/client"
 	"polaris-hermes/internal/service/router"
+	"polaris-hermes/internal/domain"
+	modelsync "polaris-hermes/internal/service/sync"
+
 	"polaris-hermes/pkg/logger"
 )
 
@@ -473,19 +475,19 @@ func (h *AdminHandler) SyncModels(w http.ResponseWriter, r *http.Request) {
 
 			sysModel := &domain.SysModel{
 				ModelID:       m.ID,
-				ProviderID:    p.ProviderID,
-				ActualModelID: m.ID,
 				DisplayName:   m.ID,
 				VersionWeight: weight,
 				IsLegacy:      isLegacy,
+				CapabilityTier: tier,
 			}
 			_ = h.modelRepo.UpsertSysModel(ctx, sysModel)
 			
-			_ = h.intentRepo.SaveSysIntent(ctx, &domain.UserModelIntentDict{
-				ModelID:        m.ID,
-				CapabilityTier: tier,
-				Source:         "auto_sync",
-			})
+			pm := &domain.SysProviderModel{
+				ProviderID:    p.ProviderID,
+				ModelID:       m.ID,
+				ActualModelID: m.ID,
+			}
+			_ = h.modelRepo.UpsertSysProviderModel(ctx, pm)
 			totalSynced++
 		}
 		
@@ -749,6 +751,7 @@ func (h *AdminHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/admin/sys_providers", h.HandleSysProviders)
 	mux.HandleFunc("/api/admin/models", h.HandleModels)
 	mux.HandleFunc("/api/admin/models/sync", h.SyncModels)
+	mux.HandleFunc("/api/admin/models/sync-global", h.SyncGlobalModels)
 	mux.HandleFunc("/api/admin/routes", h.HandleRoutes)
 	// 意图映射管理（极简模式专用）
 	mux.HandleFunc("/api/admin/intents", h.HandleIntents)
@@ -767,3 +770,21 @@ func (h *AdminHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/admin/oauth/google/callback", h.CallbackGoogleOAuth)
 }
 
+
+// SyncGlobalModels 从全网同步最新的开源/公开模型库字典
+func (h *AdminHandler) SyncGlobalModels(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	inferer := router.NewIntentInferer(h.intentRepo)
+	syncService := modelsync.NewSyncService(h.modelRepo, inferer)
+
+	go func() {
+		_ = syncService.SyncGlobalModels(context.Background())
+	}()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"status":"success","message":"Global model sync started in background"}`))
+}

@@ -40,12 +40,12 @@ func (r *ModelRepo) GetUserModels(ctx context.Context) ([]domain.UserModel, erro
 	return models, nil
 }
 
-// GetSysModels 获取系统内置的所有官方模型物理参数
+// GetSysModels 获取系统内置的所有官方模型物理参数 (全局字典)
 func (r *ModelRepo) GetSysModels(ctx context.Context) ([]domain.SysModel, error) {
 	query := `
-		SELECT model_id, provider_id, actual_model_id, display_name, context_length, max_output_tokens, supports_vision, supports_tools, version_weight, is_legacy
+		SELECT model_id, display_name, capability_tier, context_length, max_output_tokens, supports_vision, supports_audio_input, supports_audio_output, supports_tools, prompt_price_per_1k, completion_price_per_1k, released_at, is_active, version_weight, is_legacy
 		FROM sys_models
-		ORDER BY provider_id ASC, model_id ASC
+		ORDER BY model_id ASC
 	`
 	rows, err := DB().QueryContext(ctx, query)
 	if err != nil {
@@ -57,7 +57,7 @@ func (r *ModelRepo) GetSysModels(ctx context.Context) ([]domain.SysModel, error)
 	for rows.Next() {
 		var m domain.SysModel
 		err := rows.Scan(
-			&m.ModelID, &m.ProviderID, &m.ActualModelID, &m.DisplayName, &m.ContextLength, &m.MaxOutputTokens, &m.SupportsVision, &m.SupportsTools, &m.VersionWeight, &m.IsLegacy,
+			&m.ModelID, &m.DisplayName, &m.CapabilityTier, &m.ContextLength, &m.MaxOutputTokens, &m.SupportsVision, &m.SupportsAudioInput, &m.SupportsAudioOutput, &m.SupportsTools, &m.PromptPricePer1k, &m.CompletionPricePer1k, &m.ReleasedAt, &m.IsActive, &m.VersionWeight, &m.IsLegacy,
 		)
 		if err != nil {
 			return nil, err
@@ -67,36 +67,52 @@ func (r *ModelRepo) GetSysModels(ctx context.Context) ([]domain.SysModel, error)
 	return models, nil
 }
 
-
-// UpsertSysModel 插入或更新系统模型
+// UpsertSysModel 插入或更新系统模型全局字典
 func (r *ModelRepo) UpsertSysModel(ctx context.Context, m *domain.SysModel) error {
 	query := `
-		INSERT INTO sys_models (model_id, provider_id, actual_model_id, display_name, context_length, max_output_tokens, supports_vision, supports_tools, version_weight, is_legacy)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(provider_id, model_id) DO UPDATE SET
-			actual_model_id = excluded.actual_model_id,
-			display_name = excluded.display_name,
-			context_length = excluded.context_length,
-			max_output_tokens = excluded.max_output_tokens,
+		INSERT INTO sys_models (model_id, display_name, capability_tier, context_length, max_output_tokens, supports_vision, supports_audio_input, supports_audio_output, supports_tools, prompt_price_per_1k, completion_price_per_1k, released_at, is_active, version_weight, is_legacy)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(model_id) DO UPDATE SET
+			display_name = CASE WHEN excluded.display_name != '' THEN excluded.display_name ELSE sys_models.display_name END,
+			capability_tier = CASE WHEN excluded.capability_tier != '' THEN excluded.capability_tier ELSE sys_models.capability_tier END,
+			context_length = CASE WHEN excluded.context_length > 0 THEN excluded.context_length ELSE sys_models.context_length END,
+			max_output_tokens = CASE WHEN excluded.max_output_tokens > 0 THEN excluded.max_output_tokens ELSE sys_models.max_output_tokens END,
 			supports_vision = excluded.supports_vision,
+			supports_audio_input = excluded.supports_audio_input,
+			supports_audio_output = excluded.supports_audio_output,
 			supports_tools = excluded.supports_tools,
+			prompt_price_per_1k = CASE WHEN excluded.prompt_price_per_1k > 0 THEN excluded.prompt_price_per_1k ELSE sys_models.prompt_price_per_1k END,
+			completion_price_per_1k = CASE WHEN excluded.completion_price_per_1k > 0 THEN excluded.completion_price_per_1k ELSE sys_models.completion_price_per_1k END,
+			released_at = CASE WHEN excluded.released_at IS NOT NULL THEN excluded.released_at ELSE sys_models.released_at END,
 			version_weight = excluded.version_weight,
 			is_legacy = excluded.is_legacy
 	`
 	_, err := DB().ExecContext(ctx, query,
-		m.ModelID, m.ProviderID, m.ActualModelID, m.DisplayName, m.ContextLength, m.MaxOutputTokens, m.SupportsVision, m.SupportsTools, m.VersionWeight, m.IsLegacy,
+		m.ModelID, m.DisplayName, m.CapabilityTier, m.ContextLength, m.MaxOutputTokens, m.SupportsVision, m.SupportsAudioInput, m.SupportsAudioOutput, m.SupportsTools, m.PromptPricePer1k, m.CompletionPricePer1k, m.ReleasedAt, m.IsActive, m.VersionWeight, m.IsLegacy,
 	)
 	return err
 }
 
+// UpsertSysProviderModel 插入或更新厂商模型映射
+func (r *ModelRepo) UpsertSysProviderModel(ctx context.Context, m *domain.SysProviderModel) error {
+	query := `
+		INSERT INTO sys_provider_models (provider_id, model_id, actual_model_id)
+		VALUES (?, ?, ?)
+		ON CONFLICT(provider_id, model_id) DO UPDATE SET
+			actual_model_id = excluded.actual_model_id
+	`
+	_, err := DB().ExecContext(ctx, query, m.ProviderID, m.ModelID, m.ActualModelID)
+	return err
+}
+
 // UpdateSysModelLegacyStatus 批量更新特定系列模型的 legacy 状态
-func (r *ModelRepo) UpdateSysModelLegacyStatus(ctx context.Context, providerID, modelPrefix string, isLegacy bool) error {
+func (r *ModelRepo) UpdateSysModelLegacyStatus(ctx context.Context, modelPrefix string, isLegacy bool) error {
 	query := `
 		UPDATE sys_models
 		SET is_legacy = ?
-		WHERE provider_id = ? AND model_id LIKE ?
+		WHERE model_id LIKE ?
 	`
-	_, err := DB().ExecContext(ctx, query, isLegacy, providerID, modelPrefix+"%")
+	_, err := DB().ExecContext(ctx, query, isLegacy, modelPrefix+"%")
 	return err
 }
 
@@ -160,6 +176,30 @@ func (r *ModelRepo) GetUserModelsByProvider(ctx context.Context, userProviderID 
 		err := rows.Scan(
 			&m.ID, &m.UserProviderID, &m.DisplayName, &m.ModelID, &m.CapabilityTier, &m.IsActive,
 		)
+		if err != nil {
+			return nil, err
+		}
+		models = append(models, m)
+	}
+	return models, nil
+}
+
+// GetSysProviderModels 获取所有厂商模型映射
+func (r *ModelRepo) GetSysProviderModels(ctx context.Context) ([]domain.SysProviderModel, error) {
+	query := `
+		SELECT provider_id, model_id, actual_model_id
+		FROM sys_provider_models
+	`
+	rows, err := DB().QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var models []domain.SysProviderModel
+	for rows.Next() {
+		var m domain.SysProviderModel
+		err := rows.Scan(&m.ProviderID, &m.ModelID, &m.ActualModelID)
 		if err != nil {
 			return nil, err
 		}

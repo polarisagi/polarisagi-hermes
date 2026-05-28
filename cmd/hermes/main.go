@@ -13,6 +13,8 @@ import (
 	"polaris-hermes/internal/service/channel"
 	"polaris-hermes/internal/service/client"
 	"polaris-hermes/internal/service/router"
+	"polaris-hermes/internal/service/sync"
+	"time"
 	"polaris-hermes/internal/translator"
 	anthropic2anthropic "polaris-hermes/internal/translator/anthropic/toanthropic"
 	anthropic2google "polaris-hermes/internal/translator/anthropic/togoogle"
@@ -62,6 +64,20 @@ func main() {
 	if err := pipeline.Reload(context.Background()); err != nil {
 		slog.Warn("路由管线缓存预热失败，将降级为实时查询", "error", err)
 	}
+
+
+	// 初始化外网模型同步引擎
+	syncService := sync.NewSyncService(modelRepo, intentInferer)
+	go func() {
+		// 启动后延迟 1 分钟执行一次全量同步，然后每天执行一次
+		time.Sleep(1 * time.Minute)
+		syncService.SyncGlobalModels(context.Background())
+		
+		ticker := time.NewTicker(24 * time.Hour)
+		for range ticker.C {
+			syncService.SyncGlobalModels(context.Background())
+		}
+	}()
 
 	// 5. 初始化协议转换工厂
 	transFactory := translator.NewTranslatorFactory()
