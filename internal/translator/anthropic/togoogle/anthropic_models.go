@@ -6,19 +6,19 @@ package togoogle
 // MessageRequest Anthropic Messages API 请求结构
 // 对应 POST https://api.anthropic.com/v1/messages
 type MessageRequest struct {
-	Model             string             `json:"model"`                    // 模型名，如 "claude-sonnet-4-6"
-	Messages          []Message          `json:"messages"`                 // 对话消息列表
-	System            interface{}        `json:"system,omitempty"`         // 系统提示词 (string 或 []Content)
-	MaxTokens         int                `json:"max_tokens"`               // 最大生成 token 数
-	Temperature       *float64           `json:"temperature,omitempty"`    // 温度参数 [0,1]
-	TopP              *float64           `json:"top_p,omitempty"`          // Top-P 采样
-	TopK              *int               `json:"top_k,omitempty"`          // Top-K 采样
-	Stream            bool               `json:"stream,omitempty"`         // 是否流式响应
-	Tools             []Tool             `json:"tools,omitempty"`          // 可用工具列表
-	ToolChoice        *ToolChoice        `json:"tool_choice,omitempty"`    // 工具选择策略
-	StopSequences     []string           `json:"stop_sequences,omitempty"` // 自定义停止序列
-	Thinking          *ThinkingConfig    `json:"thinking,omitempty"`       // 扩展思考配置（Claude Code /effort 命令使用）
-	Metadata          *RequestMetadata   `json:"metadata,omitempty"`       // 请求元数据（用户标识等）
+	Model             string             `json:"model"`                        // 模型名，如 "claude-sonnet-4-6"
+	Messages          []Message          `json:"messages"`                     // 对话消息列表
+	System            interface{}        `json:"system,omitempty"`             // 系统提示词 (string 或 []Content)
+	MaxTokens         int                `json:"max_tokens"`                   // 最大生成 token 数
+	Temperature       *float64           `json:"temperature,omitempty"`        // 温度参数 [0,1]
+	TopP              *float64           `json:"top_p,omitempty"`              // Top-P 采样
+	TopK              *int               `json:"top_k,omitempty"`              // Top-K 采样
+	Stream            bool               `json:"stream,omitempty"`             // 是否流式响应
+	Tools             []Tool             `json:"tools,omitempty"`              // 可用工具列表
+	ToolChoice        *ToolChoice        `json:"tool_choice,omitempty"`        // 工具选择策略
+	StopSequences     []string           `json:"stop_sequences,omitempty"`     // 自定义停止序列
+	Thinking          *ThinkingConfig    `json:"thinking,omitempty"`           // 扩展思考配置（Claude Code /effort 命令使用）
+	Metadata          *RequestMetadata   `json:"metadata,omitempty"`           // 请求元数据（用户标识等）
 	ContextManagement *ContextManagement `json:"context_management,omitempty"` // 上下文管理配置 (自动压缩/清理等)
 }
 
@@ -52,12 +52,12 @@ type Tool struct {
 	InputSchema map[string]interface{} `json:"input_schema,omitempty"`
 	// Type 标识 Anthropic 内置工具类型，如 "bash_20250124"、"computer_20250124"、"text_editor_20250124"
 	// Gemini 无对等内置工具，处理时需跳过这类工具避免无效的 functionDeclaration
-	Type        string                 `json:"type,omitempty"`
+	Type string `json:"type,omitempty"`
 }
 
 type ToolChoice struct {
-	Type                   string `json:"type"`                               // "auto", "any", "tool"
-	Name                   string `json:"name,omitempty"`                     // required if type is "tool"
+	Type                   string `json:"type"`           // "auto", "any", "tool"
+	Name                   string `json:"name,omitempty"` // required if type is "tool"
 	DisableParallelToolUse bool   `json:"disable_parallel_tool_use,omitempty"`
 }
 
@@ -72,9 +72,9 @@ type MessageResponse struct {
 	ID           string    `json:"id"`
 	Type         string    `json:"type"`
 	Role         string    `json:"role"`
-	Content      []Content `json:"content"`       // 响应内容块列表
+	Content      []Content `json:"content"` // 响应内容块列表
 	Model        string    `json:"model"`
-	StopReason   string    `json:"stop_reason"`   // 停止原因: "end_turn"/"max_tokens"/"stop_sequence"/"tool_use"
+	StopReason   string    `json:"stop_reason"` // 停止原因: "end_turn"/"max_tokens"/"stop_sequence"/"tool_use"
 	StopSequence string    `json:"stop_sequence"`
 	Usage        Usage     `json:"usage"`
 }
@@ -121,8 +121,8 @@ type StreamEvent struct {
 type Delta struct {
 	Type         string `json:"type,omitempty"`
 	Text         string `json:"text,omitempty"`
-	Thinking     string `json:"thinking,omitempty"`      // for thinking_delta
-	Signature    string `json:"signature,omitempty"`     // for signature_delta（thinking 块的签名，用于多轮对话验证）
+	Thinking     string `json:"thinking,omitempty"`  // for thinking_delta
+	Signature    string `json:"signature,omitempty"` // for signature_delta（thinking 块的签名，用于多轮对话验证）
 	StopReason   string `json:"stop_reason,omitempty"`
 	StopSequence string `json:"stop_sequence,omitempty"` // 触发停止的序列
 	PartialJson  string `json:"partial_json,omitempty"`  // for input_json_delta (tool_use)

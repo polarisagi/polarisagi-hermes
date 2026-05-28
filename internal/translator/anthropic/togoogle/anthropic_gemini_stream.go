@@ -42,9 +42,9 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 
 	blockIndex := 0
 	inText := false
-	inThinking := false       // 追踪是否有开放中的 thinking 内容块（用于合并多个 thought 分片）
-	emittedText := false      // 追踪是否实际发出了非空文本内容，用于判断是否为空响应
-	var thoughtSig string     // 当前 thinking 块对应的 thoughtSignature（Gemini 返回，转存为 Anthropic signature）
+	inThinking := false   // 追踪是否有开放中的 thinking 内容块（用于合并多个 thought 分片）
+	emittedText := false  // 追踪是否实际发出了非空文本内容，用于判断是否为空响应
+	var thoughtSig string // 当前 thinking 块对应的 thoughtSignature（Gemini 返回，转存为 Anthropic signature）
 	var toolID string
 	stopReason := "end_turn"
 	var matchedStopSeq string // 触发停止的序列（Gemini 不直接返回，通过文本尾部推断）
@@ -67,13 +67,13 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 				Type: "text",
 			},
 		})
-		
+
 		finalText := compactTextBuf
 		if !strings.Contains(finalText, "<summary>") {
 			finalText = "<analysis>\nGateway manually wrapped this context compaction.\n</analysis>\n<summary>\n" + strings.TrimSpace(finalText) + "\n</summary>"
 			slog.Info("🔍 [DEBUG] /compact 响应缺失 <summary> 标签，网关已自动补全 (Stream)", "trace_id", traceID)
 		}
-		
+
 		writeSSE(w, flusher, "content_block_delta", StreamEvent{
 			Type:  "content_block_delta",
 			Index: ptrInt(blockIndex),
@@ -99,7 +99,7 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 				name = matches[3]
 				argsStr = matches[4]
 			}
-			
+
 			toolID = fmt.Sprintf("toolu_%s_%d", traceID, blockIndex)
 			writeSSE(w, flusher, "content_block_start", StreamEvent{
 				Type:  "content_block_start",
@@ -111,7 +111,7 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 					Input: struct{}{},
 				},
 			})
-			
+
 			argsRunes := []rune(argsStr)
 			chunkSize := 40
 			for i := 0; i < len(argsRunes); i += chunkSize {
@@ -128,14 +128,14 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 					},
 				})
 			}
-			
+
 			writeSSEContentBlockStop(w, flusher, blockIndex)
 			blockIndex++
 			stopReason = "tool_use"
 			fallbackTextBuf = ""
 			return
 		}
-		
+
 		blockType := "text"
 		if isCompact {
 			blockType = "compaction"
@@ -148,7 +148,7 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 			},
 		})
 		inText = true
-		
+
 		var delta *Delta
 		if isCompact {
 			delta = &Delta{Type: "compaction_delta", Content: fallbackTextBuf}
@@ -286,14 +286,14 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 				// 此处保持 end_turn；若 part 里确实有 functionCall，part 处理会覆盖为 tool_use
 				stopReason = "end_turn"
 				slog.Warn("⚠️ [Stream] GEAP 工具调用格式异常", "trace_id", traceID, "finish_reason", finishReason)
-				
+
 				// 尝试挽救因模型输出格式错误而被拦截的正文内容
 				if fm, ok := cand["finishMessage"].(string); ok && fm != "" {
 					text := fm
 					if strings.HasPrefix(fm, "Malformed function call: ") {
 						text = strings.TrimPrefix(fm, "Malformed function call: ")
 					}
-					
+
 					if !inText {
 						blockType := "text"
 						if isCompact {
@@ -309,7 +309,7 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 						inText = true
 					}
 					emittedText = true
-					
+
 					var delta *Delta
 					if isCompact {
 						delta = &Delta{Type: "compaction_delta", Content: text}
@@ -408,13 +408,13 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 			if text, ok := part["text"].(string); ok {
 				if text != "" {
 					emittedText = true
-					
+
 					if isCompact {
 						compactTextBuf += text
 						inText = true // 标记为 inText，让收尾逻辑触发 content_block_stop
 						continue
 					}
-					
+
 					if !inText && !isBufferingFallback {
 						if strings.HasPrefix(fallbackPrefix, text) || strings.HasPrefix(text, fallbackPrefix) || strings.HasPrefix(fallbackPrefixXML, text) || strings.HasPrefix(text, fallbackPrefixXML) {
 							isBufferingFallback = true
@@ -484,7 +484,7 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 					toolID = fmt.Sprintf("%s_sig_%s", toolID, thoughtSig)
 					toolThoughtSigCache.Store(toolID, thoughtSig)
 				}
-				
+
 				writeSSE(w, flusher, "content_block_start", StreamEvent{
 					Type:  "content_block_start",
 					Index: ptrInt(blockIndex),
@@ -495,9 +495,9 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 						Input: struct{}{}, // Ensures "input": {} instead of missing field due to omitempty
 					},
 				})
-				
+
 				argsBytes := normalizeFunctionCallArgs(fc["args"])
-				
+
 				argsRunes := []rune(string(argsBytes))
 				chunkSize := 40
 				for i := 0; i < len(argsRunes); i += chunkSize {
@@ -505,7 +505,7 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 					if end > len(argsRunes) {
 						end = len(argsRunes)
 					}
-					
+
 					writeSSE(w, flusher, "content_block_delta", StreamEvent{
 						Type:  "content_block_delta",
 						Index: ptrInt(blockIndex),
@@ -515,7 +515,7 @@ func streamAnthropicResponse(ctx context.Context, w http.ResponseWriter, vertexR
 						},
 					})
 				}
-				
+
 				writeSSEContentBlockStop(w, flusher, blockIndex)
 
 				blockIndex++

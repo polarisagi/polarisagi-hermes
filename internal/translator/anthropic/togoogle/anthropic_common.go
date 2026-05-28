@@ -6,7 +6,6 @@ import (
 	"strings"
 )
 
-
 // writeSSEMessageStart 发送 message_start 事件
 // estimatedInputTokens > 0 时填入 Usage.InputTokens，让 Claude Code 的 /context 命令
 // 在第一个事件就能显示上下文占比；后续 message_delta 会以精确值覆盖
@@ -85,5 +84,3 @@ func ExtractAndStripBillingHeader(req *MessageRequest) string {
 	}
 	return extracted
 }
-
-

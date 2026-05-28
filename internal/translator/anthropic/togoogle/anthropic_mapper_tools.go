@@ -9,7 +9,7 @@ func mapTools(tools []Tool) []map[string]interface{} {
 	if len(tools) == 0 {
 		return nil
 	}
-	
+
 	var functionDeclarations []map[string]interface{}
 	for _, t := range tools {
 		if t.Type != "" {
@@ -29,7 +29,7 @@ func mapTools(tools []Tool) []map[string]interface{} {
 		}
 		functionDeclarations = append(functionDeclarations, decl)
 	}
-	
+
 	if len(functionDeclarations) > 0 {
 		return []map[string]interface{}{
 			{
@@ -45,10 +45,10 @@ func mapToolChoice(toolChoice *ToolChoice) map[string]interface{} {
 	if toolChoice == nil {
 		return nil
 	}
-	
+
 	mode := "AUTO"
 	var allowedNames []string
-	
+
 	switch toolChoice.Type {
 	case "none":
 		mode = "NONE"
@@ -60,7 +60,7 @@ func mapToolChoice(toolChoice *ToolChoice) map[string]interface{} {
 			allowedNames = []string{toolChoice.Name}
 		}
 	}
-	
+
 	funcConfig := map[string]interface{}{
 		"mode": mode,
 	}
@@ -248,7 +248,7 @@ func sanitizeSchema(schema map[string]interface{}) map[string]interface{} {
 	}
 
 	result := make(map[string]interface{})
-	
+
 	// 先拷贝所有属性实现全面透传，过滤 Gemini API 明确不支持的 JSON Schema 字段
 	for k, v := range schema {
 		switch k {
@@ -385,7 +385,7 @@ func enforceVertexTypeConstraints(result map[string]interface{}) {
 		} else if tArr, ok := typeVal.([]interface{}); ok {
 			var types []string
 			hasNull := false
-			
+
 			for _, item := range tArr {
 				if ts, ok := item.(string); ok {
 					if strings.ToLower(ts) == "null" {
@@ -395,11 +395,11 @@ func enforceVertexTypeConstraints(result map[string]interface{}) {
 					}
 				}
 			}
-			
+
 			if hasNull {
 				result["nullable"] = true
 			}
-			
+
 			if len(types) == 1 {
 				result["type"] = types[0]
 			} else if len(types) > 1 {

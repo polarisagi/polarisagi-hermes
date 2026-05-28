@@ -25,7 +25,7 @@ func mapMessages(messages []Message, model string) ([]map[string]interface{}, er
 
 		var lastSignature string
 		var parts []map[string]interface{}
-		
+
 		switch v := msg.Content.(type) {
 		case string:
 			parts = append(parts, map[string]interface{}{"text": v})
@@ -72,17 +72,17 @@ func mapMessages(messages []Message, model string) ([]map[string]interface{}, er
 				}
 			}
 		}
-		
+
 		if len(parts) == 0 {
 			parts = append(parts, map[string]interface{}{"text": ""})
 		}
-		
+
 		contents = append(contents, map[string]interface{}{
 			"role":  role,
 			"parts": parts,
 		})
 	}
-	
+
 	return enforceAlternatingRoles(contents), nil
 }
 
@@ -112,7 +112,7 @@ func parseToolUseBlock(m map[string]interface{}, model, lastSignature string, fl
 	partObj := map[string]interface{}{
 		"functionCall": fc,
 	}
-	
+
 	var thoughtSig string
 	if id, ok := m["id"].(string); ok && id != "" {
 		if sig, ok := toolThoughtSigCache.Load(id); ok {
@@ -121,11 +121,11 @@ func parseToolUseBlock(m map[string]interface{}, model, lastSignature string, fl
 			thoughtSig = id[idx+5:]
 		}
 	}
-	
+
 	if thoughtSig == "" && lastSignature != "" {
 		thoughtSig = lastSignature
 	}
-	
+
 	if thoughtSig == "" && isGemini3Model(model) {
 		argsBytes, _ := json.Marshal(m["input"])
 		textPart := fmt.Sprintf("<past_tool_execution name=\"%s\">\n%s\n</past_tool_execution>", m["name"], string(argsBytes))
@@ -134,7 +134,7 @@ func parseToolUseBlock(m map[string]interface{}, model, lastSignature string, fl
 		}
 		return []map[string]interface{}{{"text": textPart}}
 	}
-	
+
 	if thoughtSig != "" {
 		partObj["thoughtSignature"] = thoughtSig
 	}
@@ -148,11 +148,11 @@ func parseToolResultBlock(m map[string]interface{}, toolMap map[string]string, f
 	if name == "" {
 		name = "unknown_function"
 	}
-	
+
 	isError, _ := m["is_error"].(bool)
 	var parts []map[string]interface{}
 	var respContent map[string]interface{}
-	
+
 	if contentStr, ok := m["content"].(string); ok {
 		if isError {
 			contentStr = fmt.Sprintf("Error: %s", contentStr)
@@ -175,7 +175,7 @@ func parseToolResultBlock(m map[string]interface{}, toolMap map[string]string, f
 				}
 			}
 		}
-		
+
 		combinedText := strings.Join(textContents, "\n")
 		if isError {
 			combinedText = fmt.Sprintf("Error: %s", combinedText)
@@ -189,7 +189,7 @@ func parseToolResultBlock(m map[string]interface{}, toolMap map[string]string, f
 		}
 		respContent = map[string]interface{}{"content": contentStr}
 	}
-	
+
 	if flattenedTools[toolUseID] {
 		textPart := fmt.Sprintf("<past_tool_result name=\"%s\">\n%s\n</past_tool_result>", name, respContent["content"])
 		parts = append(parts, map[string]interface{}{"text": textPart})
@@ -220,7 +220,7 @@ func enforceAlternatingRoles(contents []map[string]interface{}) []map[string]int
 		}
 		contents = merged
 	}
-	
+
 	if len(contents) > 0 {
 		if contents[0]["role"] == "model" {
 			contents = append([]map[string]interface{}{
@@ -228,11 +228,11 @@ func enforceAlternatingRoles(contents []map[string]interface{}) []map[string]int
 			}, contents...)
 		}
 	}
-	
+
 	if len(contents) > 0 {
 		if contents[len(contents)-1]["role"] == "model" {
 			contents = append(contents, map[string]interface{}{
-				"role": "user",
+				"role":  "user",
 				"parts": []map[string]interface{}{{"text": "Please continue."}},
 			})
 		}

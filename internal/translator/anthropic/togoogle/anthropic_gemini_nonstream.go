@@ -123,7 +123,7 @@ func handleAnthropicNonStreamResponse(w http.ResponseWriter, vertexResp *http.Re
 				case "MALFORMED_FUNCTION_CALL", "UNEXPECTED_TOOL_CALL":
 					stopReason = "end_turn"
 					slog.Warn("⚠️ [NonStream] GEAP 工具调用格式异常", "trace_id", traceID, "finish_reason", finishReason)
-					
+
 					// 尝试挽救因模型输出格式错误而被拦截的正文内容
 					if fm, ok := cand["finishMessage"].(string); ok && fm != "" {
 						text := fm

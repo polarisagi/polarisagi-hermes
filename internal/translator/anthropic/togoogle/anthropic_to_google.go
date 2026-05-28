@@ -35,7 +35,7 @@ func buildGEAPURL(ch *channel.ActiveChannel, targetEndpoint *domain.SysAccessEnd
 	if tmpl == "" {
 		tmpl = "https://aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/" + publisher + "/{subpath}"
 	}
-	
+
 	// 从凭证解析 ProjectID
 	var creds map[string]interface{}
 	_ = json.Unmarshal(ch.Provider.AuthCredentials, &creds)
@@ -44,7 +44,7 @@ func buildGEAPURL(ch *channel.ActiveChannel, targetEndpoint *domain.SysAccessEnd
 		projectID = pid
 	}
 	location := defaultLocation
-	
+
 	url := strings.ReplaceAll(tmpl, "{project_id}", projectID)
 	url = strings.ReplaceAll(url, "{location}", location)
 	url = strings.ReplaceAll(url, "{subpath}", subpath)
@@ -101,16 +101,30 @@ func (t *AnthropicGoogleTranslator) TranslateAndExecute(ctx context.Context, w h
 			lastMsgBytes, _ := json.Marshal(lastMsg.Content)
 			lastMsgStr := string(lastMsgBytes)
 			features := 0
-			if strings.Contains(lastMsgStr, "TEXT ONLY") { features++ }
-			if strings.Contains(strings.ToLower(lastMsgStr), "summary") { features++ }
-			if strings.Contains(lastMsgStr, "Do NOT call any tools") { features++ }
-			if strings.Contains(lastMsgStr, "<analysis>") { features++ }
-			if strings.Contains(lastMsgStr, "<summary>") { features++ }
-			
+			if strings.Contains(lastMsgStr, "TEXT ONLY") {
+				features++
+			}
+			if strings.Contains(strings.ToLower(lastMsgStr), "summary") {
+				features++
+			}
+			if strings.Contains(lastMsgStr, "Do NOT call any tools") {
+				features++
+			}
+			if strings.Contains(lastMsgStr, "<analysis>") {
+				features++
+			}
+			if strings.Contains(lastMsgStr, "<summary>") {
+				features++
+			}
+
 			if req.ContextManagement != nil {
 				for _, edit := range req.ContextManagement.Edits {
-					if strings.HasPrefix(edit.Type, "clear_thinking_") { features++ }
-					if strings.HasPrefix(edit.Type, "compact_") { features++ }
+					if strings.HasPrefix(edit.Type, "clear_thinking_") {
+						features++
+					}
+					if strings.HasPrefix(edit.Type, "compact_") {
+						features++
+					}
 				}
 			}
 			if features >= 3 {
@@ -200,9 +214,9 @@ func handleGemini(ctx context.Context, w http.ResponseWriter, bodyBytes []byte, 
 		historyXML := sb.String()
 		systemPrompt := flattenAnthropicSystem(req.System)
 		promptInjection := fmt.Sprintf("System Context: %s\n\n<conversation_history>\n%s\n</conversation_history>\n\nSystem Task: You are performing a context compaction.", systemPrompt, historyXML)
-		
+
 		vReq["contents"] = []map[string]interface{}{{
-			"role": "user",
+			"role":  "user",
 			"parts": []map[string]interface{}{{"text": promptInjection}},
 		}}
 		delete(vReq, "systemInstruction")
@@ -236,7 +250,7 @@ func handleGemini(ctx context.Context, w http.ResponseWriter, bodyBytes []byte, 
 		// 如果不是 JSON，直接当作普通文本的 Key
 		q.Set("key", string(ch.Provider.AuthCredentials))
 	}
-	
+
 	if req.Stream {
 		q.Set("alt", "sse")
 	}
@@ -271,7 +285,9 @@ func rewriteBodyForGEAPClaude(bodyBytes []byte, isCountTokens bool, targetModel 
 	}
 	m["anthropic_version"] = anthropicVersionGEAP
 	if isCountTokens {
-		if targetModel != "" { m["model"] = targetModel }
+		if targetModel != "" {
+			m["model"] = targetModel
+		}
 		delete(m, "stream")
 		delete(m, "max_tokens")
 		delete(m, "temperature")

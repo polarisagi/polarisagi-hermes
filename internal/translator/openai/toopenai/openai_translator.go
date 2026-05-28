@@ -18,9 +18,9 @@ import (
 // OpenAITranslator 实现 OpenAI → OpenAI 协议的透传翻译器。
 // 适用于客户端（如 Codex）发送 OpenAI 格式请求，后端为 OpenAI-Compatible 接口（如 DeepSeek）的场景。
 // 主要职责：
-//   1. 替换请求体中的 model 字段为实际后端模型名
-//   2. 设置正确的鉴权头（Bearer token）
-//   3. 透传请求到后端，流式/非流式均兼容
+//  1. 替换请求体中的 model 字段为实际后端模型名
+//  2. 设置正确的鉴权头（Bearer token）
+//  3. 透传请求到后端，流式/非流式均兼容
 type OpenAITranslator struct{}
 
 func NewOpenAITranslator() *OpenAITranslator {

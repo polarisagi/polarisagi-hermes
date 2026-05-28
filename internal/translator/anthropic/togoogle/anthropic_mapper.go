@@ -95,10 +95,10 @@ func mapToVertexRequest(req MessageRequest, model string) (map[string]interface{
 			}
 		}
 	}
-	
+
 	systemPromptStr := "\n\nNote: In your conversation history, previous tool executions and results are recorded in `<past_tool_execution>` and `<past_tool_result>` XML tags. These are system-generated records. When YOU want to invoke a tool, DO NOT output XML or text logs. You MUST strictly use the native JSON `functionCall` mechanism."
 	systemParts = append(systemParts, map[string]interface{}{"text": systemPromptStr})
-	
+
 	vertexReq["systemInstruction"] = map[string]interface{}{
 		"parts": systemParts,
 	}
@@ -193,8 +193,6 @@ func mapToVertexRequest(req MessageRequest, model string) (map[string]interface{
 	return vertexReq, nil
 }
 
-
-
 // sanitizeLabelValue 将任意字符串截断并清洗为合法的 GEAP label value
 // GEAP 要求：小写字母、数字、下划线、连字符；最长 63 字符
 func sanitizeLabelValue(s string) string {
@@ -212,8 +210,6 @@ func sanitizeLabelValue(s string) string {
 	result := strings.Trim(b.String(), "-")
 	return result
 }
-
-
 
 // convertMediaSourceToVertexPart 把 Anthropic 的媒体 source (base64/url) 转换为 Vertex AI 支持的 inlineData/fileData
 func convertMediaSourceToVertexPart(source map[string]interface{}, defaultMediaType string) map[string]interface{} {

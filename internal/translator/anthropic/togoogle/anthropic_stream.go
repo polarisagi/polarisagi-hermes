@@ -9,10 +9,6 @@ import (
 	"net/http"
 )
 
-
-
-
-
 // writeSSE 写入一条 Anthropic SSE 事件到 HTTP 响应流
 // 格式: event: <type>\ndata: <json>\n\n
 func writeSSE(w http.ResponseWriter, flusher http.Flusher, eventType string, data interface{}) {

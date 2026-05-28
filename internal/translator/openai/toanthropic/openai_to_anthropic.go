@@ -191,7 +191,7 @@ func (t *OpenAIToAnthropicTranslator) handleStream(w http.ResponseWriter, resp *
 
 	flusher, _ := w.(http.Flusher)
 	reader := bufio.NewReader(resp.Body)
-	
+
 	var msgID string
 	created := time.Now().Unix()
 
@@ -200,18 +200,18 @@ func (t *OpenAIToAnthropicTranslator) handleStream(w http.ResponseWriter, resp *
 		if err != nil {
 			break
 		}
-		
+
 		if strings.HasPrefix(line, "data: ") {
 			dataStr := strings.TrimSpace(strings.TrimPrefix(line, "data: "))
 			if dataStr == "[DONE]" || dataStr == "" {
 				continue
 			}
-			
+
 			var event map[string]interface{}
 			if err := json.Unmarshal([]byte(dataStr), &event); err != nil {
 				continue
 			}
-			
+
 			eventType, _ := event["type"].(string)
 			switch eventType {
 			case "message_start":
@@ -236,7 +236,9 @@ func (t *OpenAIToAnthropicTranslator) handleStream(w http.ResponseWriter, resp *
 					}
 					b, _ := json.Marshal(chunk)
 					fmt.Fprintf(w, "data: %s\n\n", b)
-					if flusher != nil { flusher.Flush() }
+					if flusher != nil {
+						flusher.Flush()
+					}
 				}
 			case "content_block_delta":
 				if delta, ok := event["delta"].(map[string]interface{}); ok {
@@ -258,7 +260,9 @@ func (t *OpenAIToAnthropicTranslator) handleStream(w http.ResponseWriter, resp *
 						}
 						b, _ := json.Marshal(chunk)
 						fmt.Fprintf(w, "data: %s\n\n", b)
-						if flusher != nil { flusher.Flush() }
+						if flusher != nil {
+							flusher.Flush()
+						}
 					}
 				}
 			case "message_delta":
@@ -275,15 +279,17 @@ func (t *OpenAIToAnthropicTranslator) handleStream(w http.ResponseWriter, resp *
 							"model":   targetModel,
 							"choices": []map[string]interface{}{
 								{
-									"index": 0,
-									"delta": map[string]interface{}{},
+									"index":         0,
+									"delta":         map[string]interface{}{},
 									"finish_reason": reason,
 								},
 							},
 						}
 						b, _ := json.Marshal(chunk)
 						fmt.Fprintf(w, "data: %s\n\n", b)
-						if flusher != nil { flusher.Flush() }
+						if flusher != nil {
+							flusher.Flush()
+						}
 					}
 				}
 			case "error":
@@ -293,7 +299,7 @@ func (t *OpenAIToAnthropicTranslator) handleStream(w http.ResponseWriter, resp *
 			}
 		}
 	}
-	
+
 	fmt.Fprintf(w, "data: [DONE]\n\n")
 	if flusher != nil {
 		flusher.Flush()

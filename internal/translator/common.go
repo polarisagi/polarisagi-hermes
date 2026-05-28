@@ -22,7 +22,7 @@ func BuildTargetURL(ch *channel.ActiveChannel, targetEndpoint *domain.SysAccessE
 	// 2. 判断是否是 Vertex OpenAPI 节点路由渲染（这里简单用 baseUrl 是否含占位符来判断，或者你可以用 Provider 内部字段）
 	// 老代码依赖 ProjectID != ""，但在新的设计里，ProjectID 可以通过 UserProvider 的 AuthCredentials 中提取，
 	// 目前为了兼容，先只进行标准的 BaseURL 拼接（假设用户配置的 BaseURL 就是完整的前缀）
-	
+
 	baseURL := strings.TrimSuffix(ch.Provider.BaseURL, "/")
 	if baseURL == "" && targetEndpoint != nil {
 		baseURL = strings.TrimSuffix(targetEndpoint.DefaultBaseURL, "/")
@@ -82,11 +82,11 @@ func ParseToInt(b []byte) int64 {
 // CopyHeaders 安全地从源请求/响应复制 Header 到目标，忽略特定头
 func CopyHeaders(dst http.Header, src http.Header) {
 	for k, vv := range src {
-		if !strings.EqualFold(k, "Host") && 
-		   !strings.EqualFold(k, "Content-Length") &&
-		   !strings.EqualFold(k, "Transfer-Encoding") && 
-		   !strings.EqualFold(k, "Accept-Encoding") && 
-		   !strings.EqualFold(k, "Authorization") {
+		if !strings.EqualFold(k, "Host") &&
+			!strings.EqualFold(k, "Content-Length") &&
+			!strings.EqualFold(k, "Transfer-Encoding") &&
+			!strings.EqualFold(k, "Accept-Encoding") &&
+			!strings.EqualFold(k, "Authorization") {
 			for _, v := range vv {
 				dst.Add(k, v)
 			}
