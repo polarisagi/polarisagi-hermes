@@ -9,3 +9,9 @@ work_dir = "~/.polaris-hermes/"
 # 可选：配置底层 SQLite 数据库的位置。
 # 如果留空，将默认在 work_dir 下生成 polaris_hermes.db
 path = "~/.polaris-hermes/polaris_hermes.db"
+
+[sync]
+# 数据下载保存目录
+data_dir = "~/.polaris-hermes/data/external"
+# 是否启用 Git 版本控制来检测数据变更
+enable_git_tracking = true

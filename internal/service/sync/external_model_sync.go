@@ -1,14 +1,21 @@
 package sync
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
+	"polaris-hermes/internal/config"
 	"polaris-hermes/internal/domain"
 	"polaris-hermes/internal/repository/sqlite"
 	"polaris-hermes/internal/service/router"
@@ -26,7 +33,6 @@ func NewSyncService(modelRepo *sqlite.ModelRepo, inferer *router.IntentInferer) 
 	}
 }
 
-// openRouterResponse 结构
 type openRouterResponse struct {
 	Data []struct {
 		ID            string `json:"id"`
@@ -44,24 +50,69 @@ type openRouterResponse struct {
 }
 
 func (s *SyncService) SyncGlobalModels(ctx context.Context) error {
-	slog.Info("[Sync] Fetching global model dictionary...")
+	slog.Info("[Sync] Starting global model dictionary sync process...")
+
+	dataDir := config.GlobalConfig.Sync.DataDir
+	if dataDir == "" {
+		slog.Warn("[Sync] Sync data_dir is empty, skipping.")
+		return nil
+	}
+
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		slog.Error("[Sync] Failed to create data_dir", "error", err)
+		return err
+	}
+
+	useGit := config.GlobalConfig.Sync.EnableGitTracking
+
+	if useGit {
+		if _, err := os.Stat(filepath.Join(dataDir, ".git")); os.IsNotExist(err) {
+			slog.Info("[Sync] Initializing Git repository in data_dir")
+			_ = exec.Command("git", "-C", dataDir, "init").Run()
+		}
+	}
+
+	changed := false
+	if err := downloadFile(ctx, "https://openrouter.ai/api/v1/models", filepath.Join(dataDir, "openrouter_models.json")); err != nil {
+		slog.Warn("[Sync] Failed to download openrouter_models.json", "error", err)
+	}
+	if err := downloadFile(ctx, "https://openrouter.ai/api/v1/providers", filepath.Join(dataDir, "openrouter_providers.json")); err != nil {
+		slog.Warn("[Sync] Failed to download openrouter_providers.json", "error", err)
+	}
+	if err := downloadFile(ctx, "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json", filepath.Join(dataDir, "litellm_models.json")); err != nil {
+		slog.Warn("[Sync] Failed to download litellm_models.json", "error", err)
+	}
+
+	if useGit {
+		cmd := exec.Command("git", "-C", dataDir, "status", "--porcelain")
+		out, err := cmd.Output()
+		if err == nil && len(bytes.TrimSpace(out)) == 0 {
+			slog.Info("[Sync] No changes detected in external data. Skipping database update.")
+			return nil
+		}
+		changed = true
+	} else {
+		changed = true
+	}
+
+	if !changed {
+		return nil
+	}
+
+	slog.Info("[Sync] Changes detected or Git tracking disabled. Parsing and updating database...")
 
 	globalModels := make(map[string]*domain.SysModel)
 
-	// Fetch from OpenRouter
-	if err := s.fetchOpenRouter(ctx, globalModels); err != nil {
-		slog.Warn("[Sync] Failed to fetch OpenRouter data", "error", err)
+	if err := s.parseOpenRouter(filepath.Join(dataDir, "openrouter_models.json"), globalModels); err != nil {
+		slog.Warn("[Sync] Failed to parse OpenRouter data", "error", err)
 	}
 
-	// Fetch from LiteLLM (Optional, OpenRouter gives us a lot already, but let's parse LiteLLM for context limits not in OpenRouter)
-	if err := s.fetchLiteLLM(ctx, globalModels); err != nil {
-		slog.Warn("[Sync] Failed to fetch LiteLLM data", "error", err)
+	if err := s.parseLiteLLM(filepath.Join(dataDir, "litellm_models.json"), globalModels); err != nil {
+		slog.Warn("[Sync] Failed to parse LiteLLM data", "error", err)
 	}
 
-	// Persist
 	slog.Info("[Sync] Merging into sys_models...", "count", len(globalModels))
 	for _, m := range globalModels {
-		// Populate capability tier and legacy status
 		if m.CapabilityTier == "" {
 			m.CapabilityTier = s.inferer.InferUnknownModel(ctx, m.ModelID)
 		}
@@ -75,30 +126,61 @@ func (s *SyncService) SyncGlobalModels(ctx context.Context) error {
 			slog.Error("[Sync] Failed to upsert sys_model", "model_id", m.ModelID, "error", err)
 		}
 	}
-	slog.Info("[Sync] Global model dictionary synced successfully!")
+	slog.Info("[Sync] Global model dictionary synced successfully to database!")
+
+	if useGit {
+		_ = exec.Command("git", "-C", dataDir, "add", ".").Run()
+		msg := fmt.Sprintf("auto-sync: %s", time.Now().Format("2006-01-02 15:04:05"))
+		_ = exec.Command("git", "-C", dataDir, "commit", "-m", msg).Run()
+		slog.Info("[Sync] Git commit created successfully.")
+	}
+
 	return nil
 }
 
-func (s *SyncService) fetchOpenRouter(ctx context.Context, globalModels map[string]*domain.SysModel) error {
-	client := &http.Client{Timeout: 10 * time.Second}
-	req, _ := http.NewRequestWithContext(ctx, "GET", "https://openrouter.ai/api/v1/models", nil)
+func downloadFile(ctx context.Context, url, path string) error {
+	client := &http.Client{Timeout: 30 * time.Second}
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return err
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("bad status: %s", resp.Status)
+	}
+
+	out, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, resp.Body)
+	return err
+}
+
+func (s *SyncService) parseOpenRouter(path string, globalModels map[string]*domain.SysModel) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
 	var result openRouterResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.NewDecoder(f).Decode(&result); err != nil {
 		return err
 	}
 
 	for _, m := range result.Data {
-		// OpenRouter returns id like "openai/gpt-4o"
 		parts := strings.SplitN(m.ID, "/", 2)
 		modelID := m.ID
 		if len(parts) == 2 {
-			modelID = parts[1] // Use just "gpt-4o" as the global ID
+			modelID = parts[1]
 		}
 
 		sysModel := &domain.SysModel{
@@ -107,7 +189,6 @@ func (s *SyncService) fetchOpenRouter(ctx context.Context, globalModels map[stri
 			ContextLength: m.ContextLength,
 		}
 
-		// Pricing
 		if p, err := strconv.ParseFloat(m.Pricing.Prompt, 64); err == nil {
 			sysModel.PromptPricePer1k = p * 1000
 		}
@@ -115,12 +196,10 @@ func (s *SyncService) fetchOpenRouter(ctx context.Context, globalModels map[stri
 			sysModel.CompletionPricePer1k = p * 1000
 		}
 
-		// Created
 		if m.Created > 0 {
 			sysModel.ReleasedAt = m.Created
 		}
 
-		// Vision
 		for _, mod := range m.Architecture.InputModalities {
 			if mod == "image" {
 				sysModel.SupportsVision = true
@@ -132,17 +211,15 @@ func (s *SyncService) fetchOpenRouter(ctx context.Context, globalModels map[stri
 	return nil
 }
 
-func (s *SyncService) fetchLiteLLM(ctx context.Context, globalModels map[string]*domain.SysModel) error {
-	client := &http.Client{Timeout: 15 * time.Second}
-	req, _ := http.NewRequestWithContext(ctx, "GET", "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json", nil)
-	resp, err := client.Do(req)
+func (s *SyncService) parseLiteLLM(path string, globalModels map[string]*domain.SysModel) error {
+	f, err := os.Open(path)
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer f.Close()
 
 	var result map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.NewDecoder(f).Decode(&result); err != nil {
 		return err
 	}
 
@@ -151,7 +228,6 @@ func (s *SyncService) fetchLiteLLM(ctx context.Context, globalModels map[string]
 			continue
 		}
 		
-		// Some litellm keys are like "anthropic/claude-3-opus-20240229" or just "gpt-4o"
 		modelID := key
 		parts := strings.SplitN(key, "/", 2)
 		if len(parts) == 2 && !strings.Contains(parts[0], "-") {

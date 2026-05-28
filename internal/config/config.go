@@ -18,9 +18,15 @@ type DatabaseConfig struct {
 	Path string `toml:"path"`
 }
 
+type SyncConfig struct {
+	DataDir           string `toml:"data_dir"`
+	EnableGitTracking bool   `toml:"enable_git_tracking"`
+}
+
 type Config struct {
 	Server   ServerConfig   `toml:"server"`
 	Database DatabaseConfig `toml:"database"`
+	Sync     SyncConfig     `toml:"sync"`
 }
 
 var GlobalConfig Config
@@ -35,6 +41,10 @@ func LoadConfig(path string) error {
 		},
 		Database: DatabaseConfig{
 			Path: "",
+		},
+		Sync: SyncConfig{
+			DataDir:           "~/.polaris-hermes/data/external",
+			EnableGitTracking: false,
 		},
 	}
 
@@ -53,6 +63,7 @@ func LoadConfig(path string) error {
 
 	GlobalConfig.Server.WorkDir = expandPath(GlobalConfig.Server.WorkDir)
 	GlobalConfig.Database.Path = expandPath(GlobalConfig.Database.Path)
+	GlobalConfig.Sync.DataDir = expandPath(GlobalConfig.Sync.DataDir)
 
 	return nil
 }
