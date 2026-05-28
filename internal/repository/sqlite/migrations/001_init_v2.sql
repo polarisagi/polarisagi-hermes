@@ -27,15 +27,17 @@ CREATE TABLE IF NOT EXISTS sys_access_endpoints (
 
 -- 3. sys_models (Objective metadata only)
 CREATE TABLE IF NOT EXISTS sys_models (
-    model_id VARCHAR NOT NULL,
-    provider_id VARCHAR NOT NULL,
-    actual_model_id VARCHAR NOT NULL,
-    display_name VARCHAR NOT NULL,
-    context_length INTEGER,
-    max_output_tokens INTEGER,
-    supports_vision BOOLEAN DEFAULT 0,
-    supports_tools BOOLEAN DEFAULT 0,
-    PRIMARY KEY(model_id, provider_id),
+    model_id TEXT NOT NULL,
+    provider_id TEXT NOT NULL,
+    actual_model_id TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    context_length INTEGER DEFAULT 0,
+    max_output_tokens INTEGER DEFAULT 0,
+    supports_vision BOOLEAN DEFAULT FALSE,
+    supports_tools BOOLEAN DEFAULT FALSE,
+    version_weight INTEGER DEFAULT 0,
+    is_legacy BOOLEAN DEFAULT FALSE,
+    PRIMARY KEY (provider_id, model_id),
     FOREIGN KEY(provider_id) REFERENCES sys_providers(provider_id)
 );
 

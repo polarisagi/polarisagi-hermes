@@ -6,11 +6,12 @@ type SysModel struct {
 	ProviderID       string `json:"provider_id"`
 	ActualModelID    string `json:"actual_model_id"`
 	DisplayName      string `json:"display_name"`
-	// capability_tier 已移至 sys_model_intent_dict，不再在此冗余存储
 	ContextLength    int    `json:"context_length"`
 	MaxOutputTokens  int    `json:"max_output_tokens"`
 	SupportsVision   bool   `json:"supports_vision"`
 	SupportsTools    bool   `json:"supports_tools"`
+	VersionWeight    int    `json:"version_weight"` // 版本权重（用于排序，越大越新）
+	IsLegacy         bool   `json:"is_legacy"`      // 是否为过时旧模型
 }
 
 // SysModelIntent 全局模型 ID → 能力梯队字典

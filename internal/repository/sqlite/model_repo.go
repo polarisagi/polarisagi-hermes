@@ -43,7 +43,7 @@ func (r *ModelRepo) GetUserModels(ctx context.Context) ([]domain.UserModel, erro
 // GetSysModels 获取系统内置的所有官方模型物理参数
 func (r *ModelRepo) GetSysModels(ctx context.Context) ([]domain.SysModel, error) {
 	query := `
-		SELECT model_id, provider_id, actual_model_id, display_name, context_length, max_output_tokens, supports_vision, supports_tools
+		SELECT model_id, provider_id, actual_model_id, display_name, context_length, max_output_tokens, supports_vision, supports_tools, version_weight, is_legacy
 		FROM sys_models
 		ORDER BY provider_id ASC, model_id ASC
 	`
@@ -57,7 +57,7 @@ func (r *ModelRepo) GetSysModels(ctx context.Context) ([]domain.SysModel, error)
 	for rows.Next() {
 		var m domain.SysModel
 		err := rows.Scan(
-			&m.ModelID, &m.ProviderID, &m.ActualModelID, &m.DisplayName, &m.ContextLength, &m.MaxOutputTokens, &m.SupportsVision, &m.SupportsTools,
+			&m.ModelID, &m.ProviderID, &m.ActualModelID, &m.DisplayName, &m.ContextLength, &m.MaxOutputTokens, &m.SupportsVision, &m.SupportsTools, &m.VersionWeight, &m.IsLegacy,
 		)
 		if err != nil {
 			return nil, err
@@ -68,6 +68,37 @@ func (r *ModelRepo) GetSysModels(ctx context.Context) ([]domain.SysModel, error)
 }
 
 
+// UpsertSysModel 插入或更新系统模型
+func (r *ModelRepo) UpsertSysModel(ctx context.Context, m *domain.SysModel) error {
+	query := `
+		INSERT INTO sys_models (model_id, provider_id, actual_model_id, display_name, context_length, max_output_tokens, supports_vision, supports_tools, version_weight, is_legacy)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(provider_id, model_id) DO UPDATE SET
+			actual_model_id = excluded.actual_model_id,
+			display_name = excluded.display_name,
+			context_length = excluded.context_length,
+			max_output_tokens = excluded.max_output_tokens,
+			supports_vision = excluded.supports_vision,
+			supports_tools = excluded.supports_tools,
+			version_weight = excluded.version_weight,
+			is_legacy = excluded.is_legacy
+	`
+	_, err := DB().ExecContext(ctx, query,
+		m.ModelID, m.ProviderID, m.ActualModelID, m.DisplayName, m.ContextLength, m.MaxOutputTokens, m.SupportsVision, m.SupportsTools, m.VersionWeight, m.IsLegacy,
+	)
+	return err
+}
+
+// UpdateSysModelLegacyStatus 批量更新特定系列模型的 legacy 状态
+func (r *ModelRepo) UpdateSysModelLegacyStatus(ctx context.Context, providerID, modelPrefix string, isLegacy bool) error {
+	query := `
+		UPDATE sys_models
+		SET is_legacy = ?
+		WHERE provider_id = ? AND model_id LIKE ?
+	`
+	_, err := DB().ExecContext(ctx, query, isLegacy, providerID, modelPrefix+"%")
+	return err
+}
 
 // UpdateUserModelTier 更新用户模型的意图分级
 func (r *ModelRepo) UpdateUserModelTier(ctx context.Context, id int, tier string) error {

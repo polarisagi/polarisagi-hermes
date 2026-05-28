@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"time"
 
 	"polaris-hermes/internal/domain"
 	"polaris-hermes/internal/repository/sqlite"
@@ -414,6 +415,92 @@ func (h *AdminHandler) HandleModels(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (h *AdminHandler) SyncModels(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	ctx := r.Context()
+
+	providers, err := h.providerRepo.GetUserProviders(ctx)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	inferer := router.NewIntentInferer(h.intentRepo)
+	var totalSynced int
+
+	for _, p := range providers {
+		if p.Status != 1 || p.BaseURL == "" {
+			continue
+		}
+
+		client := &http.Client{Timeout: 10 * time.Second}
+		req, err := http.NewRequestWithContext(ctx, "GET", p.BaseURL+"/v1/models", nil)
+		if err != nil {
+			continue
+		}
+
+		var creds map[string]string
+		if err := json.Unmarshal(p.AuthCredentials, &creds); err == nil && creds["api_key"] != "" {
+			req.Header.Set("Authorization", "Bearer "+creds["api_key"])
+		}
+
+		resp, err := client.Do(req)
+		if err != nil || resp.StatusCode != 200 {
+			if resp != nil {
+				resp.Body.Close()
+			}
+			continue
+		}
+
+		var res struct {
+			Data []struct {
+				ID string `json:"id"`
+			} `json:"data"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+			resp.Body.Close()
+			continue
+		}
+		resp.Body.Close()
+
+		for _, m := range res.Data {
+			weight := inferer.ParseVersionWeight(m.ID)
+			tier := inferer.InferUnknownModel(ctx, m.ID)
+
+			sysModel := &domain.SysModel{
+				ModelID:       m.ID,
+				ProviderID:    p.ProviderID,
+				ActualModelID: m.ID,
+				DisplayName:   m.ID,
+				VersionWeight: weight,
+				IsLegacy:      false,
+			}
+			_ = h.modelRepo.UpsertSysModel(ctx, sysModel)
+			
+			_ = h.intentRepo.SaveSysIntent(ctx, &domain.UserModelIntentDict{
+				ModelID:        m.ID,
+				CapabilityTier: tier,
+				Source:         "auto_sync",
+			})
+			totalSynced++
+		}
+		
+		// 简单处理 legacy 状态：同系列中有版本号更高的，老的就标 legacy
+		// 这里暂不展开复杂的字串比较，仅做演示/占位
+	}
+
+	go h.reloadAll(context.Background())
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"status": "success",
+		"synced": totalSynced,
+	})
+}
+
 // ---------------------------------------------------------
 // 意图字典 (Intents) API — 极简模式专用
 // ---------------------------------------------------------
@@ -660,6 +747,7 @@ func (h *AdminHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/admin/nodes", h.HandleNodes)
 	mux.HandleFunc("/api/admin/sys_providers", h.HandleSysProviders)
 	mux.HandleFunc("/api/admin/models", h.HandleModels)
+	mux.HandleFunc("/api/admin/models/sync", h.SyncModels)
 	mux.HandleFunc("/api/admin/routes", h.HandleRoutes)
 	// 意图映射管理（极简模式专用）
 	mux.HandleFunc("/api/admin/intents", h.HandleIntents)
@@ -677,3 +765,4 @@ func (h *AdminHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/admin/oauth/google/start", h.StartGoogleOAuth)
 	mux.HandleFunc("/api/admin/oauth/google/callback", h.CallbackGoogleOAuth)
 }
+

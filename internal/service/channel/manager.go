@@ -41,6 +41,13 @@ type ActiveChannel struct {
 	CooldownUntil         time.Time
 }
 
+// SysModelCacheInfo 缓存的系统模型元数据
+type SysModelCacheInfo struct {
+	ActualModelID string
+	IsLegacy      bool
+	VersionWeight int
+}
+
 // Manager 负责在内存中维护所有健康的渠道，并执行强一致性的并发控制与负载均衡
 type Manager struct {
 	providerRepo *sqlite.ProviderRepo
@@ -48,7 +55,7 @@ type Manager struct {
 
 	mu       sync.RWMutex
 	channels map[int]*ActiveChannel // Key: UserProviderID
-	sysModels map[string]map[string]string // Key: ModelID -> ProviderID -> ActualModelID
+	sysModels map[string]map[string]SysModelCacheInfo // Key: ModelID -> ProviderID -> SysModelCacheInfo
 }
 
 func NewManager(providerRepo *sqlite.ProviderRepo, modelRepo *sqlite.ModelRepo) *Manager {
@@ -56,7 +63,7 @@ func NewManager(providerRepo *sqlite.ProviderRepo, modelRepo *sqlite.ModelRepo) 
 		providerRepo: providerRepo,
 		modelRepo:    modelRepo,
 		channels:     make(map[int]*ActiveChannel),
-		sysModels:    make(map[string]map[string]string),
+		sysModels:    make(map[string]map[string]SysModelCacheInfo),
 	}
 	go m.cooldownManager()
 	return m
@@ -116,14 +123,18 @@ func (m *Manager) Reload(ctx context.Context) error {
 	}
 
 	// Load all sys_models for actual_model_id resolution
-	sysModelsMap := make(map[string]map[string]string)
+	sysModelsMap := make(map[string]map[string]SysModelCacheInfo)
 	sysModelsList, err := m.modelRepo.GetSysModels(ctx)
 	if err == nil {
 		for _, sm := range sysModelsList {
 			if sysModelsMap[sm.ModelID] == nil {
-				sysModelsMap[sm.ModelID] = make(map[string]string)
+				sysModelsMap[sm.ModelID] = make(map[string]SysModelCacheInfo)
 			}
-			sysModelsMap[sm.ModelID][sm.ProviderID] = sm.ActualModelID
+			sysModelsMap[sm.ModelID][sm.ProviderID] = SysModelCacheInfo{
+				ActualModelID: sm.ActualModelID,
+				IsLegacy:      sm.IsLegacy,
+				VersionWeight: sm.VersionWeight,
+			}
 		}
 	}
 
@@ -181,13 +192,18 @@ func (m *Manager) Reload(ctx context.Context) error {
 	return nil
 }
 
-func (m *Manager) resolveActualModelID(modelID, providerID string) string {
+func (m *Manager) resolveActualModelID(modelID, providerID string) SysModelCacheInfo {
 	if providers, ok := m.sysModels[modelID]; ok {
-		if actual, ok := providers[providerID]; ok {
-			return actual
+		if info, ok := providers[providerID]; ok {
+			return info
 		}
 	}
-	return modelID // Fallback to model_id if no specific binding
+	// Fallback to model_id if no specific binding
+	return SysModelCacheInfo{
+		ActualModelID: modelID,
+		IsLegacy:      false,
+		VersionWeight: 0,
+	}
 }
 
 // GetChannelByUserModelID 用于处理用户自定义 1对1 强制路由
@@ -201,9 +217,9 @@ func (m *Manager) GetChannelByUserModelID(userModelID int) (*ActiveChannel, stri
 				if ch.Status == StatusExhausted {
 					return nil, "", fmt.Errorf("channel exhausted")
 				}
-				actualModel := m.resolveActualModelID(mod.ModelID, ch.Provider.ProviderID)
+				info := m.resolveActualModelID(mod.ModelID, ch.Provider.ProviderID)
 				// 强制路由不走负载均衡锁，直接返回
-				return ch, actualModel, nil
+				return ch, info.ActualModelID, nil
 			}
 		}
 	}
@@ -218,16 +234,19 @@ func (m *Manager) SelectBestChannelByTier(tier string) (*ActiveChannel, string, 
 	type Candidate struct {
 		Channel       *ActiveChannel
 		TargetModelID string
+		ModelInfo     SysModelCacheInfo
 	}
 	var candidates []Candidate
 
 	// 1. 筛选状态满足要求的节点
 	for _, ch := range m.channels {
 		var matchedModel string
+		var matchedInfo SysModelCacheInfo
 		matched := false
 		for _, mod := range ch.Models {
 			if mod.CapabilityTier == tier && mod.IsActive {
-				matchedModel = m.resolveActualModelID(mod.ModelID, ch.Provider.ProviderID)
+				matchedInfo = m.resolveActualModelID(mod.ModelID, ch.Provider.ProviderID)
+				matchedModel = matchedInfo.ActualModelID
 				matched = true
 				break
 			}
@@ -256,6 +275,7 @@ func (m *Manager) SelectBestChannelByTier(tier string) (*ActiveChannel, string, 
 			candidates = append(candidates, Candidate{
 				Channel:       ch,
 				TargetModelID: matchedModel,
+				ModelInfo:     matchedInfo,
 			})
 		}
 	}
@@ -264,12 +284,27 @@ func (m *Manager) SelectBestChannelByTier(tier string) (*ActiveChannel, string, 
 		return nil, "", ErrAllChannelsBusy
 	}
 
-	// 2. 按优先级 + LRU 排序
+	// 2. 按是否为Legacy、版本权重、优先级 + LRU 排序
 	sort.SliceStable(candidates, func(i, j int) bool {
+		// 维度 1：非 Legacy 优先
+		legacyI, legacyJ := candidates[i].ModelInfo.IsLegacy, candidates[j].ModelInfo.IsLegacy
+		if legacyI != legacyJ {
+			return !legacyI // 若 i 非 legacy 且 j 是 legacy，i 排前面
+		}
+
+		// 维度 2：VersionWeight 大的优先
+		weightI, weightJ := candidates[i].ModelInfo.VersionWeight, candidates[j].ModelInfo.VersionWeight
+		if weightI != weightJ {
+			return weightI > weightJ
+		}
+
+		// 维度 3：Provider 优先级小的优先 (值越小优先级越高)
 		pi, pj := candidates[i].Channel.Provider.Priority, candidates[j].Channel.Provider.Priority
 		if pi != pj {
 			return pi < pj
 		}
+
+		// 维度 4：LRU 策略，按上次获取时间排序
 		ti, tj := candidates[i].Channel.LastAcquireTime, candidates[j].Channel.LastAcquireTime
 		if ti.IsZero() != tj.IsZero() {
 			return ti.IsZero()

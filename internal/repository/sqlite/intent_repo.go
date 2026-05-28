@@ -56,6 +56,19 @@ func (r *IntentRepo) SaveUserIntent(ctx context.Context, intent *domain.UserMode
 	return err
 }
 
+// SaveSysIntent 保存系统推断的意图分类
+func (r *IntentRepo) SaveSysIntent(ctx context.Context, intent *domain.UserModelIntentDict) error {
+	query := `
+		INSERT INTO sys_model_intent_dict (model_id, capability_tier, source)
+		VALUES (?, ?, ?)
+		ON CONFLICT(model_id) DO UPDATE SET
+			capability_tier = excluded.capability_tier,
+			source = excluded.source
+	`
+	_, err := DB().ExecContext(ctx, query, intent.ModelID, intent.CapabilityTier, intent.Source)
+	return err
+}
+
 // GetAllSysIntents 全量加载系统意图字典到内存 map（用于 Pipeline 热重载缓存）
 func (r *IntentRepo) GetAllSysIntents(ctx context.Context) (map[string]string, error) {
 	rows, err := DB().QueryContext(ctx, `SELECT model_id, capability_tier FROM sys_model_intent_dict ORDER BY model_id ASC`)

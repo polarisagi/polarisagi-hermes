@@ -3,6 +3,8 @@ package router
 import (
 	"context"
 	"regexp"
+	"strconv"
+	"strings"
 
 	"polaris-hermes/internal/domain"
 	"polaris-hermes/internal/repository/sqlite"
@@ -72,5 +74,38 @@ func (i *IntentInferer) inferByKeywords(modelID string) string {
 func (i *IntentInferer) inferByLLM(ctx context.Context, modelID string) string {
 	// TODO: 等待 Proxy 层的内部调用接口就绪
 	return ""
+}
+
+// ParseVersionWeight 解析模型名称，提取版本权重用于排序
+func (i *IntentInferer) ParseVersionWeight(modelID string) int {
+	weight := 0
+	
+	dateRe := regexp.MustCompile(`(202\d)[-]?(\d{2})[-]?(\d{2})`)
+	if matches := dateRe.FindStringSubmatch(modelID); len(matches) == 4 {
+		year, _ := strconv.Atoi(matches[1])
+		month, _ := strconv.Atoi(matches[2])
+		day, _ := strconv.Atoi(matches[3])
+		weight += year*10000 + month*100 + day
+	} else if strings.Contains(modelID, "latest") {
+		weight += 20999999 // a very large date representation for "latest"
+	}
+
+	verRe := regexp.MustCompile(`(?:gpt-|gemini-|claude-|v|o)(\d+)(?:[-.](\d+))?(o)?`)
+	if matches := verRe.FindStringSubmatch(modelID); len(matches) > 1 {
+		major, _ := strconv.Atoi(matches[1])
+		minor := 0
+		if len(matches) > 2 && matches[2] != "" {
+			minor, _ = strconv.Atoi(matches[2])
+		}
+		
+		baseWeight := major * 10000 + minor * 100
+		if len(matches) > 3 && matches[3] == "o" {
+			baseWeight += 500
+		}
+		// prepend baseWeight so it dominates the date weight
+		weight += baseWeight * 100000000
+	}
+
+	return weight
 }
 
