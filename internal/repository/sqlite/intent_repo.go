@@ -13,7 +13,7 @@ func NewIntentRepo() *IntentRepo {
 }
 
 // GetSysIntent 查询系统内置的全局模型意图字典
-// 同时覆盖客户端模型名（gpt-4o、claude-sonnet）和服务端模型名（deepseek-chat、gemini-pro）
+// 同时覆盖客户端模型名（gpt-4o、claude-sonnet）和服务端模型名（deepseek-v4-flash、gemini-pro）
 func (r *IntentRepo) GetSysIntent(ctx context.Context, modelID string) (string, error) {
 	query := `
 		SELECT capability_tier

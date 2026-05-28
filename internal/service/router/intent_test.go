@@ -13,7 +13,7 @@ func TestIntentInferer_InferByKeywords(t *testing.T) {
 	}{
 		{"gpt-4o-mini-2024", "fast"},
 		{"claude-3-5-sonnet-20241022", "smart"},
-		{"deepseek-reasoner", "reasoning"},
+		{"deepseek-v4-pro", "reasoning"},
 		{"gemini-3.1-pro-preview-customtool", "smart"},
 		{"text-embedding-3-small", "fast"},        // 匹配 "small" 关键字 → fast
 		{"claude-3-opus-20240229", "smart"},        // 匹配 "opus" 关键字 → smart

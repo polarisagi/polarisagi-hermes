@@ -20,7 +20,7 @@ type SysModelEndpointBinding struct {
 }
 
 // SysModelIntent 全局模型 ID → 能力梯队字典
-// 同时覆盖客户端模型名（gpt-4o、claude-sonnet）和服务端模型名（deepseek-chat、gemini-2.5-pro）
+// 同时覆盖客户端模型名（gpt-4o、claude-sonnet）和服务端模型名（deepseek-v4-flash、gemini-2.5-pro）
 type SysModelIntent struct {
 	ModelID        string `json:"model_id"`       // 任意模型标识符，不限于客户端请求
 	CapabilityTier string `json:"capability_tier"` // "smart", "fast", "reasoning"

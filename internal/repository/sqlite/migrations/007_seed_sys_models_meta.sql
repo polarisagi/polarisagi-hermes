@@ -22,8 +22,6 @@ UPDATE sys_models SET context_length = 200000,  max_output_tokens = 100000, supp
 UPDATE sys_models SET context_length = 200000,  max_output_tokens = 100000, supports_vision = 1, supports_tools = 1 WHERE provider_id = 'openai' AND model_id = 'o3-pro';
 UPDATE sys_models SET context_length = 200000,  max_output_tokens = 65536,  supports_vision = 1, supports_tools = 1 WHERE provider_id = 'openai' AND model_id = 'o3-mini';
 UPDATE sys_models SET context_length = 200000,  max_output_tokens = 100000, supports_vision = 1, supports_tools = 1 WHERE provider_id = 'openai' AND model_id = 'o4-mini';
-UPDATE sys_models SET context_length = 128000,  max_output_tokens = 4096,   supports_vision = 0, supports_tools = 1 WHERE provider_id = 'openai' AND model_id = 'gpt-4';
-UPDATE sys_models SET context_length = 128000,  max_output_tokens = 4096,   supports_vision = 1, supports_tools = 1 WHERE provider_id = 'openai' AND model_id = 'gpt-4-turbo';
 
 -- ============================================================
 -- Anthropic
@@ -53,16 +51,12 @@ UPDATE sys_models SET context_length = 1048576, max_output_tokens = 8192,   supp
 -- ============================================================
 -- DeepSeek
 -- ============================================================
-UPDATE sys_models SET context_length = 128000,  max_output_tokens = 8192,   supports_vision = 0, supports_tools = 1 WHERE provider_id = 'deepseek' AND model_id = 'deepseek-chat';
-UPDATE sys_models SET context_length = 128000,  max_output_tokens = 32768,  supports_vision = 0, supports_tools = 0 WHERE provider_id = 'deepseek' AND model_id = 'deepseek-reasoner';
 UPDATE sys_models SET context_length = 128000,  max_output_tokens = 16384,  supports_vision = 0, supports_tools = 1 WHERE provider_id = 'deepseek' AND model_id = 'deepseek-v4-flash';
 UPDATE sys_models SET context_length = 128000,  max_output_tokens = 16384,  supports_vision = 0, supports_tools = 1 WHERE provider_id = 'deepseek' AND model_id = 'deepseek-v4-pro';
 
 -- ============================================================
 -- Groq (LPU 极速推理，低延迟)
 -- ============================================================
-UPDATE sys_models SET context_length = 128000,  max_output_tokens = 8192,   supports_vision = 0, supports_tools = 1 WHERE provider_id = 'groq' AND model_id = 'llama-3.3-70b-versatile';
-UPDATE sys_models SET context_length = 128000,  max_output_tokens = 8192,   supports_vision = 0, supports_tools = 1 WHERE provider_id = 'groq' AND model_id = 'llama-3.1-8b-instant';
 UPDATE sys_models SET context_length = 131072,  max_output_tokens = 8192,   supports_vision = 0, supports_tools = 1 WHERE provider_id = 'groq' AND model_id = 'qwen/qwen3-32b';
 
 -- ============================================================
@@ -79,7 +73,6 @@ UPDATE sys_models SET context_length = 131072,  max_output_tokens = 4096,   supp
 UPDATE sys_models SET context_length = 1000000, max_output_tokens = 16384,  supports_vision = 0, supports_tools = 1 WHERE provider_id = 'moonshot' AND model_id = 'kimi-k2.5';
 UPDATE sys_models SET context_length = 1000000, max_output_tokens = 16384,  supports_vision = 0, supports_tools = 1 WHERE provider_id = 'moonshot' AND model_id = 'kimi-k2.6';
 UPDATE sys_models SET context_length = 1000000, max_output_tokens = 32768,  supports_vision = 0, supports_tools = 0 WHERE provider_id = 'moonshot' AND model_id = 'kimi-k2-thinking';
-UPDATE sys_models SET context_length = 128000,  max_output_tokens = 4096,   supports_vision = 0, supports_tools = 1 WHERE provider_id = 'moonshot' AND model_id = 'moonshot-v1-128k';
 
 -- ============================================================
 -- Dashscope (阿里通义千问)

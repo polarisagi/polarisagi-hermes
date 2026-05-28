@@ -186,7 +186,7 @@ func (r *ProviderRepo) CreateUserProvider(ctx context.Context, p *domain.UserPro
 func (r *ProviderRepo) seedUserModels(ctx context.Context, userProviderID int, providerID string) error {
 	seedSQL := `
 		INSERT OR IGNORE INTO user_models (user_provider_id, display_name, model_id, capability_tier, is_active)
-		SELECT
+		SELECT DISTINCT
 			? AS user_provider_id,
 			sm.display_name,
 			sm.model_id,
@@ -196,7 +196,9 @@ func (r *ProviderRepo) seedUserModels(ctx context.Context, userProviderID int, p
 			) AS capability_tier,
 			1 AS is_active
 		FROM sys_models sm
-		WHERE sm.provider_id = ?
+		JOIN sys_model_endpoint_bindings sme ON sm.model_id = sme.model_id
+		JOIN sys_access_endpoints sae ON sme.endpoint_id = sae.endpoint_id
+		WHERE sae.provider_id = ?
 	`
 	_, err := DB().ExecContext(ctx, seedSQL, userProviderID, providerID)
 	return err

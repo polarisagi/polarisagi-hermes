@@ -51,7 +51,7 @@ func (i *IntentInferer) InferUnknownModel(ctx context.Context, modelID string) s
 // inferByKeywords 通过内置的高命中率特征字推断模型意图
 func (i *IntentInferer) inferByKeywords(modelID string) string {
 	// 推理/沉思型模型 (Highest Priority for specific keywords)
-	if match, _ := regexp.MatchString(`(?i)(\b(o1|o3|o4|r1|r2)\b|reason|thinking)`, modelID); match {
+	if match, _ := regexp.MatchString(`(?i)(\b(o1|o3|o4|r1|r2)\b|reason|thinking|deepseek-v4-pro)`, modelID); match {
 		return "reasoning"
 	}
 

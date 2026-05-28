@@ -88,8 +88,7 @@ CREATE TABLE IF NOT EXISTS user_models (
     model_id VARCHAR NOT NULL,
     capability_tier VARCHAR NOT NULL,
     is_active BOOLEAN DEFAULT 1,
-    FOREIGN KEY(user_provider_id) REFERENCES user_providers(id) ON DELETE CASCADE,
-    FOREIGN KEY(model_id) REFERENCES sys_models(model_id)
+    FOREIGN KEY(user_provider_id) REFERENCES user_providers(id) ON DELETE CASCADE
 );
 
 -- 7. user_model_intent_dict (User overrides and auto-learned intents)

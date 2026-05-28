@@ -321,7 +321,7 @@ export default {
                     <div class="card bg-warning/5 border border-warning/20 p-4">
                         <div class="text-xl mb-1">🏆</div>
                         <div class="font-bold text-sm">旗舰型 <span class="font-mono text-xs text-warning">smart</span></div>
-                        <div class="text-xs text-base-content/50 mt-1">gpt-4o、claude-sonnet、gemini-pro<br>→ deepseek-chat、gemini-3.1-pro</div>
+                        <div class="text-xs text-base-content/50 mt-1">gpt-4o、claude-sonnet、gemini-pro<br>→ deepseek-v4-flash、gemini-3.1-pro</div>
                     </div>
                     <div class="card bg-info/5 border border-info/20 p-4">
                         <div class="text-xl mb-1">⚡</div>
@@ -331,7 +331,7 @@ export default {
                     <div class="card bg-secondary/5 border border-secondary/20 p-4">
                         <div class="text-xl mb-1">🧠</div>
                         <div class="font-bold text-sm">沉思型 <span class="font-mono text-xs text-secondary">reasoning</span></div>
-                        <div class="text-xs text-base-content/50 mt-1">o1、o3、DeepSeek-R1<br>→ deepseek-reasoner、gemini-thinking</div>
+                        <div class="text-xs text-base-content/50 mt-1">o1、o3、DeepSeek-R1<br>→ deepseek-v4-pro、gemini-thinking</div>
                     </div>
                 </div>
 

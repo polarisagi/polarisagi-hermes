@@ -40,7 +40,7 @@ INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 ('openai/o4-mini-deep-research', 'reasoning'),
 
 -- DeepSeek reasoning models
-('deepseek-reasoner', 'reasoning'),
+('deepseek-v4-pro', 'reasoning'),
 ('deepseek-ai/DeepSeek-R1', 'reasoning'),
 ('deepseek-ai/DeepSeek-R1-0528-TEE', 'reasoning'),
 ('deepseek-ai/DeepSeek-R1-Distill-Llama-70B', 'reasoning'),
@@ -115,15 +115,11 @@ INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 ('raptor-mini', 'fast'),
 
 -- OpenAI GPT 3.5 turbo (legacy, but fast tier)
-('openai/gpt-3.5-turbo', 'fast'),
-('openai/gpt-3.5-turbo-0613', 'fast'),
-('openai/gpt-3.5-turbo-16k', 'fast'),
 
 -- OpenAI OSS smaller models
 ('openai/gpt-oss-20b', 'fast'),
 
 -- Claude haiku models (fast tier)
-('claude-3-haiku', 'fast'),
 ('claude-3-5-haiku', 'fast'),
 ('claude-3-5-haiku-latest', 'fast'),
 ('claude-3.5-haiku', 'fast'),
@@ -137,8 +133,6 @@ INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 ('~anthropic/claude-haiku-latest', 'fast'),
 
 -- Gemini flash/lite models
-('gemini-1.5-flash', 'fast'),
-('gemini-1.5-flash-8b', 'fast'),
 ('gemini-2.5-flash-lite', 'fast'),
 ('gemini-3-flash-preview', 'fast'),
 ('gemini-3-flash', 'fast'),
@@ -196,34 +190,23 @@ INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 ('ministral-3b-latest', 'fast'),
 ('ministral-8b-latest', 'fast'),
 ('magistral-small', 'fast'),
-('mistral-nemo', 'fast'),
 ('mistralai/devstral-small', 'fast'),
 ('mistralai/mistral-small', 'fast'),
-('mistralai/mistral-nemo', 'fast'),
 ('mistralai/mistral-saba', 'fast'),
 ('mistral/codestral', 'fast'),
 ('mistral/devstral-small', 'fast'),
 ('mistral/ministral-3b', 'fast'),
 ('mistral/ministral-8b', 'fast'),
-('mistral/mistral-small', 'fast'),
 ('mistral.ministral-3-14b-instruct', 'fast'),
 ('mistral.ministral-3-3b-instruct', 'fast'),
 ('mistral.ministral-3-8b-instruct', 'fast'),
 
 -- Small open-source models (3b/4b/7b/8b/14b)
 ('llama3.1-8b', 'fast'),
-('llama-3.1-8b-instant', 'fast'),
-('meta.llama3-1-8b-instruct-v1:0', 'fast'),
-('meta-llama/llama-3.1-8b-instruct', 'fast'),
-('meta/llama-3.1-8b', 'fast'),
 ('meta/llama-4-8b-instruct', 'fast'),
-('unsloth/Llama-3.2-1B-Instruct', 'fast'),
-('unsloth/Llama-3.2-3B-Instruct', 'fast'),
-('llama-3.2-3b', 'fast'),
 ('google.gemma-3-4b-it', 'fast'),
 ('unsloth/gemma-3-4b-it', 'fast'),
 ('@cf/google/gemma-7b-it', 'fast'),
-('@cf/meta/llama-3-8b-instruct', 'fast'),
 ('@cf/mistral/mistral-7b-instruct-v0.1', 'fast'),
 ('@cf/ibm-granite/granite-4.0-h-micro', 'fast'),
 ('ibm-granite/granite-4.1-8b', 'fast'),
@@ -290,7 +273,6 @@ INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 ('accounts/fireworks/routers/kimi-k2p5-turbo', 'fast'),
 
 -- GLM 4 9b (small model)
-('glm-4-9b', 'fast'),
 
 -- Qwen3 coder flash
 ('qwen/qwen3-coder-flash', 'fast'),
@@ -313,8 +295,6 @@ INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 
 -- OpenAI GPT flagship models
-('gpt-4', 'smart'),
-('gpt-4-turbo', 'smart'),
 ('gpt-4o', 'smart'),
 ('gpt-4.1', 'smart'),
 ('gpt-5', 'smart'),
@@ -328,11 +308,6 @@ INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 ('gpt-5.4-pro', 'smart'),
 ('gpt-5.5', 'smart'),
 ('gpt-5.5-pro', 'smart'),
-('openai/gpt-4', 'smart'),
-('openai/gpt-4-turbo', 'smart'),
-('openai/gpt-4-turbo-preview', 'smart'),
-('openai/gpt-4-0314', 'smart'),
-('openai/gpt-4-1106-preview', 'smart'),
 ('openai/gpt-4o', 'smart'),
 ('openai/gpt-4o-audio-preview', 'smart'),
 ('openai/gpt-4.1', 'smart'),
@@ -361,7 +336,6 @@ INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 ('openai/gpt-oss-safeguard-20b', 'smart'),
 
 -- Claude Sonnet models (smart)
-('claude-3-sonnet', 'smart'),
 ('claude-3-5-sonnet', 'smart'),
 ('claude-3.5-sonnet', 'smart'),
 ('claude-3-7-sonnet-latest', 'smart'),
@@ -385,7 +359,6 @@ INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 ('gemini-claude-sonnet-4-5-thinking', 'smart'),
 
 -- Claude Opus models (smart)
-('claude-3-opus', 'smart'),
 ('claude-3-7-opus-latest', 'smart'),
 ('claude-opus-4', 'smart'),
 ('claude-opus-4-0', 'smart'),
@@ -418,7 +391,6 @@ INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 ('gemini-claude-opus-4-5-thinking', 'smart'),
 
 -- Gemini Pro models (smart)
-('gemini-1.5-pro', 'smart'),
 ('gemini-2.5-pro', 'smart'),
 ('gemini-3-pro-preview', 'smart'),
 ('gemini-3.0-pro', 'smart'),
@@ -433,7 +405,6 @@ INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 ('gemini-3-1-pro-preview', 'smart'),
 
 -- DeepSeek flagship models
-('deepseek-chat', 'smart'),
 ('deepseek-v4-pro', 'smart'),
 ('deepseek-ai/DeepSeek-V3', 'smart'),
 ('deepseek-ai/DeepSeek-V3-0324-TEE', 'smart'),
@@ -444,8 +415,6 @@ INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 ('deepseek-ai/DeepSeek-V3.2-TEE', 'smart'),
 ('deepseek-ai/DeepSeek-V4', 'smart'),
 ('deepseek-ai/DeepSeek-V4-Pro', 'smart'),
-('deepseek/deepseek-chat', 'smart'),
-('deepseek/deepseek-chat-v3.1', 'smart'),
 ('deepseek/deepseek-v3', 'smart'),
 ('deepseek/deepseek-v3-0324', 'smart'),
 ('deepseek/deepseek-v3.1', 'smart'),
@@ -514,9 +483,6 @@ INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 ('~moonshotai/kimi-latest', 'smart'),
 ('kimi-k2-5', 'smart'),
 ('accounts/fireworks/models/kimi-k2p6', 'smart'),
-('moonshot-v1-128k', 'smart'),
-('moonshot-v1-32k', 'smart'),
-('moonshot-v1-8k', 'smart'),
 
 -- Qwen flagship models (plus/max/large/coder)
 ('qwen-3-max', 'smart'),
@@ -525,7 +491,6 @@ INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 ('qwen3.5-plus', 'smart'),
 ('qwen3.6-27b', 'smart'),
 ('qwen3.7-max', 'smart'),
-('qwen/qwen-plus', 'smart'),
 ('qwen/qwen3-plus', 'smart'),
 ('qwen/qwen3-coder', 'smart'),
 ('qwen/qwen3-coder-plus', 'smart'),
@@ -549,9 +514,6 @@ INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 ('qwen.qwen3-coder-480b-a35b-v1:0', 'smart'),
 ('qwen3-235b-a22b-instruct-2507', 'smart'),
 ('qwen-3-235b-a22b-instruct-2507', 'smart'),
-('Qwen/Qwen2.5-72B-Instruct', 'smart'),
-('Qwen/Qwen2.5-Coder-32B-Instruct', 'smart'),
-('Qwen/Qwen2.5-VL-32B-Instruct', 'smart'),
 ('Qwen/Qwen3-235B-A22B-Instruct-2507-TEE', 'smart'),
 ('Qwen/Qwen3-30B-A3B', 'smart'),
 ('Qwen/Qwen3-32B', 'smart'),
@@ -575,9 +537,6 @@ INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 ('@cf/qwen/qwen3-30b-a3b-fp8', 'smart'),
 
 -- Llama large models (70b/405b)
-('llama-3.3-70b', 'smart'),
-('llama-3.3-70b-versatile', 'smart'),
-('meta-llama/Llama-3.3-70B-Instruct-Turbo', 'smart'),
 ('meta-llama/Meta-Llama-4-70B-Instruct', 'smart'),
 ('meta-llama/llama-4-scout-17b-16e-instruct', 'smart'),
 ('meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8', 'smart'),
@@ -588,21 +547,15 @@ INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 ('us.meta.llama4-maverick-17b-instruct-v1:0', 'smart'),
 ('meta/llama-4-70b-instruct', 'smart'),
 ('llama4:70b', 'smart'),
-('nvidia/llama-3.1-nemotron-70b-instruct', 'smart'),
-('nvidia/llama-3.3-70b-instruct', 'smart'),
-('nvidia/llama-3.3-nemotron-super-49b-v1.5', 'smart'),
 ('hermes-3-405b', 'smart'),
 ('hermes-3-70b', 'smart'),
-('hermes-3-llama-3.1-405b', 'smart'),
 ('NousResearch/DeepHermes-3-Mistral-24B-Preview', 'smart'),
 ('NousResearch/Hermes-4-405B-FP8-TEE', 'smart'),
 
 -- Mistral large/medium models
 ('mistral-large-latest', 'smart'),
-('mistral-medium-2508', 'smart'),
 ('mistral-medium-3-5', 'smart'),
 ('mistral-medium-3.5', 'smart'),
-('mistral-medium-latest', 'smart'),
 ('magistral-medium-latest', 'smart'),
 ('devstral-medium-latest', 'smart'),
 ('codestral-latest', 'smart'),
@@ -612,12 +565,9 @@ INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 ('mistralai/mistral-medium-3', 'smart'),
 ('mistralai/mistral-medium-3-5', 'smart'),
 ('mistralai/mistral-medium-3.1', 'smart'),
-('mistral/mistral-medium', 'smart'),
 ('mistral/mistral-medium-3.5', 'smart'),
 ('chutesai/Mistral-Small-3.1-24B-Instruct-2503', 'smart'),
 ('chutesai/Mistral-Small-3.2-24B-Instruct-2506', 'smart'),
-('unsloth/Mistral-Small-24B-Instruct-2501', 'smart'),
-('unsloth/Mistral-Nemo-Instruct-2407', 'smart'),
 
 -- MiniMax flagship
 ('MiniMax-M2.1', 'smart'),
@@ -653,10 +603,8 @@ INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 ('amazon/nova-premier-v1', 'smart'),
 
 -- Grok models
-('grok-2', 'smart'),
 ('grok-3', 'smart'),
 ('grok-4.3', 'smart'),
-('grok-beta', 'smart'),
 ('grok-build-0.1', 'smart'),
 ('grok-41-fast', 'smart'),
 
@@ -667,9 +615,7 @@ INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 ('Baichuan-Omni-1.5', 'smart'),
 
 -- Yi models
-('yi-large', 'smart'),
 ('yi-lightning', 'smart'),
-('yi-vision', 'smart'),
 
 -- Cohere
 ('command-r-plus', 'smart'),
