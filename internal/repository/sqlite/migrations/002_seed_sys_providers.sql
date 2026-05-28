@@ -65,9 +65,6 @@ INSERT OR IGNORE INTO sys_providers (provider_id, provider_name, description) VA
 ('zhipu', '智谱 AI (ChatGLM)', NULL);
 
 INSERT OR IGNORE INTO sys_access_endpoints (endpoint_id, provider_id, display_name, api_protocol, default_base_url, auth_type, auth_header, required_credential_fields, display_order) VALUES
-('custom_openai_bearer', 'custom_openai', '自定义 OpenAI Key', 'openai', 'https://api.openai.com/v1', 'bearer', 'Authorization', '["api_key"]', 0),
-('custom_anthropic_key', 'custom_anthropic', '自定义 Anthropic Key', 'anthropic', 'https://api.anthropic.com/v1', 'header', 'x-api-key', '["api_key"]', 0),
-('custom_google_key', 'custom_google', '自定义 Google Key', 'google', 'https://generativelanguage.googleapis.com/v1beta', 'query', 'key', '["api_key"]', 0),
 ('01ai_bearer', '01ai', '零一万物 API Key', 'openai', 'https://api.lingyiwanwu.com/v1', 'bearer', 'Authorization', '["api_key"]', 0),
 ('anthropic_key', 'anthropic', 'Anthropic API Key', 'anthropic', 'https://api.anthropic.com/v1', 'header', 'x-api-key', '["api_key"]', 0),
 ('arcee_bearer', 'arcee', 'Arcee AI Key', 'openai', 'https://api.arcee.ai/v1', 'bearer', 'Authorization', '["api_key"]', 0),
@@ -83,6 +80,9 @@ INSERT OR IGNORE INTO sys_access_endpoints (endpoint_id, provider_id, display_na
 ('cloudflare_workers_bearer', 'cloudflare', 'Cloudflare Workers Key', 'openai', 'https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1', 'bearer', 'Authorization', '["api_key", "account_id"]', 0),
 ('cohere_bearer', 'cohere', 'Cohere API Key', 'openai', 'https://api.cohere.ai/v1', 'bearer', 'Authorization', '["api_key"]', 0),
 ('comfyui_none', 'comfyui', 'ComfyUI (无鉴权)', 'local', 'http://127.0.0.1:8188', 'none', '', '[]', 0),
+('custom_anthropic_key', 'custom_anthropic', '自定义 Anthropic Key', 'anthropic', 'https://api.anthropic.com/v1', 'header', 'x-api-key', '["api_key"]', 0),
+('custom_google_key', 'custom_google', '自定义 Google Key', 'google', 'https://generativelanguage.googleapis.com/v1beta', 'query', 'key', '["api_key"]', 0),
+('custom_openai_bearer', 'custom_openai', '自定义 OpenAI Key', 'openai', 'https://api.openai.com/v1', 'bearer', 'Authorization', '["api_key"]', 0),
 ('dashscope_bearer', 'dashscope', '阿里云 API Key', 'openai', 'https://dashscope.aliyuncs.com/compatible-mode/v1', 'bearer', 'Authorization', '["api_key"]', 0),
 ('deepinfra_bearer', 'deepinfra', 'DeepInfra Key', 'openai', 'https://api.deepinfra.com/v1/openai', 'bearer', 'Authorization', '["api_key"]', 0),
 ('deepseek_anthropic_key', 'deepseek', 'DeepSeek Anthropic Key', 'anthropic', 'https://api.deepseek.com/beta', 'header', 'x-api-key', '["api_key"]', 0),
@@ -92,21 +92,25 @@ INSERT OR IGNORE INTO sys_access_endpoints (endpoint_id, provider_id, display_na
 ('elevenlabs_bearer', 'elevenlabs', 'ElevenLabs Key', 'openai', 'https://api.elevenlabs.io/v1', 'bearer', 'Authorization', '["api_key"]', 0),
 ('fal_bearer', 'fal', 'fal API Key', 'openai', 'https://api.fal.ai/v1', 'bearer', 'Authorization', '["api_key"]', 0),
 ('fireworks_bearer', 'fireworks', 'Fireworks API Key', 'openai', 'https://api.fireworks.ai/inference/v1', 'bearer', 'Authorization', '["api_key"]', 0),
+('gemini_enterprise_agent_platform_adc', 'gemini_enterprise_agent_platform', 'Gemini Enterprise Agent Platform ADC', 'google', 'https://aiplatform.googleapis.com/v1/projects/{project_id}/locations/{region}', 'adc', 'Authorization', '["project_id", "region"]', 0),
+('gemini_enterprise_agent_platform_anthropic_adc', 'gemini_enterprise_agent_platform', 'Gemini Enterprise Agent Platform Anthropic ADC', 'anthropic', 'https://aiplatform.googleapis.com/v1/projects/{project_id}/locations/{region}', 'adc', 'Authorization', '["project_id", "region"]', 0),
+('gemini_enterprise_agent_platform_anthropic_key', 'gemini_enterprise_agent_platform', 'Gemini Enterprise Agent Platform Anthropic Key', 'anthropic', 'https://aiplatform.googleapis.com/v1/projects/{project_id}/locations/{region}', 'header', 'Authorization', '["api_key", "project_id", "region"]', 0),
+('gemini_enterprise_agent_platform_key', 'gemini_enterprise_agent_platform', 'Gemini Enterprise Agent Platform Key', 'google', 'https://aiplatform.googleapis.com/v1/projects/{project_id}/locations/{region}', 'header', 'Authorization', '["api_key", "project_id", "region"]', 0),
+('gemini_enterprise_agent_platform_openai_adc', 'gemini_enterprise_agent_platform', 'Gemini Enterprise Agent Platform OpenAI ADC', 'openai', 'https://aiplatform.googleapis.com/v1/projects/{project_id}/locations/{region}/endpoints/openapi', 'adc', 'Authorization', '["project_id", "region"]', 0),
+('gemini_enterprise_agent_platform_openai_key', 'gemini_enterprise_agent_platform', 'Gemini Enterprise Agent Platform OpenAI Key', 'openai', 'https://aiplatform.googleapis.com/v1/projects/{project_id}/locations/{region}/endpoints/openapi', 'bearer', 'Authorization', '["api_key", "project_id", "region"]', 0),
 ('github_copilot_bearer', 'github_copilot', 'GitHub Copilot Token', 'openai', 'https://api.githubcopilot.com', 'bearer', 'Authorization', '["api_key"]', 0),
 ('google_key', 'google', 'Google AI Studio Key', 'google', 'https://generativelanguage.googleapis.com/v1beta', 'query', 'key', '["api_key"]', 0),
-('gemini_enterprise_agent_platform_adc', 'gemini_enterprise_agent_platform', 'Gemini Enterprise Agent Platform ADC', 'google', 'https://aiplatform.googleapis.com/v1/projects/{project_id}/locations/{region}', 'adc', 'Authorization', '["project_id", "region"]', 0),
-('gemini_enterprise_agent_platform_key', 'gemini_enterprise_agent_platform', 'Gemini Enterprise Agent Platform Key', 'google', 'https://aiplatform.googleapis.com/v1/projects/{project_id}/locations/{region}', 'header', 'Authorization', '["api_key", "project_id", "region"]', 0),
 ('gradium_bearer', 'gradium', 'Gradium Key', 'openai', 'https://api.gradium.ai/v1', 'bearer', 'Authorization', '["api_key"]', 0),
 ('groq_bearer', 'groq', 'Groq Key', 'openai', 'https://api.groq.com/openai/v1', 'bearer', 'Authorization', '["api_key"]', 0),
 ('huggingface_bearer', 'huggingface', 'HuggingFace Key', 'openai', 'https://api-inference.huggingface.co/v1', 'bearer', 'Authorization', '["api_key"]', 0),
 ('hunyuan_bearer', 'hunyuan', '腾讯混元 API Key', 'openai', 'https://api.hunyuan.cloud.tencent.com/v1', 'bearer', 'Authorization', '["api_key"]', 0),
 ('inferrs_none', 'inferrs', 'inferrs (无鉴权)', 'local', 'http://127.0.0.1:8000/v1', 'none', '', '[]', 0),
 ('kilocode_bearer', 'kilocode', 'Kilocode Key', 'openai', 'https://api.kilocode.com/v1', 'bearer', 'Authorization', '["api_key"]', 0),
+('kimi_coding_bearer', 'moonshot', 'Kimi For Coding Key', 'openai', 'https://api.moonshot.cn/v1', 'bearer', 'Authorization', '["api_key"]', 0),
 ('litellm_bearer', 'litellm', 'LiteLLM Key', 'openai', 'http://127.0.0.1:4000/v1', 'bearer', 'Authorization', '["api_key"]', 0),
 ('lmstudio_none', 'lmstudio', 'LM Studio (无鉴权)', 'local', 'http://127.0.0.1:1234/v1', 'none', '', '[]', 0),
 ('minimax_bearer', 'minimax', 'MiniMax API Key', 'openai', 'https://api.minimax.chat/v1', 'bearer', 'Authorization', '["api_key"]', 0),
 ('mistral_bearer', 'mistral', 'Mistral API Key', 'openai', 'https://api.mistral.ai/v1', 'bearer', 'Authorization', '["api_key"]', 0),
-('kimi_coding_bearer', 'moonshot', 'Kimi For Coding Key', 'openai', 'https://api.moonshot.cn/v1', 'bearer', 'Authorization', '["api_key"]', 0),
 ('moonshot_bearer', 'moonshot', '月之暗面 API Key', 'openai', 'https://api.moonshot.cn/v1', 'bearer', 'Authorization', '["api_key"]', 0),
 ('nvidia_bearer', 'nvidia', 'NVIDIA NIM Key', 'openai', 'https://integrate.api.nvidia.com/v1', 'bearer', 'Authorization', '["api_key"]', 0),
 ('ollama_none', 'ollama', 'Ollama 无鉴权', 'local', 'http://127.0.0.1:11434/v1', 'none', '', '[]', 0),
@@ -137,6 +141,7 @@ INSERT OR IGNORE INTO sys_access_endpoints (endpoint_id, provider_id, display_na
 ('xiaomi_singapore_bearer', 'xiaomi', 'Xiaomi MiMo (Singapore)', 'openai', 'https://sg.api.mimo.xiaomi.com/v1', 'bearer', 'Authorization', '["api_key"]', 0),
 ('zai_bearer', 'zai', 'ZAI Key', 'openai', 'https://api.zai.com/v1', 'bearer', 'Authorization', '["api_key"]', 0),
 ('zhipu_bearer', 'zhipu', '智谱 API Key', 'openai', 'https://open.bigmodel.cn/api/paas/v4', 'bearer', 'Authorization', '["api_key"]', 0);
+
 
 INSERT OR IGNORE INTO sys_models (model_id, provider_id, actual_model_id, display_name, context_length, max_output_tokens, supports_vision, supports_tools) VALUES
 ('yi-large', '01ai', 'yi-large', 'Yi Large', 0, 0, 0, 0),
