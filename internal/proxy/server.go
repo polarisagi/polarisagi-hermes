@@ -198,6 +198,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// [Dynamic Prefix Logic] 为 OpenAI 端点动态补充模型前缀
+	if targetProtocol == "openai" && targetEndpoint.ProviderID == "gemini_enterprise_agent_platform" {
+		if strings.HasPrefix(actualModel, "gemini-claude-") || strings.HasPrefix(actualModel, "claude-") {
+			actualModel = "anthropic/" + actualModel
+		} else {
+			actualModel = "google/" + actualModel
+		}
+	}
+
 	// 将整个网络请求周期交给对应大厂的翻译器处理
 	if err := trans.TranslateAndExecute(r.Context(), w, r, bodyBytes, activeChan, targetEndpoint, actualModel); err != nil {
 		slog.Error("翻译器执行失败", "error", err)

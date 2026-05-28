@@ -2,6 +2,7 @@ package channel
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -61,6 +62,44 @@ func NewManager(providerRepo *sqlite.ProviderRepo, modelRepo *sqlite.ModelRepo) 
 	return m
 }
 
+// filterEndpoints 根据用户提供的凭证精确筛选出对应的系统端点
+func filterEndpoints(endpoints []domain.SysAccessEndpoint, credentials []byte) map[string]*domain.SysAccessEndpoint {
+	var credsMap map[string]interface{}
+	if err := json.Unmarshal(credentials, &credsMap); err != nil {
+		credsMap = make(map[string]interface{})
+	}
+
+	bestEndpoints := make(map[string]*domain.SysAccessEndpoint)
+	maxFieldsCount := make(map[string]int)
+
+	for i := range endpoints {
+		ep := &endpoints[i]
+
+		var reqFields []string
+		if err := json.Unmarshal(ep.RequiredCredentialFields, &reqFields); err != nil {
+			reqFields = []string{}
+		}
+
+		satisfied := true
+		for _, field := range reqFields {
+			if _, exists := credsMap[field]; !exists {
+				satisfied = false
+				break
+			}
+		}
+
+		if satisfied {
+			currentFieldsCount := len(reqFields)
+			if existingCount, exists := maxFieldsCount[ep.APIProtocol]; !exists || currentFieldsCount > existingCount {
+				bestEndpoints[ep.APIProtocol] = ep
+				maxFieldsCount[ep.APIProtocol] = currentFieldsCount
+			}
+		}
+	}
+
+	return bestEndpoints
+}
+
 // Reload 从数据库热加载所有开启的渠道和模型
 func (m *Manager) Reload(ctx context.Context) error {
 	m.mu.Lock()
@@ -100,10 +139,7 @@ func (m *Manager) Reload(ctx context.Context) error {
 			continue
 		}
 
-		endpointsMap := make(map[string]*domain.SysAccessEndpoint)
-		for i := range endpointsList {
-			endpointsMap[endpointsList[i].APIProtocol] = &endpointsList[i]
-		}
+		endpointsMap := filterEndpoints(endpointsList, p.AuthCredentials)
 
 		provCopy := p
 		ch := &ActiveChannel{
