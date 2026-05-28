@@ -1,6 +1,6 @@
 // Anthropic 响应流式/非流式处理 + SSE 写入工具
 // 从 Google Agent Platform 后端读取 GenerateContentResponse，实时转换为 Anthropic SSE 格式并推送给客户端
-package anthropic
+package togoogle
 
 import (
 	"bytes"

@@ -1,4 +1,4 @@
-package anthropic
+package togoogle
 
 import (
 	"encoding/json"

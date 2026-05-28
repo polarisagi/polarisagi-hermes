@@ -14,8 +14,8 @@ import (
 	"polaris-hermes/internal/service/client"
 	"polaris-hermes/internal/service/router"
 	"polaris-hermes/internal/translator"
-	"polaris-hermes/internal/translator/anthropic"
-	openaitrans "polaris-hermes/internal/translator/openai"
+	anthropic2google "polaris-hermes/internal/translator/anthropic/togoogle"
+	openai2openai "polaris-hermes/internal/translator/openai/toopenai"
 	"polaris-hermes/pkg/logger"
 )
 
@@ -60,11 +60,11 @@ func main() {
 	transFactory := translator.NewTranslatorFactory()
 	
 	// OpenAI 源协议
-	transFactory.Register("openai_openai", openaitrans.NewOpenAITranslator()) // 直连透传
-	transFactory.Register("openai_local", openaitrans.NewOpenAITranslator()) // 本地模型透传 (等同 openai_openai)
+	transFactory.Register("openai_openai", openai2openai.NewOpenAITranslator()) // 直连透传
+	transFactory.Register("openai_local", openai2openai.NewOpenAITranslator()) // 本地模型透传 (等同 openai_openai)
 	
 	// Anthropic 源协议
-	transFactory.Register("anthropic_google", anthropic.NewAnthropicGoogleTranslator()) // Anthropic 转 Google GEAP
+	transFactory.Register("anthropic_google", anthropic2google.NewAnthropicGoogleTranslator()) // Anthropic 转 Google GEAP
 
 	// 6. 初始化高并发 Proxy 层
 	proxyServer := proxy.NewServer(pipeline, chanManager, transFactory)

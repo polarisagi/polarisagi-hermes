@@ -1,7 +1,7 @@
 // Anthropic 协议数据模型定义
 // 包含：请求/响应结构体、SSE 流式事件结构体
 // 用于 Anthropic ↔ Vertex/OpenAI 的协议转换适配
-package anthropic
+package togoogle
 
 // MessageRequest Anthropic Messages API 请求结构
 // 对应 POST https://api.anthropic.com/v1/messages

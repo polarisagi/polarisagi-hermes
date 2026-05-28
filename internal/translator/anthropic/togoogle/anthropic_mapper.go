@@ -1,6 +1,6 @@
 // Anthropic → Google Agent Platform 请求映射器
 // 将 Anthropic Messages API 格式转换为 GEAP GenerateContent API 格式
-package anthropic
+package togoogle
 
 import (
 	"strings"
