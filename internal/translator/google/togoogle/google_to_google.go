@@ -95,7 +95,7 @@ func (t *GoogleToGoogleTranslator) TranslateAndExecute(
 	if strings.Contains(proxyReq.URL.RawQuery, "alt=sse") || strings.Contains(r.URL.Path, "stream") {
 		translator.ForwardStreamBody(w, resp.Body)
 	} else {
-		io.Copy(w, resp.Body)
+		_, _ = io.Copy(w, resp.Body)
 	}
 	return nil
 }

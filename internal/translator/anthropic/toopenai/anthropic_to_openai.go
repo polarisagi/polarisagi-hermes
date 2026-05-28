@@ -122,7 +122,7 @@ func (t *AnthropicToOpenAITranslator) TranslateAndExecute(
 func (t *AnthropicToOpenAITranslator) handleNonStream(w http.ResponseWriter, resp *http.Response, targetModel string) {
 	body, _ := io.ReadAll(resp.Body)
 	var oResp map[string]interface{}
-	json.Unmarshal(body, &oResp)
+	_ = json.Unmarshal(body, &oResp)
 
 	text := ""
 	stopReason := "end_turn"
@@ -174,7 +174,7 @@ func (t *AnthropicToOpenAITranslator) handleNonStream(w http.ResponseWriter, res
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(aResp)
+	_ = json.NewEncoder(w).Encode(aResp)
 }
 
 func (t *AnthropicToOpenAITranslator) handleStream(w http.ResponseWriter, resp *http.Response, targetModel string) {

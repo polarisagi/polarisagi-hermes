@@ -83,7 +83,7 @@ func (t *AnthropicToAnthropicTranslator) TranslateAndExecute(
 	if stream {
 		translator.ForwardStreamBody(w, resp.Body)
 	} else {
-		io.Copy(w, resp.Body)
+		_, _ = io.Copy(w, resp.Body)
 	}
 	return nil
 }

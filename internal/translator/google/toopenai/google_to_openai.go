@@ -117,7 +117,7 @@ func (t *GoogleToOpenAITranslator) TranslateAndExecute(
 func (t *GoogleToOpenAITranslator) handleNonStream(w http.ResponseWriter, resp *http.Response, targetModel string) {
 	body, _ := io.ReadAll(resp.Body)
 	var oResp map[string]interface{}
-	json.Unmarshal(body, &oResp)
+	_ = json.Unmarshal(body, &oResp)
 
 	text := ""
 	if choices, ok := oResp["choices"].([]interface{}); ok && len(choices) > 0 {
@@ -146,7 +146,7 @@ func (t *GoogleToOpenAITranslator) handleNonStream(w http.ResponseWriter, resp *
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(gResp)
+	_ = json.NewEncoder(w).Encode(gResp)
 }
 
 func (t *GoogleToOpenAITranslator) handleStream(w http.ResponseWriter, resp *http.Response, targetModel string) {

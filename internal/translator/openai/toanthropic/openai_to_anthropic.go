@@ -146,7 +146,7 @@ type anthropicResp struct {
 func (t *OpenAIToAnthropicTranslator) handleNonStream(w http.ResponseWriter, resp *http.Response, targetModel string) {
 	body, _ := io.ReadAll(resp.Body)
 	var aResp anthropicResp
-	json.Unmarshal(body, &aResp)
+	_ = json.Unmarshal(body, &aResp)
 
 	text := ""
 	if len(aResp.Content) > 0 {
@@ -181,7 +181,7 @@ func (t *OpenAIToAnthropicTranslator) handleNonStream(w http.ResponseWriter, res
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(oResp)
+	_ = json.NewEncoder(w).Encode(oResp)
 }
 
 func (t *OpenAIToAnthropicTranslator) handleStream(w http.ResponseWriter, resp *http.Response, targetModel string) {

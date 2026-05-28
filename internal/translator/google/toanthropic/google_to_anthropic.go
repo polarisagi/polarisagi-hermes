@@ -120,7 +120,7 @@ func (t *GoogleToAnthropicTranslator) TranslateAndExecute(
 func (t *GoogleToAnthropicTranslator) handleNonStream(w http.ResponseWriter, resp *http.Response, targetModel string) {
 	body, _ := io.ReadAll(resp.Body)
 	var aResp map[string]interface{}
-	json.Unmarshal(body, &aResp)
+	_ = json.Unmarshal(body, &aResp)
 
 	text := ""
 	if contents, ok := aResp["content"].([]interface{}); ok && len(contents) > 0 {
@@ -147,7 +147,7 @@ func (t *GoogleToAnthropicTranslator) handleNonStream(w http.ResponseWriter, res
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(gResp)
+	_ = json.NewEncoder(w).Encode(gResp)
 }
 
 func (t *GoogleToAnthropicTranslator) handleStream(w http.ResponseWriter, resp *http.Response, targetModel string) {
