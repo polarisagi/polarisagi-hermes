@@ -61,4 +61,7 @@ type UserProvider struct {
 	
 	// 以下字段用于内存态状态控制，非数据库字段
 	CurrentConcurrent int `json:"-"`
+
+	// 仅用于渠道创建时的暂态字段
+	EnableClaude bool `json:"enable_claude"`
 }

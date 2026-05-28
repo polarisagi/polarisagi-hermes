@@ -14,7 +14,7 @@ export default {
             nodeForm: {
                 id: 0, provider: 'openai', name: '', credentials: '', project_id: '', location: 'global', base_url: '',
                 priority: 10, limit_percent: 90.0, balance: 0.0, min_request_interval_sec: 0, concurrency: 0,
-                valid_from: '', valid_to: '', status: 1
+                valid_from: '', valid_to: '', status: 1, enable_claude: false
             },
             
             toDatetimeLocal(dt) {
@@ -181,7 +181,7 @@ export default {
                     this.nodeForm = {
                         id: 0, provider: 'openai', name: '', credentials: '', project_id: '', location: 'global', base_url: '',
                         priority: 10, limit_percent: 90.0, balance: 0.0, min_request_interval_sec: 0, concurrency: 0,
-                        valid_from: `${today}T00:00:00`, valid_to: `2099-12-31T23:59:59`, status: 1
+                        valid_from: `${today}T00:00:00`, valid_to: `2099-12-31T23:59:59`, status: 1, enable_claude: false
                     };
                     this.nodeModal = { show: true, isEdit: false };
                 }
@@ -242,6 +242,7 @@ export default {
                         min_interval_sec: form.min_request_interval_sec,
                         valid_from: this.fromDatetimeLocal(form.valid_from),
                         valid_to: this.fromDatetimeLocal(form.valid_to),
+                        enable_claude: form.enable_claude,
                     };
                     const res = await fetch('/api/admin/nodes', {
                         method,
@@ -470,6 +471,16 @@ export default {
                                         </template>
                                     </select>
                                 </label>
+
+                                <template x-if="nodeForm.provider === 'gemini_enterprise_agent_platform' && !nodeModal.isEdit">
+                                    <div class="form-control w-full justify-center">
+                                        <label class="label cursor-pointer pb-0 mt-2">
+                                            <span class="label-text font-medium">开启 Claude 模型支持</span> 
+                                            <input type="checkbox" x-model="nodeForm.enable_claude" class="toggle toggle-primary toggle-sm" />
+                                        </label>
+                                        <div class="label pt-1"><span class="label-text-alt text-base-content/50">若关闭，将不导入 Claude 模型</span></div>
+                                    </div>
+                                </template>
                             </div>
                             <div class="grid grid-cols-1 gap-4">
                                 <label class="form-control w-full">

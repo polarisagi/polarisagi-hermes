@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"polaris-hermes/internal/domain"
 )
@@ -177,15 +178,19 @@ func (r *ProviderRepo) CreateUserProvider(ctx context.Context, p *domain.UserPro
 	// 使用 COALESCE 优先采用 sys_model_intent_dict 中正确的 tier 数据。
 	// 本地模型（auth_type='none'，如 Ollama/vLLM）跳过自动导入，由用户手动配置模型名。
 	if p.ID > 0 {
-		_ = r.seedUserModels(ctx, p.ID, p.ProviderID)
+		_ = r.seedUserModels(ctx, p.ID, p.ProviderID, p.EnableClaude)
 	}
 	return nil
 }
 
 // seedUserModels 在创建渠道后，批量将该厂商的所有系统模型导入为用户模型实例。
 // tier 从 sys_model_intent_dict 获取（单一数据源），若无记录则 fallback 到 'smart'。
-func (r *ProviderRepo) seedUserModels(ctx context.Context, userProviderID int, providerID string) error {
-	seedSQL := `
+func (r *ProviderRepo) seedUserModels(ctx context.Context, userProviderID int, providerID string, enableClaude bool) error {
+	extraCondition := ""
+	if providerID == "gemini_enterprise_agent_platform" && !enableClaude {
+		extraCondition = " AND sm.model_id NOT LIKE '%claude%' "
+	}
+	seedSQL := fmt.Sprintf(`
 		INSERT OR IGNORE INTO user_models (user_provider_id, display_name, model_id, capability_tier, is_active)
 		SELECT DISTINCT
 			? AS user_provider_id,
@@ -197,8 +202,8 @@ func (r *ProviderRepo) seedUserModels(ctx context.Context, userProviderID int, p
 			) AS capability_tier,
 			1 AS is_active
 		FROM sys_models sm
-		WHERE sm.provider_id = ?
-	`
+		WHERE sm.provider_id = ? %s
+	`, extraCondition)
 	_, err := DB().ExecContext(ctx, seedSQL, userProviderID, providerID)
 	return err
 }
