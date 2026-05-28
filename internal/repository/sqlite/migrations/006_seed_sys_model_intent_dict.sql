@@ -266,7 +266,6 @@ INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 ('rekaai/reka-edge', 'fast'),
 
 -- SenseNova flash
-('sensenova-6.0-flash', 'fast'),
 
 -- Kimi K2 turbo (fast variant)
 ('kimi-k2-turbo', 'fast'),
@@ -278,7 +277,6 @@ INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 ('qwen/qwen3-coder-flash', 'fast'),
 
 -- DeepSeek V4 Flash (various provider paths)
-('accounts/fireworks/models/deepseek-v4-flash', 'fast'),
 
 -- Gemma small models
 ('unsloth/gemma-3-12b-it', 'fast'),
@@ -405,7 +403,6 @@ INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 ('gemini-3-1-pro-preview', 'smart'),
 
 -- DeepSeek flagship models
-('deepseek-v4-pro', 'smart'),
 ('deepseek-ai/DeepSeek-V3', 'smart'),
 ('deepseek-ai/DeepSeek-V3-0324-TEE', 'smart'),
 ('deepseek-ai/DeepSeek-V3.1', 'smart'),
@@ -673,6 +670,5 @@ INSERT OR IGNORE INTO sys_model_intent_dict (model_id, capability_tier) VALUES
 ('meta-llama/Llama-4-8B-Instruct', 'smart'),
 ('mistral-31-24b', 'smart'),
 ('openai-gpt-4o-mini-2024-07-18', 'smart'),
-('deepseek-ai/DeepSeek-V3.1-Terminus-TEE', 'smart'),
 ('rednote-hilab/dots.ocr', 'smart'),
 ('vllm/meta-llama/Llama-4-8B-Instruct', 'smart');
