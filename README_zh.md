@@ -1,8 +1,8 @@
 # Polaris-Hermes 🌌
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/polarisagi/polaris-hermes)](https://goreportcard.com/report/github.com/polarisagi/polaris-hermes)
+[![Go Report Card](https://goreportcard.com/badge/github.com/polarisagi/polarisagi-hermes)](https://goreportcard.com/report/github.com/polarisagi/polarisagi-hermes)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Release](https://img.shields.io/github/v/release/polarisagi/polaris-hermes)](https://github.com/polarisagi/polaris-hermes/releases)
+[![Release](https://img.shields.io/github/v/release/polarisagi/polarisagi-hermes)](https://github.com/polarisagi/polarisagi-hermes/releases)
 
 <p align="center">
   <a href="README.md">🇬🇧 English</a> | <strong>🇨🇳 简体中文</strong>
@@ -65,7 +65,7 @@
 
 ### 📂 默认数据目录
 
-所有配置、账单记录和 SQLite 数据库均安全保存在：`~/.polaris-hermes/`
+所有配置、账单记录和 SQLite 数据库均安全保存在：`~/.polarisagi-hermes/`
 
 ---
 
@@ -73,12 +73,12 @@
 
 **macOS / Linux:**
 ```bash
-curl -sSL https://raw.githubusercontent.com/polarisagi/polaris-hermes/main/scripts/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/polarisagi/polarisagi-hermes/main/scripts/install.sh | bash
 ```
 
 **Windows (以管理员身份打开 PowerShell):**
 ```powershell
-iwr -useb https://raw.githubusercontent.com/polarisagi/polaris-hermes/main/scripts/install.ps1 | iex
+iwr -useb https://raw.githubusercontent.com/polarisagi/polarisagi-hermes/main/scripts/install.ps1 | iex
 ```
 *安装完成后，Polaris-Hermes 将作为后台服务自动运行，并开机自启。*
 
@@ -114,13 +114,13 @@ TEST_MODE=true go run ./cmd/polaris
 
 **macOS / Linux:**
 ```bash
-curl -sSL https://raw.githubusercontent.com/polarisagi/polaris-hermes/main/scripts/uninstall.sh | bash
+curl -sSL https://raw.githubusercontent.com/polarisagi/polarisagi-hermes/main/scripts/uninstall.sh | bash
 ```
 **Windows:**
 ```powershell
-iwr -useb https://raw.githubusercontent.com/polarisagi/polaris-hermes/main/scripts/uninstall.ps1 | iex
+iwr -useb https://raw.githubusercontent.com/polarisagi/polarisagi-hermes/main/scripts/uninstall.ps1 | iex
 ```
-> **注意**: 卸载只移除服务和二进制，数据保留在 `~/.polaris-hermes/`，如需彻底清理请手动删除。
+> **注意**: 卸载只移除服务和二进制，数据保留在 `~/.polarisagi-hermes/`，如需彻底清理请手动删除。
 
 ---
 
@@ -131,6 +131,6 @@ MIT License. *(如果您使用了此代码，请保留原作者信息：`mrlaoli
 
 ### 🌐 链接与联系方式
 * **官方网站**: [https://polarisagi.online/](https://polarisagi.online/)
-* **GitHub 仓库**: [https://github.com/polarisagi/polaris-hermes](https://github.com/polarisagi/polaris-hermes)
+* **GitHub 仓库**: [https://github.com/polarisagi/polarisagi-hermes](https://github.com/polarisagi/polarisagi-hermes)
 * **作者 / 创作者**: `mrlaoliai` (欢迎在 小红书、抖音、TikTok、X 平台关注同名账号)
 * **联系邮箱**: [polarisagi.online@gmail.com](mailto:polarisagi.online@gmail.com)

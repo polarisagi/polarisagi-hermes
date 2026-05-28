@@ -2,16 +2,16 @@
 # 监听的本地地址和端口
 listen_addr = "127.0.0.1:27777"
 
-# 默认工作空间目录，如果留空将默认使用 ~/.polaris-hermes/
-work_dir = "~/.polaris-hermes/"
+# 默认工作空间目录，如果留空将默认使用 ~/.polarisagi-hermes/
+work_dir = "~/.polarisagi-hermes/"
 
 [database]
 # 可选：配置底层 SQLite 数据库的位置。
 # 如果留空，将默认在 work_dir 下生成 polaris_hermes.db
-path = "~/.polaris-hermes/polaris_hermes.db"
+path = "~/.polarisagi-hermes/polaris_hermes.db"
 
 [sync]
 # 数据下载保存目录
-data_dir = "~/.polaris-hermes/data/external"
+data_dir = "~/.polarisagi-hermes/data/external"
 # 是否启用 Git 版本控制来检测数据变更
 enable_git_tracking = true

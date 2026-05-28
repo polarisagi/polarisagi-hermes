@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"strings"
 
-	"polaris-hermes/internal/service/channel"
+	"github.com/polarisagi/polarisagi-hermes/internal/service/channel"
 )
 
 // handleAnthropicNonStreamResponse 处理 Google Agent Platform 非流式响应，提取文本和用量，转为 Anthropic JSON 格式返回

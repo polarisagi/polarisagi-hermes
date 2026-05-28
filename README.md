@@ -1,8 +1,8 @@
 # Polaris-Hermes 🌌
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/polarisagi/polaris-hermes)](https://goreportcard.com/report/github.com/polarisagi/polaris-hermes)
+[![Go Report Card](https://goreportcard.com/badge/github.com/polarisagi/polarisagi-hermes)](https://goreportcard.com/report/github.com/polarisagi/polarisagi-hermes)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Release](https://img.shields.io/github/v/release/polarisagi/polaris-hermes)](https://github.com/polarisagi/polaris-hermes/releases)
+[![Release](https://img.shields.io/github/v/release/polarisagi/polarisagi-hermes)](https://github.com/polarisagi/polarisagi-hermes/releases)
 
 <p align="center">
   <strong>🇬🇧 English</strong> | <a href="README_zh.md">🇨🇳 简体中文</a>
@@ -65,7 +65,7 @@ It completely solves business interruptions caused by API Key rate limits, bans,
 
 ### 📂 Default Directory
 All configurations, billing records, and SQLite databases (`polaris_hermes.db`) are safely stored in:
-`~/.polaris-hermes/`
+`~/.polarisagi-hermes/`
 
 ---
 
@@ -73,12 +73,12 @@ All configurations, billing records, and SQLite databases (`polaris_hermes.db`) 
 
 **macOS / Linux:**
 ```bash
-curl -sSL https://raw.githubusercontent.com/polarisagi/polaris-hermes/main/scripts/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/polarisagi/polarisagi-hermes/main/scripts/install.sh | bash
 ```
 
 **Windows (PowerShell as Admin):**
 ```powershell
-iwr -useb https://raw.githubusercontent.com/polarisagi/polaris-hermes/main/scripts/install.ps1 | iex
+iwr -useb https://raw.githubusercontent.com/polarisagi/polarisagi-hermes/main/scripts/install.ps1 | iex
 ```
 *The gateway will run as a background service and auto-start on boot.*
 
@@ -114,13 +114,13 @@ TEST_MODE=true go run ./cmd/polaris
 
 **macOS / Linux:**
 ```bash
-curl -sSL https://raw.githubusercontent.com/polarisagi/polaris-hermes/main/scripts/uninstall.sh | bash
+curl -sSL https://raw.githubusercontent.com/polarisagi/polarisagi-hermes/main/scripts/uninstall.sh | bash
 ```
 **Windows:**
 ```powershell
-iwr -useb https://raw.githubusercontent.com/polarisagi/polaris-hermes/main/scripts/uninstall.ps1 | iex
+iwr -useb https://raw.githubusercontent.com/polarisagi/polarisagi-hermes/main/scripts/uninstall.ps1 | iex
 ```
-> **Note**: Uninstalling only removes the service and binary. Data remains safely in `~/.polaris-hermes/`. Delete it manually if you want a complete wipe.
+> **Note**: Uninstalling only removes the service and binary. Data remains safely in `~/.polarisagi-hermes/`. Delete it manually if you want a complete wipe.
 
 ---
 
@@ -131,6 +131,6 @@ MIT License. *(If you use this code, please retain the original author credit: `
 
 ### 🌐 Links & Contact
 * **Official Website**: [https://polarisagi.online/](https://polarisagi.online/)
-* **GitHub Repository**: [https://github.com/polarisagi/polaris-hermes](https://github.com/polarisagi/polaris-hermes)
+* **GitHub Repository**: [https://github.com/polarisagi/polarisagi-hermes](https://github.com/polarisagi/polarisagi-hermes)
 * **Author / Creator**: `mrlaoliai` (Find me on Xiaohongshu, Douyin, TikTok, and X)
 * **Contact Email**: [polarisagi.online@gmail.com](mailto:polarisagi.online@gmail.com)

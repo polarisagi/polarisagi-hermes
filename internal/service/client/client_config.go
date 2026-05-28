@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"polaris-hermes/internal/domain"
-	"polaris-hermes/internal/repository/sqlite"
+	"github.com/polarisagi/polarisagi-hermes/internal/domain"
+	"github.com/polarisagi/polarisagi-hermes/internal/repository/sqlite"
 )
 
 // ─────────────────────────────────────────────
@@ -56,7 +56,7 @@ type envKeyDef struct {
 }
 
 // polarisAPIKey 是注入给客户端的占位 API Key（网关内部不校验 key，直接路由）
-const polarisAPIKey = "sk-polaris-hermes"
+const polarisAPIKey = "sk-polarisagi-hermes"
 
 // polarisMarker 用于检测配置中是否已被 Polaris 注入（通过端口号或标识字符串）
 const polarisMarker = "27777"

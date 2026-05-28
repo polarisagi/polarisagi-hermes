@@ -43,7 +43,7 @@ func LoadConfig(path string) error {
 			Path: "",
 		},
 		Sync: SyncConfig{
-			DataDir:           "~/.polaris-hermes/data/external",
+			DataDir:           "~/.polarisagi-hermes/data/external",
 			EnableGitTracking: false,
 		},
 	}

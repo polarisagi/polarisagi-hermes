@@ -102,7 +102,7 @@ export default {
                         <div class="w-3 h-3 rounded-full bg-warning"></div>
                         <div class="w-3 h-3 rounded-full bg-success"></div>
                     </div>
-                    <span class="text-base-content/50 text-xs font-mono ml-2">polaris-hermes.log</span>
+                    <span class="text-base-content/50 text-xs font-mono ml-2">polarisagi-hermes.log</span>
                 </div>
                 <div class="flex-1 overflow-auto p-4 font-mono text-[13px] leading-relaxed" id="logContainer">
                     <pre class="whitespace-pre-wrap break-all" x-text="$store.global.logsText"></pre>

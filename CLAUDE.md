@@ -41,7 +41,7 @@ make run-test           # 本地测试模式启动 (监听 28889 端口，避免
 go test ./...           # 运行全部测试
 go build ./...          # 仅做编译检查
 ```
-数据目录：`~/.polaris-hermes/`（SQLite 数据库）  
+数据目录：`~/.polarisagi-hermes/`（SQLite 数据库）  
 管理后台：`http://127.0.0.1:27777/dashboard`
 
 > **🤖 AI 编程客户端本地测试须知**：

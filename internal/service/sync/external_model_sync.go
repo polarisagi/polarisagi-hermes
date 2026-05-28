@@ -15,10 +15,10 @@ import (
 	"strings"
 	"time"
 
-	"polaris-hermes/internal/config"
-	"polaris-hermes/internal/domain"
-	"polaris-hermes/internal/repository/sqlite"
-	"polaris-hermes/internal/service/router"
+	"github.com/polarisagi/polarisagi-hermes/internal/config"
+	"github.com/polarisagi/polarisagi-hermes/internal/domain"
+	"github.com/polarisagi/polarisagi-hermes/internal/repository/sqlite"
+	"github.com/polarisagi/polarisagi-hermes/internal/service/router"
 )
 
 type SyncService struct {

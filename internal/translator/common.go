@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"polaris-hermes/internal/domain"
-	"polaris-hermes/internal/service/channel"
+	"github.com/polarisagi/polarisagi-hermes/internal/domain"
+	"github.com/polarisagi/polarisagi-hermes/internal/service/channel"
 )
 
 // BuildTargetURL 实现多态路由分发，原生支持 Vertex 端点的多子路径拼接

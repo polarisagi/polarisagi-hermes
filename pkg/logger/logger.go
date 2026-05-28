@@ -1,6 +1,6 @@
 // 日志系统：同时输出到 stdout 和日志文件
 // 支持运行时切换 Debug 日志级别，无需重启网关
-// 日志文件存储在 ~/.polaris-hermes/polaris-hermes.log
+// 日志文件存储在 ~/.polarisagi-hermes/polarisagi-hermes.log
 package logger
 
 import (
@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"polaris-hermes/internal/config"
+	"github.com/polarisagi/polarisagi-hermes/internal/config"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
@@ -24,16 +24,16 @@ func GetLogPath() string {
 	if workDir == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return "./polaris-hermes.log"
+			return "./polarisagi-hermes.log"
 		}
-		workDir = filepath.Join(home, ".polaris-hermes")
+		workDir = filepath.Join(home, ".polarisagi-hermes")
 	}
 
 	if err := os.MkdirAll(workDir, 0755); err != nil {
-		return "./polaris-hermes.log"
+		return "./polarisagi-hermes.log"
 	}
 
-	return filepath.Join(workDir, "polaris-hermes.log")
+	return filepath.Join(workDir, "polarisagi-hermes.log")
 }
 
 // SetDebug 运行时切换 Debug 日志级别，无需重启网关

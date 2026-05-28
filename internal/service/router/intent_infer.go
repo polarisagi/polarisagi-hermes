@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"polaris-hermes/internal/domain"
-	"polaris-hermes/internal/repository/sqlite"
+	"github.com/polarisagi/polarisagi-hermes/internal/domain"
+	"github.com/polarisagi/polarisagi-hermes/internal/repository/sqlite"
 )
 
 // IntentInferer 负责推断未知模型的意图标签

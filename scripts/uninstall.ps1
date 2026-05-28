@@ -9,7 +9,7 @@ Write-Host "🗑️ 正在卸载 Polaris Hermes (Windows)..." -ForegroundColor C
 
 $TaskName = "PolarisGatewayService"
 $InstallDir = "C:\ProgramData\PolarisGateway"
-$BinName = "polaris-hermes.exe"
+$BinName = "polarisagi-hermes.exe"
 
 # 检查任务是否存在
 $TaskExists = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
@@ -26,8 +26,8 @@ if (Test-Path $InstallDir) {
 }
 
 Write-Host ""
-Write-Host "⚠️ 注意: 您的数据库和配置数据仍保留在 $env:USERPROFILE\.polaris-hermes 目录中。" -ForegroundColor Yellow
+Write-Host "⚠️ 注意: 您的数据库和配置数据仍保留在 $env:USERPROFILE\.polarisagi-hermes 目录中。" -ForegroundColor Yellow
 Write-Host "如果您想彻底清理所有数据（这会删除所有配置和账单记录），请手动执行：" -ForegroundColor Yellow
-Write-Host "Remove-Item -Path $env:USERPROFILE\.polaris-hermes -Recurse -Force" -ForegroundColor Yellow
+Write-Host "Remove-Item -Path $env:USERPROFILE\.polarisagi-hermes -Recurse -Force" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "✅ 卸载完成！" -ForegroundColor Green

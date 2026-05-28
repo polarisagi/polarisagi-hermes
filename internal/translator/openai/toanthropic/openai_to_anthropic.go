@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"polaris-hermes/internal/domain"
-	"polaris-hermes/internal/pkg/httpclient"
-	"polaris-hermes/internal/service/channel"
-	"polaris-hermes/internal/translator"
+	"github.com/polarisagi/polarisagi-hermes/internal/domain"
+	"github.com/polarisagi/polarisagi-hermes/internal/pkg/httpclient"
+	"github.com/polarisagi/polarisagi-hermes/internal/service/channel"
+	"github.com/polarisagi/polarisagi-hermes/internal/translator"
 )
 
 type OpenAIToAnthropicTranslator struct{}

@@ -7,8 +7,8 @@ if (-not $isAdmin) {
     exit 1
 }
 
-$Repo = "polarisagi/polaris-hermes"
-$BinName = "polaris-hermes.exe"
+$Repo = "polarisagi/polarisagi-hermes"
+$BinName = "polarisagi-hermes.exe"
 $InstallDir = "C:\ProgramData\PolarisGateway"
 
 if (-not (Test-Path $InstallDir)) {
@@ -16,7 +16,7 @@ if (-not (Test-Path $InstallDir)) {
 }
 
 $Arch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "arm64" } else { "amd64" }
-$DownloadUrl = "https://github.com/$Repo/releases/latest/download/polaris-hermes-windows-$Arch.exe"
+$DownloadUrl = "https://github.com/$Repo/releases/latest/download/polarisagi-hermes-windows-$Arch.exe"
 
 $TaskName = "PolarisGatewayService"
 
@@ -27,10 +27,10 @@ if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
     Start-Sleep -Seconds 2
 }
 
-$Process = Get-Process -Name "polaris-hermes" -ErrorAction SilentlyContinue
+$Process = Get-Process -Name "polarisagi-hermes" -ErrorAction SilentlyContinue
 if ($Process) {
     Write-Host "🛑 正在结束旧进程..." -ForegroundColor Cyan
-    Stop-Process -Name "polaris-hermes" -Force -ErrorAction SilentlyContinue
+    Stop-Process -Name "polarisagi-hermes" -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 2
 }
 

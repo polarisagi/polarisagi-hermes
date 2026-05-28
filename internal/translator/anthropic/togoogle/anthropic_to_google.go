@@ -12,10 +12,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"polaris-hermes/internal/domain"
-	"polaris-hermes/internal/pkg/httpclient"
-	"polaris-hermes/internal/service/channel"
-	"polaris-hermes/internal/translator"
+	"github.com/polarisagi/polarisagi-hermes/internal/domain"
+	"github.com/polarisagi/polarisagi-hermes/internal/pkg/httpclient"
+	"github.com/polarisagi/polarisagi-hermes/internal/service/channel"
+	"github.com/polarisagi/polarisagi-hermes/internal/translator"
 )
 
 // anthropicVersionGEAP GEAP 平台要求的 Claude 请求体版本字段
@@ -86,7 +86,7 @@ func (t *AnthropicGoogleTranslator) TranslateAndExecute(ctx context.Context, w h
 		home, err := os.UserHomeDir()
 		var dumpPath string
 		if err == nil {
-			dumpPath = filepath.Join(home, ".polaris-hermes", "claude_debug_body.json")
+			dumpPath = filepath.Join(home, ".polarisagi-hermes", "claude_debug_body.json")
 		} else {
 			dumpPath = "claude_debug_body.json"
 		}

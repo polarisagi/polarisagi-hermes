@@ -33,10 +33,10 @@ This section guides you through submitting an enhancement suggestion, including 
 ## Local Development Setup
 
 1. Make sure you have Go 1.22+ installed.
-2. Clone the repository: `git clone https://github.com/polarisagi/polaris-hermes.git`
-3. Navigate to the directory: `cd polaris-hermes`
-4. Build the binary: `go build -o polaris-hermes ./cmd/polaris`
-5. Run the server: `./polaris-hermes`
+2. Clone the repository: `git clone https://github.com/polarisagi/polarisagi-hermes.git`
+3. Navigate to the directory: `cd polarisagi-hermes`
+4. Build the binary: `go build -o polarisagi-hermes ./cmd/polaris`
+5. Run the server: `./polarisagi-hermes`
 
 ## Commit Messages
 

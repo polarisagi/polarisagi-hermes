@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"polaris-hermes/internal/domain"
+	"github.com/polarisagi/polarisagi-hermes/internal/domain"
 )
 
 // ProviderRepo 处理供应商和用户渠道的数据存取

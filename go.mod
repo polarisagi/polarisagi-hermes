@@ -1,4 +1,4 @@
-module polaris-hermes
+module github.com/polarisagi/polarisagi-hermes
 
 go 1.26.2
 

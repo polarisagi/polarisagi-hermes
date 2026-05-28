@@ -8,7 +8,7 @@ import (
 	"sort"
 	"embed"
 
-	"polaris-hermes/internal/config"
+	"github.com/polarisagi/polarisagi-hermes/internal/config"
 
 	_ "modernc.org/sqlite"
 )
@@ -34,7 +34,7 @@ func getDBPath() string {
 			slog.Error("❌ 无法获取用户主目录，回退到当前目录", "error", err)
 			return "./polaris_hermes.db"
 		}
-		workDir = filepath.Join(home, ".polaris-hermes")
+		workDir = filepath.Join(home, ".polarisagi-hermes")
 	}
 
 	if err := os.MkdirAll(workDir, 0755); err != nil {

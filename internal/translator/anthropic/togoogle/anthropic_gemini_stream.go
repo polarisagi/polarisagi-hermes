@@ -12,7 +12,7 @@ import (
 	"regexp"
 	"strings"
 
-	"polaris-hermes/internal/service/channel"
+	"github.com/polarisagi/polarisagi-hermes/internal/service/channel"
 )
 
 // streamAnthropicResponse 从 Vertex 后端读取流式 SSE 响应，边读边转为 Anthropic SSE 格式

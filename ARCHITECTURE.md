@@ -1,6 +1,6 @@
-# Polaris-Hermes 架构设计文档
+# Polarisagi-Hermes 架构设计文档
 
-**Polaris-Hermes** 是一款全能型大语言模型 API 代理分发与并发控制网关。它从最初专注于 Google Vertex AI 账号适配的工具，全面进化为支持 OpenAI、Anthropic、Google Gemini 原生、Google Agent Platform、本地模型（Ollama/vLLM）等**所有主流 LLM 协议**的通用 AI 代理网关。
+**Polarisagi-Hermes** 是一款全能型大语言模型 API 代理分发与并发控制网关。它从最初专注于 Google Vertex AI 账号适配的工具，全面进化为支持 OpenAI、Anthropic、Google Gemini 原生、Google Agent Platform、本地模型（Ollama/vLLM）等**所有主流 LLM 协议**的通用 AI 代理网关。
 
 ---
 
@@ -113,9 +113,9 @@ Client Request (Claude Code: /v1/messages | Codex: /v1/chat/completions)
 **核心亮点功能**：打破商业 AI 客户端（如 Claude Code、Codex 等）锁定官方 API 的限制。
 
 - **痛点**：Claude Code、OpenAI Codex 等软件将 Base URL 固定写死，普通用户无法切换大模型厂商或使用自购的第三方 API Key（如 DeepSeek）。
-- **方案**：在管理后台一键注入 Polaris-Hermes 代理配置，自动修改目标软件的环境变量或配置文件，将流量劫持到本地网关，再由网关转发给真正的目标大模型。
+- **方案**：在管理后台一键注入 Polarisagi-Hermes 代理配置，自动修改目标软件的环境变量或配置文件，将流量劫持到本地网关，再由网关转发给真正的目标大模型。
 - **支持客户端**：Claude Code、OpenAI Codex、OpenCode、Gemini CLI、Hermes、OpenClaw 等。
-- **推荐组合**：**特别推荐使用 DeepSeek 作为后端**。DeepSeek 兼容 OpenAI 协议，价格极具竞争力，配合 Polaris-Hermes 的多账号轮询和熔断机制，可实现近乎无感的高可用 AI 编程体验。
+- **推荐组合**：**特别推荐使用 DeepSeek 作为后端**。DeepSeek 兼容 OpenAI 协议，价格极具竞争力，配合 Polarisagi-Hermes 的多账号轮询和熔断机制，可实现近乎无感的高可用 AI 编程体验。
 
 ### 4.5 简单模式 / 专业模式 双 UI 切换
 - **简单模式**：精简表单，隐藏高级配置项（如并发上限、请求间隔、余额预警等），降低用户心智负担，适合个人开发者快速上手。

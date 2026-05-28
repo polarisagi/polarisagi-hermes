@@ -15,7 +15,7 @@ echo "======================================"
 
 # 编译到 tmp_bin 以免污染全局 bin
 mkdir -p tmp_bin
-go build -o tmp_bin/polaris-hermes ./cmd/hermes
+go build -o tmp_bin/polarisagi-hermes ./cmd/hermes
 
 echo "✅ 编译成功！"
 
@@ -24,7 +24,7 @@ echo "🛑 停止旧的网关进程..."
 echo "======================================"
 
 # 查找并杀死正在运行的旧进程
-PID=$(pgrep -f "tmp_bin/polaris-hermes" || true)
+PID=$(pgrep -f "tmp_bin/polarisagi-hermes" || true)
 
 if [ -n "$PID" ]; then
     echo "找到旧进程 PID: $PID，正在关闭..."
@@ -40,7 +40,7 @@ echo "======================================"
 
 # 启动新的实例（放在后台运行或者前台运行，这里为了查看日志放前台）
 # 如果希望它在后台运行，可以加 & 并在末尾 tail -f 日志
-./tmp_bin/polaris-hermes
+./tmp_bin/polarisagi-hermes
 
 
 # bash scripts/test_run.sh

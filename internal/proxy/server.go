@@ -7,11 +7,11 @@ import (
 	"net/http"
 	"strings"
 
-	"polaris-hermes/internal/domain"
-	"polaris-hermes/internal/service/channel"
-	"polaris-hermes/internal/service/router"
-	"polaris-hermes/internal/translator"
-	"polaris-hermes/pkg/logger"
+	"github.com/polarisagi/polarisagi-hermes/internal/domain"
+	"github.com/polarisagi/polarisagi-hermes/internal/service/channel"
+	"github.com/polarisagi/polarisagi-hermes/internal/service/router"
+	"github.com/polarisagi/polarisagi-hermes/internal/translator"
+	"github.com/polarisagi/polarisagi-hermes/pkg/logger"
 )
 
 // Server 网关的 HTTP 代理数据面

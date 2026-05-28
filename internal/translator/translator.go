@@ -4,8 +4,8 @@ import (
 	"context"
 	"net/http"
 
-	"polaris-hermes/internal/domain"
-	"polaris-hermes/internal/service/channel"
+	"github.com/polarisagi/polarisagi-hermes/internal/domain"
+	"github.com/polarisagi/polarisagi-hermes/internal/service/channel"
 )
 
 // Translator 是协议大翻译官的插件式黑盒抽象接口。

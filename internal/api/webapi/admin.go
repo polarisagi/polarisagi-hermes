@@ -12,14 +12,14 @@ import (
 	"sync"
 	"time"
 
-	"polaris-hermes/internal/repository/sqlite"
-	"polaris-hermes/internal/service/channel"
-	"polaris-hermes/internal/service/client"
-	"polaris-hermes/internal/service/router"
-	"polaris-hermes/internal/domain"
-	modelsync "polaris-hermes/internal/service/sync"
+	"github.com/polarisagi/polarisagi-hermes/internal/repository/sqlite"
+	"github.com/polarisagi/polarisagi-hermes/internal/service/channel"
+	"github.com/polarisagi/polarisagi-hermes/internal/service/client"
+	"github.com/polarisagi/polarisagi-hermes/internal/service/router"
+	"github.com/polarisagi/polarisagi-hermes/internal/domain"
+	modelsync "github.com/polarisagi/polarisagi-hermes/internal/service/sync"
 
-	"polaris-hermes/pkg/logger"
+	"github.com/polarisagi/polarisagi-hermes/pkg/logger"
 )
 
 var (

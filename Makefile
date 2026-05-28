@@ -1,8 +1,8 @@
 .PHONY: all build build-mac build-linux build-windows build-all clean
 
-BINARY_NAME=polaris-hermes
+BINARY_NAME=polarisagi-hermes
 VERSION?=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
-LDFLAGS=-ldflags="-s -w -X 'polaris-hermes/internal/config.Version=${VERSION}' -X 'polaris-hermes/internal/webapi.Version=${VERSION}'"
+LDFLAGS=-ldflags="-s -w -X 'polarisagi-hermes/internal/config.Version=${VERSION}' -X 'polarisagi-hermes/internal/webapi.Version=${VERSION}'"
 
 all: clean build
 
