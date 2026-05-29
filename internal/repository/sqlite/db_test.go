@@ -1,0 +1,34 @@
+package sqlite
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/polarisagi/polarisagi-hermes/internal/config"
+)
+
+func TestInitDB(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "sqlite-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	dbPath := filepath.Join(tmpDir, "test.db")
+	config.GlobalConfig.Database.Path = dbPath
+
+	// This should run all migrations successfully and not call os.Exit(1)
+	InitDB()
+	defer CloseDB()
+
+	// Verify that the _migrations table has our migration files
+	var count int
+	err = db.QueryRow("SELECT COUNT(*) FROM _migrations").Scan(&count)
+	if err != nil {
+		t.Fatalf("failed to query _migrations: %v", err)
+	}
+	if count < 4 {
+		t.Errorf("expected at least 4 migrations applied, got %d", count)
+	}
+}
