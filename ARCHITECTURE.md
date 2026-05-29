@@ -121,6 +121,15 @@ Client Request (Claude Code: /v1/messages | Codex: /v1/chat/completions)
 - **简单模式**：精简表单，隐藏高级配置项（如并发上限、请求间隔、余额预警等），降低用户心智负担，适合个人开发者快速上手。
 - **专业模式**：展开全部控制项，适合有精细化账号管理需求的企业级用户或高级玩家，与"专业模式模型映射"联动。
 
+### 4.6 外部生态聚合与 Git 智能同步引擎 (Zero-Cost Sync)
+**背景**：全球大模型市场瞬息万变，新的模型与厂商层出不穷，单纯依靠静态代码维护数据字典难以跟上发展速度。为此，网关引入了全自动的外部生态聚合模块。
+
+- **生态接入**：网关深度集成了 OpenRouter 和 LiteLLM 两大顶级聚合生态的官方对外接口：
+  - **OpenRouter API** (`https://openrouter.ai/api/v1/providers`, `https://openrouter.ai/api/v1/models`)：获取全球最全的前沿大模型厂商列表，以及权威的模型元数据（上下文长度、多模态能力、定价、上架时间戳）。
+  - **LiteLLM API** (`https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json`)：获取业界标准化的模型账单与参数格式，作为补充的兜底字典。
+- **本地落盘与配置化**：在 `config.toml` 中通过 `[sync].data_dir` 配置外部数据的缓存目录。
+- **Git 智能拦截 (Zero-Cost Sync)**：这是同步模块的极客特性。引擎下载完外部最新的 JSON 后，系统会在底层自动执行 `git status --porcelain` 比对文件差异。若全网数据没有任何更新，系统瞬间中断流程，直接跳过海量 JSON 的内存反序列化和 SQLite 写入；若检测到变更，更新完数据库后系统会自动提交 `git commit`。它不仅做到了真正的“零消耗”同步，还在本地为您留存了一份极其珍贵的“大模型市场进化史” Git 时间快照！
+
 ---
 
 ## 5. 数据库表结构概要

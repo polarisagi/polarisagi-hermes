@@ -50,6 +50,8 @@ go build ./...          # 仅做编译检查
 
 ## 项目概览 & 架构
 
+> 详细的系统分层、核心请求链路及架构设计理念请参阅 [ARCHITECTURE.md](ARCHITECTURE.md) 架构设计文档。
+
 **Polaris Hermes** 是多协议 LLM API 代理网关，支持 OpenAI、Anthropic、Google Agent Platform 互转，提供负载均衡、熔断保护与用量计费，规避单账号速率限制。
 
 ### 请求处理流程
