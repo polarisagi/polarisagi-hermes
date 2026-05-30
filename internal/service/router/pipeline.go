@@ -111,12 +111,19 @@ func (p *Pipeline) RouteRequest(ctx context.Context, requestedModelID string) (*
 	tier := p.resolveCapabilityTier(ctx, requestedModelID)
 	slog.Info("🧠 意图解析完成", "requested_model", requestedModelID, "resolved_tier", tier)
 
-	// Tier 降级熔断链：当目标 tier 无可用节点时，自动降级到 smart 兜底。
-	// 场景：用户后端只有 DeepSeek 的 smart 模型，但客户端发来了 gpt-4o-mini (fast tier)，
-	// 此时不应直接 503，而应降级到 smart 模型处理，保证服务连续性。
-	tiersToTry := []string{tier}
-	if tier != "smart" {
-		tiersToTry = append(tiersToTry, "smart")
+	// Tier 级联熔断链：当目标 tier 无可用节点时，按照业务逻辑寻找替代品。
+	// 核心原则：往高的级别映射（即 fast -> smart -> reasoning），宁愿杀鸡用牛刀也要保证请求成功；
+	// 对于最高级的 reasoning，如果没有节点，则降级到 smart 兜底，避免网关 503 阻塞。
+	var tiersToTry []string
+	switch tier {
+	case "fast":
+		tiersToTry = []string{"fast", "smart", "reasoning"}
+	case "smart":
+		tiersToTry = []string{"smart", "reasoning"}
+	case "reasoning":
+		tiersToTry = []string{"reasoning", "smart"}
+	default:
+		tiersToTry = []string{tier, "smart"}
 	}
 
 	for _, t := range tiersToTry {

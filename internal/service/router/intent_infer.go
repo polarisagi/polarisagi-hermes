@@ -53,17 +53,17 @@ func (i *IntentInferer) InferUnknownModel(ctx context.Context, modelID string) s
 // inferByKeywords 通过内置的高命中率特征字推断模型意图
 func (i *IntentInferer) inferByKeywords(modelID string) string {
 	// 推理/沉思型模型 (Highest Priority for specific keywords)
-	if match, _ := regexp.MatchString(`(?i)(\b(o1|o3|o4|r1|r2)\b|reason|thinking|deepseek-v4-pro)`, modelID); match {
+	if match, _ := regexp.MatchString(`(?i)(\b(o1|o3|o4|r1|r2)\b|reason|thinking|deep-research)`, modelID); match {
 		return "reasoning"
 	}
 
 	// 极速/轻量化模型
-	if match, _ := regexp.MatchString(`(?i)(\bmini\b|haiku|flash|lite|nano|turbo|fast|small)`, modelID); match {
+	if match, _ := regexp.MatchString(`(?i)(\bmini\b|haiku|flash|lite|nano|turbo|fast|small|\b8b\b|\b9b\b|\b12b\b|\b14b\b)`, modelID); match {
 		return "fast"
 	}
 
 	// 旗舰/智能模型
-	if match, _ := regexp.MatchString(`(?i)(sonnet|opus|pro|max|large|gpt-4|gpt-5|v3|v4|ultra|70b|120b|405b)`, modelID); match {
+	if match, _ := regexp.MatchString(`(?i)(sonnet|opus|pro|max|large|gpt-4|gpt-5|v3|v4|ultra|grok|nemotron|sonar|claude-3|claude-4|qwen|ernie)`, modelID); match {
 		return "smart"
 	}
 
