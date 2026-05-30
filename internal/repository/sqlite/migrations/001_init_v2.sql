@@ -8,7 +8,8 @@
 CREATE TABLE IF NOT EXISTS sys_providers (
     provider_id VARCHAR PRIMARY KEY,
     provider_name VARCHAR NOT NULL,
-    description TEXT
+    description TEXT,
+    display_order INTEGER DEFAULT 0
 );
 
 -- 2. sys_access_endpoints
