@@ -100,8 +100,8 @@ Client Request (Claude Code: /v1/messages | Codex: /v1/chat/completions)
   主打"开箱即用，动态映射"。底层彻底移除了 `sys_models` 中冗余的主观梯队标签，引入单一数据源 **意图字典 (Intent Dict)**，将任意模型名（`model_id`）映射为三大核心能力梯队：
   1. **`smart` (旗舰型)**：主攻高难度代码与复杂推理，如 `gpt-4o`, `claude-3-5-sonnet`, `gemini-2.5-pro`。
   2. **`fast` (极速型)**：主攻低延迟、高并发的轻量任务，如 `gpt-4o-mini`, `claude-3-haiku`。
-  3. **`reasoning` (沉思型)**：主攻 CoT 深度思维链逻辑题，如 `o1`, `DeepSeek-R1`。
-  **降级熔断链**：当 `fast` 或 `reasoning` 梯队无可用渠道节点时，系统会自动向下兼容 fallback 到 `smart` 梯队兜底，确保服务不中断。
+  3. **`reasoning` (沉思型)**：主攻 CoT 深度思维链逻辑题，如 `o1`, `DeepSeek-v4-pro`。
+  **向上级联熔断链 (Upward Fallback)**：当请求的梯队无可用节点时，系统采用“向上兼容，杀鸡用牛刀”的降级策略。`fast` 会优先找 `smart`，再找 `reasoning`；请求 `reasoning` 若无节点（如仅配置了 DeepSeek 的 smart 节点），则平稳降级至 `smart` 兜底，最大程度保障客户端不断连。
 
 - **专业模式 (Deterministic Custom Routes)**：
   主打"绝对控制"。通过 `user_custom_routes` 表实现 1:1 强制路由，优先级高于极简模式。支持精确拦截或使用通配符 `*` 兜底，适用于私有化部署模型的特定引流。
@@ -136,9 +136,9 @@ Client Request (Claude Code: /v1/messages | Codex: /v1/chat/completions)
 
 | 表名 | 说明 |
 |------|------|
-| `sys_providers` | 系统内置厂商字典（70+ 家），包含协议类型、默认配置 |
+| `sys_providers` | 系统内置厂商字典（30+ 家），包含协议类型、前端展示排序(`display_order`)及官方兜底端点 |
 | `sys_provider_auth_modes` | 厂商鉴权模式字典，1 对 N，定义 auth_type、header_name、url_template、required_fields |
-| `sys_models` | 系统内置模型物理属性（900+ 条），去除了主观的 capability_tier，仅保留纯客观元数据 |
+| `sys_models` | 极其精简的极客专属模型白名单库（约 60 条核心旗舰/极速/推理模型），内置精准的 `released_at` 时间戳与分类 `capability_tier` |
 | `sys_model_intent_dict` | 全局模型意图单一数据源（model_id → capability_tier），涵盖客户端请求名与服务端真实模型名 |
 | `user_providers` | 用户自定义的渠道账号，关联 sys_providers 和 sys_provider_auth_modes |
 | `user_models` | 创建渠道时由系统自动导入生成的模型可用实例池 |
